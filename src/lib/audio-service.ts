@@ -10,7 +10,7 @@ function isGeminiKey(key?: string): boolean {
 function getApiKey(customApiKey?: string): string {
   const apiKey = customApiKey || process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    throw new Error('API Key is required. Please provide a Gemini API Key (starts with AIza) or OpenAI API Key.');
+    throw new Error('API Key is required. Please provide a Google Gemini API Key or OpenAI API Key.');
   }
   return apiKey;
 }
@@ -25,23 +25,35 @@ export async function transcribeAudio(
 
   if (isGeminiKey(apiKey)) {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const modelsToTry = ['gemini-flash-latest', 'gemini-3.6-flash', 'gemini-3.5-flash'];
 
     const promptText = language === 'si'
       ? 'Transcribe this audio recording exactly into Sinhala script or English text. Output ONLY the transcribed text without additional conversational filler.'
       : 'Transcribe this spoken audio recording exactly into text. Output ONLY the transcribed text.';
 
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          mimeType: 'audio/webm',
-          data: audioBuffer.toString('base64'),
-        },
-      },
-      { text: promptText },
-    ]);
+    let lastError: any = null;
+    for (const mName of modelsToTry) {
+      try {
+        const model = genAI.getGenerativeModel({ model: mName });
+        const result = await model.generateContent([
+          {
+            inlineData: {
+              mimeType: 'audio/webm',
+              data: audioBuffer.toString('base64'),
+            },
+          },
+          { text: promptText },
+        ]);
+        const text = result.response.text();
+        if (text && text.trim()) {
+          return text.trim();
+        }
+      } catch (err) {
+        lastError = err;
+      }
+    }
 
-    return result.response.text().trim() || '';
+    throw new Error(`Gemini audio transcription failed: ${lastError?.message || 'STT error'}`);
   } else {
     const openai = new OpenAI({ apiKey });
     const file = await toFile(audioBuffer, filename, { type: 'audio/webm' });

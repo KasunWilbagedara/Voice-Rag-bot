@@ -22,7 +22,7 @@ type VoiceState = 'idle' | 'listening' | 'transcribing' | 'searching' | 'speakin
 export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
   apiKey,
   voice = 'nova',
-  model = 'gemini-1.5-flash',
+  model = 'gemini-flash-latest',
   language = 'si',
   onLanguageChange,
   onQueryComplete,
