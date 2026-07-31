@@ -4,18 +4,14 @@ import { generateSpeechAudio, TTSVoice } from '@/lib/audio-service';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { text, voice, apiKey } = body;
+    const { text, voice, apiKey, language = 'si' } = body;
 
     if (!text || typeof text !== 'string') {
       return NextResponse.json({ error: 'Text string is required' }, { status: 400 });
     }
 
     const selectedVoice: TTSVoice = voice || 'nova';
-    const audioBuffer = await generateSpeechAudio(text, selectedVoice, apiKey);
-
-    if (!audioBuffer) {
-      return new Response(null, { status: 204 });
-    }
+    const audioBuffer = await generateSpeechAudio(text, selectedVoice, apiKey, language);
 
     return new Response(new Uint8Array(audioBuffer), {
       headers: {

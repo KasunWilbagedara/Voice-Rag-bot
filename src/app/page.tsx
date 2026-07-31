@@ -92,7 +92,7 @@ export default function Home() {
       const ttsRes = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: data.answer, voice, apiKey }),
+        body: JSON.stringify({ text: data.answer, voice, apiKey, language }),
       });
 
       if (ttsRes.ok) {
