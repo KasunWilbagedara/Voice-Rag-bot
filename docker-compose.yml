@@ -1,0 +1,17 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: voice_rag_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: voicerag
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+
+volumes:
+  pgdata:
