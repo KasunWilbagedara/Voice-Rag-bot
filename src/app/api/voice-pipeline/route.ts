@@ -38,9 +38,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2. Vector Search (Gemini text-embedding-004 OR OpenAI embeddings + HNSW Cosine Similarity)
+    // 2. Vector Search (Gemini text-embedding-004 OR OpenAI embeddings + Smart Hybrid Overview)
     const queryEmbedding = await getEmbedding(userQueryText, apiKey);
-    const retrievedChunks = await searchVectorDatabase(queryEmbedding, 4);
+    const retrievedChunks = await searchVectorDatabase(queryEmbedding, 6, userQueryText);
 
     // 3. Conversational LLM Answer Generation (Gemini 1.5/2.0 Flash OR GPT-4o)
     const aiResponseText = await generateVoiceRagAnswer(userQueryText, retrievedChunks, apiKey, model, language);
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     await saveChatHistory(userQueryText, retrievedChunks, aiResponseText);
 
     // 5. Text-to-Speech (TTS)
-    const audioBuffer = await generateSpeechAudio(aiResponseText, voice, apiKey);
+    const audioBuffer = await generateSpeechAudio(aiResponseText, voice, apiKey, language);
 
     // Encode audio response in base64 if available (or null for Web Speech API)
     const audioBase64 = audioBuffer ? audioBuffer.toString('base64') : null;

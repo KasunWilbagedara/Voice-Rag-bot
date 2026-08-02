@@ -34,8 +34,18 @@ function getApiKey(customApiKey?: string): string {
 }
 
 function sanitizeGeminiModelName(modelName: string): string {
-  const validModels = ['gemini-flash-latest', 'gemini-3.6-flash', 'gemini-3.5-flash'];
+  const validModels = [
+    'gemini-1.5-flash',
+    'gemini-2.0-flash',
+    'gemini-2.5-flash',
+    'gemini-flash-latest',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash',
+    'gemini-1.5-pro',
+  ];
   if (validModels.includes(modelName)) return modelName;
+  if (modelName.includes('2.0')) return 'gemini-2.0-flash';
+  if (modelName.includes('1.5')) return 'gemini-1.5-flash';
   return 'gemini-flash-latest';
 }
 
@@ -212,17 +222,38 @@ export async function ingestDocument(
   };
 }
 
-// 4. Vector Search using HNSW cosine similarity distance operator (<=>)
+// 4. Vector Search using HNSW cosine similarity distance + Smart Hybrid Overview Retrieval
 export async function searchVectorDatabase(
   queryEmbedding: number[],
-  topK: number = 4
+  topK: number = 6,
+  queryText?: string
 ): Promise<ChunkItem[]> {
   const dbActive = await isDbConnected();
+  const lowerQuery = (queryText || '').toLowerCase();
+
+  const isGeneralQuery =
+    !queryText ||
+    lowerQuery.includes('මොනාද') ||
+    lowerQuery.includes('මොනවාද') ||
+    lowerQuery.includes('තියෙන්නේ') ||
+    lowerQuery.includes('විස්තර') ||
+    lowerQuery.includes('ලියා') ||
+    lowerQuery.includes('ලේඛන') ||
+    lowerQuery.includes('ඩොකියුමන්ට්') ||
+    lowerQuery.includes('what') ||
+    lowerQuery.includes('summary') ||
+    lowerQuery.includes('overview') ||
+    lowerQuery.includes('about') ||
+    lowerQuery.includes('cv') ||
+    lowerQuery.includes('resume') ||
+    lowerQuery.includes('pdf');
+
+  let results: ChunkItem[] = [];
 
   if (dbActive) {
     const db = getDbPool();
     const vectorStr = `[${queryEmbedding.join(',')}]`;
-    const query = `
+    const vectorQuery = `
       SELECT 
         c.id,
         c.document_id,
@@ -235,9 +266,9 @@ export async function searchVectorDatabase(
       ORDER BY c.embedding <=> $1::vector
       LIMIT $2;
     `;
-    const res = await db.query(query, [vectorStr, topK]);
+    const res = await db.query(vectorQuery, [vectorStr, topK]);
 
-    return res.rows.map((row) => ({
+    results = res.rows.map((row) => ({
       id: row.id,
       documentId: row.document_id,
       documentTitle: row.document_title,
@@ -245,8 +276,31 @@ export async function searchVectorDatabase(
       chunkIndex: row.chunk_index,
       similarity: parseFloat(row.similarity),
     }));
+
+    // If general query, also fetch top document overview chunks (chunk_index 0 & 1)
+    if (isGeneralQuery) {
+      const overviewRes = await db.query(
+        `SELECT c.id, c.document_id, d.title AS document_title, c.content, c.chunk_index, 0.9 AS similarity
+         FROM document_chunks c
+         JOIN documents d ON c.document_id = d.id
+         WHERE c.chunk_index <= 1
+         LIMIT 4;`
+      );
+      for (const row of overviewRes.rows) {
+        if (!results.some((r) => r.id === row.id)) {
+          results.push({
+            id: row.id,
+            documentId: row.document_id,
+            documentTitle: row.document_title,
+            content: row.content,
+            chunkIndex: row.chunk_index,
+            similarity: 0.9,
+          });
+        }
+      }
+    }
   } else {
-    const results = inMemoryStore.chunks.map((chunk) => {
+    const scoredChunks = inMemoryStore.chunks.map((chunk) => {
       const doc = inMemoryStore.documents.find((d) => d.id === chunk.document_id);
       const sim = cosineSimilarity(queryEmbedding, chunk.embedding);
       return {
@@ -259,9 +313,29 @@ export async function searchVectorDatabase(
       };
     });
 
-    results.sort((a, b) => b.similarity - a.similarity);
-    return results.slice(0, topK);
+    scoredChunks.sort((a, b) => b.similarity - a.similarity);
+    results = scoredChunks.slice(0, topK);
+
+    // If general query or limited matches, also include header chunks (index 0, 1)
+    if (isGeneralQuery || results.length < topK) {
+      const overviewChunks = inMemoryStore.chunks.filter((c) => c.chunk_index <= 1);
+      for (const chunk of overviewChunks) {
+        if (!results.some((r) => r.id === chunk.id)) {
+          const doc = inMemoryStore.documents.find((d) => d.id === chunk.document_id);
+          results.push({
+            id: chunk.id,
+            documentId: chunk.document_id,
+            documentTitle: doc ? doc.title : 'Document',
+            content: chunk.content,
+            chunkIndex: chunk.chunk_index,
+            similarity: 0.88,
+          });
+        }
+      }
+    }
   }
+
+  return results.slice(0, Math.max(topK, 6));
 }
 
 // 5. LLM Answer Generation (Gemini gemini-flash-latest OR OpenAI gpt-4o-mini)
@@ -275,25 +349,32 @@ export async function generateVoiceRagAnswer(
   const apiKey = getApiKey(customApiKey);
   const isSinhala = targetLanguage === 'si';
 
-  const contextText = retrievedChunks.length > 0
-    ? retrievedChunks
-        .map((chunk, idx) => `[Source ${idx + 1}: ${chunk.documentTitle}]\n${chunk.content}`)
-        .join('\n\n---\n\n')
-    : 'No relevant context document found.';
+  const contextText =
+    retrievedChunks.length > 0
+      ? retrievedChunks
+          .map((chunk, idx) => `--- DOCUMENT CHUNK ${idx + 1} (File: ${chunk.documentTitle}) ---\n${chunk.content}`)
+          .join('\n\n')
+      : 'No document uploaded yet.';
 
   const languageInstruction = isSinhala
-    ? `CRITICAL MULTILINGUAL & SINHALA REQUIREMENT:
-You MUST synthesize and deliver your response fluently in natural, spoken SINHALA (සිංහල).
-Even if the provided context documents are written in English or another language, extract the factual answer from the English context and translate/explain it directly in clear, natural Sinhala (සිංහල).
-Do NOT use markdown symbols (*, #, -, \`\`\`), lists, or complex formatting, as your text will be converted directly into natural Sinhala audio via Text-to-Speech.`
-    : `VOICE GUIDELINES FOR YOUR RESPONSE:
-1. Speak in a natural, conversational tone suitable for Text-to-Speech (TTS) voice playback.
-2. Keep your answer concise (2-4 sentences max unless detailed step-by-step is requested).
-3. Do NOT use markdown syntax (no asterisks *, hashtags #, bullet points -, or code blocks) because your text will be read aloud.
-4. If the context does not contain enough information to answer, state gracefully: "I couldn't find specific details about that in the uploaded documents."`;
+    ? `CRITICAL MULTILINGUAL & SINHALA VOICE REQUIREMENT:
+You MUST synthesize and deliver your response as an exceptionally smart, articulate AI assistant speaking in natural, fluent SINHALA (සිංහල).
+Even if the provided context documents are written in English or another language, read the English context thoroughly, extract all relevant facts, and explain them directly in smart, clear, elegant, spoken Sinhala (සිංහල).
 
-  const systemPrompt = `You are an intelligent, friendly AI Voice Assistant powering a Voice-RAG system.
-Your job is to answer the user's question clearly, concisely, and naturally based STRICTLY on the provided context documents.
+SMART ACCURATE ANSWER RULES:
+1. Thoroughly analyze the CONTEXT DOCUMENTS below to answer the user's question.
+2. If the user asks a general question like "What is in this document?" or "මේ ඩොකියුමන්ට් එකේ මොනාද තියෙන්නේ?", provide a smart, comprehensive summary of the document (e.g. state candidate name, professional role, key experience, education, skills, or main purpose).
+3. NEVER say you couldn't find any document or information if CONTEXT DOCUMENTS contain text!
+4. Do NOT use markdown symbols (*, #, -, \`\`\`), no tables, no numbered lists, and no bracketed citations like [1] or [Source 1], as your output will be read aloud.
+5. Speak warmly and conversationally in 3-5 clear sentences.`
+    : `SMART ACCURATE VOICE RAG GUIDELINES:
+1. Thoroughly analyze all provided CONTEXT DOCUMENTS to deliver a precise, smart, and highly accurate answer.
+2. If the user asks a general query (e.g. "What is in this document?", "Summarize this file", "Tell me about this CV"), deliver an intelligent overview summarizing the main entity, title, background, skills, or purpose of the document.
+3. NEVER claim you cannot find information when CONTEXT DOCUMENTS contain text.
+4. Format your response strictly for voice playback: 3-5 concise, natural spoken sentences. Absolutely NO markdown syntax (no asterisks *, hashtags #, bullet points -, code blocks, or bracketed citations like [1]).`;
+
+  const systemPrompt = `You are an exceptionally smart, articulate, and accurate AI Voice Assistant powering an enterprise Voice-RAG system.
+Your goal is to provide accurate, intelligent, and insightful answers based on the provided document context.
 
 ${languageInstruction}
 

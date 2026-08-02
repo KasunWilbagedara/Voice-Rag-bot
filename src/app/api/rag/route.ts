@@ -18,8 +18,8 @@ export async function POST(req: Request) {
     // 1. Generate embedding for query (multilingual 1536 dims)
     const queryEmbedding = await getEmbedding(query, apiKey);
 
-    // 2. Vector search using HNSW cosine similarity distance
-    const retrievedChunks = await searchVectorDatabase(queryEmbedding, 4);
+    // 2. Vector search using HNSW cosine similarity + Smart Hybrid Overview
+    const retrievedChunks = await searchVectorDatabase(queryEmbedding, 6, query);
 
     // 3. LLM generation with language instructions (Sinhala 'si' or English 'en')
     const answer = await generateVoiceRagAnswer(query, retrievedChunks, apiKey, model, language);

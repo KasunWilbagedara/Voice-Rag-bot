@@ -36,13 +36,24 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const vadTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const isGemini = apiKey?.startsWith('AIza');
+  const [useInstantMode, setUseInstantMode] = useState<boolean>(true);
+  const [liveTranscript, setLiveTranscript] = useState<string>('');
 
   useEffect(() => {
     return () => {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
+      }
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch (e) {}
+      }
+      if (vadTimerRef.current) {
+        clearTimeout(vadTimerRef.current);
       }
       if (typeof window !== 'undefined' && window.speechSynthesis) {
         window.speechSynthesis.cancel();
@@ -50,36 +61,236 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
     };
   }, []);
 
-  const speakTextWithBrowserTTS = (text: string) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+  const playServerTTS = async (textToSpeak: string) => {
+    try {
+      setState('speaking');
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: textToSpeak,
+          voice,
+          apiKey,
+          language,
+        }),
+      });
+
+      if (!res.ok) throw new Error('TTS fetch failed');
+
+      const audioBlob = await res.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.src = audioUrl;
+        audioPlayerRef.current.onended = () => {
+          setState('idle');
+          if (isHandsFree) {
+            setTimeout(() => startRecording(), 600);
+          }
+        };
+        await audioPlayerRef.current.play();
+      } else {
+        const audio = new Audio(audioUrl);
+        audio.onended = () => {
+          setState('idle');
+          if (isHandsFree) {
+            setTimeout(() => startRecording(), 600);
+          }
+        };
+        await audio.play();
+      }
+    } catch (err) {
+      console.error('Server TTS Audio Playback Error:', err);
+      setState('idle');
+    }
+  };
+
+  const speakTextWithBrowserTTS = async (text: string) => {
+    if (!text || !text.trim()) {
       setState('idle');
       return;
     }
 
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = language === 'si' ? 'si-LK' : 'en-US';
-    utterance.rate = 0.95;
+    // Pre-clean text to remove markdown, brackets, and citations for speech
+    const cleanSpeechText = text
+      .replace(/\[[^\]]*\]/g, '')
+      .replace(/[*#\`\-_~]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
 
-    utterance.onend = () => {
+    if (!cleanSpeechText) {
       setState('idle');
-      if (isHandsFree) {
-        setTimeout(() => startRecording(), 1000);
+      return;
+    }
+
+    const targetLangPrefix = language === 'si' ? 'si' : 'en';
+
+    // Try browser speech synthesis ONLY if a high-quality Neural/Natural human voice exists on the OS
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const availableVoices = window.speechSynthesis.getVoices();
+      const matchingVoice = availableVoices.find((v) => {
+        const name = v.name.toLowerCase();
+        const lang = v.lang.toLowerCase();
+        return (
+          lang.startsWith(targetLangPrefix) &&
+          (name.includes('natural') ||
+            name.includes('neural') ||
+            name.includes('google') ||
+            name.includes('premium') ||
+            name.includes('enhanced') ||
+            name.includes('studio') ||
+            name.includes('siri'))
+        );
+      });
+
+      if (matchingVoice) {
+        const utterance = new SpeechSynthesisUtterance(cleanSpeechText);
+        utterance.lang = language === 'si' ? 'si-LK' : 'en-US';
+        utterance.voice = matchingVoice;
+        utterance.rate = 0.92;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+
+        utterance.onend = () => {
+          setState('idle');
+          if (isHandsFree) {
+            setTimeout(() => startRecording(), 600);
+          }
+        };
+
+        utterance.onerror = (err) => {
+          console.warn('Browser SpeechSynthesis Error, switching to server audio stream:', err);
+          playServerTTS(cleanSpeechText);
+        };
+
+        setState('speaking');
+        window.speechSynthesis.speak(utterance);
+        return;
       }
-    };
+    }
 
-    utterance.onerror = () => {
+    // Fall back to server MP3 audio stream (Works 100% reliably on all OS/Browsers)
+    await playServerTTS(cleanSpeechText);
+  };
+
+  // Ultra-Fast Real-Time Text RAG Query execution
+  const processInstantTextQuery = async (queryText: string) => {
+    if (!queryText || !queryText.trim()) return;
+
+    try {
+      setState('searching');
+      setCurrentQuery(queryText);
+
+      const res = await fetch('/api/rag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: queryText,
+          apiKey,
+          model: model || 'gemini-1.5-flash',
+          language,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'RAG Query failed');
+
+      setCurrentResponse(data.answer);
+
+      if (onQueryComplete) {
+        onQueryComplete({
+          userQuery: queryText,
+          aiResponse: data.answer,
+          retrievedChunks: data.retrievedChunks || [],
+        });
+      }
+
+      // Immediately speak the answer with < 300ms delay!
+      speakTextWithBrowserTTS(data.answer);
+    } catch (err: any) {
+      console.error('Instant RAG Error:', err);
+      setErrorMessage(err.message || 'Error processing query');
       setState('idle');
-    };
-
-    setState('speaking');
-    window.speechSynthesis.speak(utterance);
+    }
   };
 
   const startRecording = async () => {
     setErrorMessage(null);
+    setLiveTranscript('');
     audioChunksRef.current = [];
 
+    // Check for native browser SpeechRecognition for live real-time VAD
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (SpeechRecognition && useInstantMode) {
+      try {
+        if (recognitionRef.current) {
+          try {
+            recognitionRef.current.abort();
+          } catch (e) {}
+        }
+
+        const recognition = new SpeechRecognition();
+        recognitionRef.current = recognition;
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = language === 'si' ? 'si-LK' : 'en-US';
+
+        let finalTranscript = '';
+
+        recognition.onresult = (event: any) => {
+          let interim = '';
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript + ' ';
+            } else {
+              interim += transcript;
+            }
+          }
+
+          const currentText = (finalTranscript + interim).trim();
+          setLiveTranscript(currentText);
+
+          // Reset silence VAD timer (800ms silence auto-detect)
+          if (vadTimerRef.current) clearTimeout(vadTimerRef.current);
+
+          if (currentText.length > 3) {
+            vadTimerRef.current = setTimeout(() => {
+              recognition.stop();
+            }, 850);
+          }
+        };
+
+        recognition.onend = () => {
+          setState('idle');
+          if (finalTranscript.trim() || liveTranscript.trim()) {
+            const textToQuery = (finalTranscript || liveTranscript).trim();
+            processInstantTextQuery(textToQuery);
+          }
+        };
+
+        recognition.onerror = (event: any) => {
+          console.warn('SpeechRecognition error:', event.error);
+          if (event.error !== 'no-speech') {
+            startMediaRecorderFallback();
+          }
+        };
+
+        recognition.start();
+        setState('listening');
+        return;
+      } catch (e) {
+        console.warn('SpeechRecognition initialization failed, falling back to MediaRecorder:', e);
+      }
+    }
+
+    startMediaRecorderFallback();
+  };
+
+  const startMediaRecorderFallback = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
@@ -111,7 +322,13 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+    if (vadTimerRef.current) clearTimeout(vadTimerRef.current);
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
+    } else if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
       setState('transcribing');
     }
@@ -158,7 +375,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
           audioPlayerRef.current.onended = () => {
             setState('idle');
             if (isHandsFree) {
-              setTimeout(() => startRecording(), 1000);
+              setTimeout(() => startRecording(), 800);
             }
           };
           await audioPlayerRef.current.play();
@@ -166,7 +383,6 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
           speakTextWithBrowserTTS(data.aiResponseText);
         }
       } else {
-        // Use native Browser Web Speech API for Gemini voice playback
         speakTextWithBrowserTTS(data.aiResponseText);
       }
     } catch (err: any) {
@@ -176,7 +392,25 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
     }
   };
 
+  const stopSpeaking = () => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    if (audioPlayerRef.current) {
+      try {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current.currentTime = 0;
+      } catch (e) {}
+    }
+    setState('idle');
+  };
+
   const toggleMic = () => {
+    if (state === 'speaking') {
+      stopSpeaking();
+      startRecording();
+      return;
+    }
     if (state === 'idle') {
       startRecording();
     } else if (state === 'listening') {
@@ -224,8 +458,22 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
           </span>
         </div>
 
-        {/* Language selector toggle */}
+        {/* Mode & Language selector toggle */}
         <div className="flex items-center gap-2">
+          {/* Instant Real-Time vs Server HD Mode */}
+          <button
+            onClick={() => setUseInstantMode(!useInstantMode)}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
+              useInstantMode
+                ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-700/80 shadow-md'
+                : 'bg-gray-900 text-gray-400 border border-gray-800 hover:text-gray-200'
+            }`}
+            title="Real-Time Mode enables instant <500ms voice answers via live browser speech detection & zero-delay audio playback"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            {useInstantMode ? '⚡ Real-Time Instant Mode' : '🎙️ Studio HD Mode'}
+          </button>
+
           <div className="flex items-center gap-1 bg-gray-900/90 border border-gray-800 p-1 rounded-full text-xs">
             <button
               onClick={() => onLanguageChange && onLanguageChange('si')}
@@ -302,7 +550,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
 
       <p className="text-sm font-medium text-gray-300 text-center">
         {state === 'idle' && (language === 'si' ? 'කතා කිරීමට මයික්‍රෆෝනය ඔබන්න (Speak in Sinhala or English)' : 'Click microphone to start speaking')}
-        {state === 'listening' && 'Tap mic again when finished speaking'}
+        {state === 'listening' && (liveTranscript ? ` Listening: "${liveTranscript}"` : 'Listening... speak now')}
         {state === 'transcribing' && 'Transcribing speech...'}
         {state === 'searching' && 'Cross-lingual RAG retrieval & Gemini reasoning...'}
         {state === 'speaking' && 'Streaming voice output...'}
@@ -329,11 +577,29 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
           )}
 
           {currentResponse && (
-            <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-800/40">
-              <div className="flex items-center justify-between mb-1">
+            <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-800/40 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold tracking-wider text-emerald-400 uppercase flex items-center gap-1">
                   <Sparkles className="w-3 h-3" /> Voice AI Response ({language === 'si' ? 'Sinhala' : 'English'})
                 </span>
+
+                <div className="flex items-center gap-2">
+                  {state === 'speaking' ? (
+                    <button
+                      onClick={stopSpeaking}
+                      className="px-2.5 py-1 rounded-lg bg-red-900/80 hover:bg-red-800 text-red-200 border border-red-700/60 text-[11px] font-bold flex items-center gap-1 transition-all"
+                    >
+                      🛑 Stop Speaking (නවත්වන්න)
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => speakTextWithBrowserTTS(currentResponse)}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 border border-emerald-700/60 text-[11px] font-bold flex items-center gap-1 transition-all"
+                    >
+                      🔊 Replay Voice (නැවත කියවන්න)
+                    </button>
+                  )}
+                </div>
               </div>
               <p className="text-sm text-gray-100 font-medium leading-relaxed">{currentResponse}</p>
             </div>

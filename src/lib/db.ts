@@ -48,7 +48,13 @@ class MemoryStore {
   chatHistory: InMemoryChat[] = [];
 }
 
-export const inMemoryStore = new MemoryStore();
+const globalForMemory = globalThis as unknown as { inMemoryStore?: MemoryStore };
+
+export const inMemoryStore = globalForMemory.inMemoryStore || new MemoryStore();
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForMemory.inMemoryStore = inMemoryStore;
+}
 
 // Utility to calculate cosine similarity between two vector arrays
 export function cosineSimilarity(a: number[], b: number[]): number {

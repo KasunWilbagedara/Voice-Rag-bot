@@ -116,27 +116,44 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
         </div>
 
-        {/* TTS Voice Selector */}
+        {/* TTS Voice Selector & Quality */}
         <div className="flex flex-col gap-2">
-          <label className="text-xs font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
-            <Volume2 className="w-3.5 h-3.5 text-cyan-400" />
-            Voice Output Tone
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+              <Volume2 className="w-3.5 h-3.5 text-cyan-400" />
+              Human Voice Persona & Tone
+            </label>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-800 font-bold flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-cyan-400" /> HD Neural Synthesis
+            </span>
+          </div>
+
           <div className="grid grid-cols-3 gap-2">
-            {['nova', 'alloy', 'echo', 'fable', 'onyx', 'shimmer'].map((v) => (
+            {[
+              { id: 'nova', label: 'Nova (Warm Female)' },
+              { id: 'alloy', label: 'Alloy (Neutral)' },
+              { id: 'echo', label: 'Echo (Warm Male)' },
+              { id: 'fable', label: 'Fable (Narrator)' },
+              { id: 'onyx', label: 'Onyx (Deep Male)' },
+              { id: 'shimmer', label: 'Shimmer (Bright)' },
+            ].map((v) => (
               <button
-                key={v}
-                onClick={() => setVoice(v)}
-                className={`py-2 px-3 rounded-xl text-xs font-medium capitalize border transition-all ${
-                  voice === v
-                    ? 'bg-brand-600/30 text-brand-300 border-brand-500/60 shadow-lg'
+                key={v.id}
+                onClick={() => setVoice(v.id)}
+                className={`py-2 px-2.5 rounded-xl text-xs font-medium border text-center transition-all ${
+                  voice === v.id
+                    ? 'bg-amber-950/50 text-amber-300 border-amber-500/60 font-bold shadow-lg'
                     : 'bg-gray-900 text-gray-400 border-gray-800 hover:border-gray-700'
                 }`}
               >
-                {v}
+                {v.label}
               </button>
             ))}
           </div>
+
+          <p className="text-[11px] text-gray-400 mt-1">
+            Audio output automatically applies speech cleaning, removing markdown symbols, list numbers, and code syntax for natural human phrasing.
+          </p>
         </div>
 
         {/* Save button */}
