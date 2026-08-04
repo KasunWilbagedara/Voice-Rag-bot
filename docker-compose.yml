@@ -13,5 +13,16 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
 
+  web:
+    build: .
+    container_name: voice_rag_web
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgrespassword@postgres:5432/voicerag
+    depends_on:
+      - postgres
+
 volumes:
   pgdata:
