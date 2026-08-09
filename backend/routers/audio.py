@@ -32,6 +32,10 @@ async def speech_to_text(
         if not audio_bytes:
             raise HTTPException(status_code=400, detail="No audio provided.")
 
+        max_audio_size = 25 * 1024 * 1024  # 25 MB
+        if len(audio_bytes) > max_audio_size:
+            raise HTTPException(status_code=413, detail="Audio file size exceeds maximum allowed limit of 25MB.")
+
         transcribed_text = transcribe_audio(
             audio_bytes=audio_bytes,
             filename=audio.filename or "recording.webm",
@@ -82,6 +86,10 @@ async def unified_voice_pipeline(
         audio_bytes = await audio.read()
         if not audio_bytes:
             raise HTTPException(status_code=400, detail="No audio file provided.")
+
+        max_audio_size = 25 * 1024 * 1024  # 25 MB
+        if len(audio_bytes) > max_audio_size:
+            raise HTTPException(status_code=413, detail="Audio file size exceeds maximum allowed limit of 25MB.")
 
         # 1. Speech-to-Text
         user_query_text = transcribe_audio(

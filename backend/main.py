@@ -1,9 +1,10 @@
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import PORT
-from backend.db import init_db_schema, is_db_connected
+from backend.db import init_db_schema, close_db_pool, is_db_connected
 from backend.routers import documents, rag, audio
 
 logging.basicConfig(
@@ -12,30 +13,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger("voicerag.main")
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Initializing Python Voice-RAG Backend...")
+    init_db_schema()
+    yield
+    logger.info("Shutting down Python Voice-RAG Backend...")
+    close_db_pool()
+
 app = FastAPI(
     title="Voice-RAG Bot Python Backend",
     description="Full Python Backend and RAG Engine for Voice-RAG Bot (Sinhala & English)",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
-
-# Configure CORS for Next.js frontend demonstration UI
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Include API Routers
-app.include_router(documents.router)
-app.include_router(rag.router)
-app.include_router(audio.router)
-
-@app.on_event("startup")
-def on_startup():
-    logger.info("Initializing Python Voice-RAG Backend...")
-    init_db_schema()
 
 @app.get("/")
 def read_root():

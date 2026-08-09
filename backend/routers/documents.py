@@ -33,9 +33,8 @@ Official Portal: https://www.slt.lk/enterprise
 @router.get("")
 def list_documents():
     try:
-        conn = get_db_connection()
-        if conn:
-            try:
+        with get_db_connection() as conn:
+            if conn:
                 with conn.cursor() as cur:
                     query = """
                         SELECT 
@@ -61,20 +60,18 @@ def list_documents():
                             "chunk_count": row[4],
                         })
                     return {"documents": docs, "dbActive": True}
-            finally:
-                conn.close()
-        else:
-            docs = []
-            for doc in in_memory_store.documents:
-                chunk_count = sum(1 for c in in_memory_store.chunks if c["document_id"] == doc["id"])
-                docs.append({
-                    "id": doc["id"],
-                    "title": doc["title"],
-                    "file_type": doc["file_type"],
-                    "created_at": doc["created_at"],
-                    "chunk_count": chunk_count,
-                })
-            return {"documents": docs, "dbActive": False}
+            else:
+                docs = []
+                for doc in in_memory_store.documents:
+                    chunk_count = sum(1 for c in in_memory_store.chunks if c["document_id"] == doc["id"])
+                    docs.append({
+                        "id": doc["id"],
+                        "title": doc["title"],
+                        "file_type": doc["file_type"],
+                        "created_at": doc["created_at"],
+                        "chunk_count": chunk_count,
+                    })
+                return {"documents": docs, "dbActive": False}
     except Exception as e:
         logger.error(f"Failed to list documents: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -89,6 +86,10 @@ async def upload_document(
         content_bytes = await file.read()
         if not content_bytes:
             raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+        
+        max_file_size = 25 * 1024 * 1024  # 25 MB
+        if len(content_bytes) > max_file_size:
+            raise HTTPException(status_code=413, detail="File size exceeds maximum allowed limit of 25MB.")
 
         extracted_text = parse_document(
             file_bytes=content_bytes,
@@ -135,17 +136,14 @@ def seed_sample_documents(req: Optional[SeedRequest] = None):
 @router.delete("")
 def delete_document(id: str = Query(...)):
     try:
-        conn = get_db_connection()
-        if conn:
-            try:
+        with get_db_connection() as conn:
+            if conn:
                 with conn.cursor() as cur:
                     cur.execute("DELETE FROM documents WHERE id = %s", (id,))
                     conn.commit()
-            finally:
-                conn.close()
-        else:
-            in_memory_store.documents = [d for d in in_memory_store.documents if d["id"] != id]
-            in_memory_store.chunks = [c for c in in_memory_store.chunks if c["document_id"] != id]
+            else:
+                in_memory_store.documents = [d for d in in_memory_store.documents if d["id"] != id]
+                in_memory_store.chunks = [c for c in in_memory_store.chunks if c["document_id"] != id]
 
         return {"success": True, "id": id}
     except Exception as e:

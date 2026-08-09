@@ -1,7 +1,9 @@
 import math
 import logging
 from typing import List, Dict, Any, Optional
+from contextlib import contextmanager
 import psycopg2
+from psycopg2.pool import ThreadedConnectionPool
 from psycopg2.extras import RealDictCursor
 from backend.config import DATABASE_URL
 
@@ -15,6 +17,52 @@ class InMemoryStore:
 
 in_memory_store = InMemoryStore()
 
+_db_pool: Optional[ThreadedConnectionPool] = None
+
+def init_db_pool(minconn: int = 1, maxconn: int = 10) -> Optional[ThreadedConnectionPool]:
+    global _db_pool
+    if _db_pool is not None and not _db_pool.closed:
+        return _db_pool
+    try:
+        _db_pool = ThreadedConnectionPool(minconn, maxconn, DATABASE_URL, connect_timeout=3)
+        logger.info("Database connection pool initialized successfully.")
+        return _db_pool
+    except Exception as e:
+        logger.warning(f"Database connection pool initialization failed ({e}). Fallback to in-memory store.")
+        _db_pool = None
+        return None
+
+def close_db_pool():
+    global _db_pool
+    if _db_pool is not None and not _db_pool.closed:
+        _db_pool.closeall()
+        logger.info("Database connection pool closed.")
+        _db_pool = None
+
+@contextmanager
+def get_db_connection():
+    global _db_pool
+    conn = None
+    if _db_pool is None or _db_pool.closed:
+        init_db_pool()
+    
+    if _db_pool is not None and not _db_pool.closed:
+        try:
+            conn = _db_pool.getconn()
+            yield conn
+        except Exception as e:
+            logger.warning(f"Failed to get connection from pool ({e}).")
+            yield None
+        finally:
+            if conn and _db_pool and not _db_pool.closed:
+                _db_pool.putconn(conn)
+    else:
+        yield None
+
+def is_db_connected() -> bool:
+    with get_db_connection() as conn:
+        return conn is not None
+
 def cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
     if not vec_a or not vec_b or len(vec_a) != len(vec_b):
         return 0.0
@@ -25,63 +73,47 @@ def cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
         return 0.0
     return dot_product / (norm_a * norm_b)
 
-def get_db_connection():
-    try:
-        conn = psycopg2.connect(DATABASE_URL, connect_timeout=3)
-        return conn
-    except Exception as e:
-        logger.warning(f"Database connection failed ({e}). Fallback to in-memory store.")
-        return None
-
-def is_db_connected() -> bool:
-    conn = get_db_connection()
-    if conn:
-        conn.close()
-        return True
-    return False
-
 def init_db_schema():
     """Ensures vector extension and tables exist if database is connected."""
-    conn = get_db_connection()
-    if not conn:
-        return
-    try:
-        with conn.cursor() as cur:
-            cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS documents (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    title VARCHAR(255) NOT NULL,
-                    file_type VARCHAR(50) NOT NULL,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS document_chunks (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
-                    content TEXT NOT NULL,
-                    chunk_index INT NOT NULL,
-                    embedding VECTOR,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-            cur.execute("""
-                CREATE INDEX IF NOT EXISTS document_chunks_embedding_hnsw_idx 
-                ON document_chunks USING hnsw (embedding vector_cosine_ops);
-            """)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS chat_history (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    user_query_text TEXT NOT NULL,
-                    retrieved_chunks JSONB,
-                    ai_response_text TEXT NOT NULL,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-            conn.commit()
-    except Exception as e:
-        logger.error(f"Error initializing DB schema: {e}")
-        conn.rollback()
-    finally:
-        conn.close()
+    with get_db_connection() as conn:
+        if not conn:
+            return
+        try:
+            with conn.cursor() as cur:
+                cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS documents (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        title VARCHAR(255) NOT NULL,
+                        file_type VARCHAR(50) NOT NULL,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS document_chunks (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
+                        content TEXT NOT NULL,
+                        chunk_index INT NOT NULL,
+                        embedding VECTOR(768),
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS document_chunks_embedding_hnsw_idx 
+                    ON document_chunks USING hnsw (embedding vector_cosine_ops);
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS chat_history (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        user_query_text TEXT NOT NULL,
+                        retrieved_chunks JSONB,
+                        ai_response_text TEXT NOT NULL,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                conn.commit()
+                logger.info("Database schema initialized successfully.")
+        except Exception as e:
+            logger.error(f"Error initializing DB schema: {e}")
+            conn.rollback()

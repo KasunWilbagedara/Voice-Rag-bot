@@ -196,45 +196,43 @@ def ingest_document(
     doc_id = str(uuid.uuid4())
     created_at = datetime.utcnow().isoformat() + "Z"
 
-    conn = get_db_connection()
-    if conn:
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "INSERT INTO documents (id, title, file_type, created_at) VALUES (%s, %s, %s, %s)",
-                    (doc_id, title, file_type, created_at),
-                )
-                for i, (chunk, emb) in enumerate(zip(raw_chunks, embeddings)):
-                    chunk_id = str(uuid.uuid4())
-                    vector_str = f"[{','.join(map(str, emb))}]"
+    with get_db_connection() as conn:
+        if conn:
+            try:
+                with conn.cursor() as cur:
                     cur.execute(
-                        """INSERT INTO document_chunks (id, document_id, content, chunk_index, embedding, created_at)
-                           VALUES (%s, %s, %s, %s, %s::vector, %s)""",
-                        (chunk_id, doc_id, chunk, i, vector_str, created_at),
+                        "INSERT INTO documents (id, title, file_type, created_at) VALUES (%s, %s, %s, %s)",
+                        (doc_id, title, file_type, created_at),
                     )
-                conn.commit()
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"Error ingesting document into DB: {e}")
-            raise e
-        finally:
-            conn.close()
-    else:
-        in_memory_store.documents.append({
-            "id": doc_id,
-            "title": title,
-            "file_type": file_type,
-            "created_at": created_at,
-        })
-        for i, (chunk, emb) in enumerate(zip(raw_chunks, embeddings)):
-            in_memory_store.chunks.append({
-                "id": str(uuid.uuid4()),
-                "document_id": doc_id,
-                "content": chunk,
-                "chunk_index": i,
-                "embedding": emb,
+                    for i, (chunk, emb) in enumerate(zip(raw_chunks, embeddings)):
+                        chunk_id = str(uuid.uuid4())
+                        vector_str = f"[{','.join(map(str, emb))}]"
+                        cur.execute(
+                            """INSERT INTO document_chunks (id, document_id, content, chunk_index, embedding, created_at)
+                               VALUES (%s, %s, %s, %s, %s::vector, %s)""",
+                            (chunk_id, doc_id, chunk, i, vector_str, created_at),
+                        )
+                    conn.commit()
+            except Exception as e:
+                conn.rollback()
+                logger.error(f"Error ingesting document into DB: {e}")
+                raise e
+        else:
+            in_memory_store.documents.append({
+                "id": doc_id,
+                "title": title,
+                "file_type": file_type,
                 "created_at": created_at,
             })
+            for i, (chunk, emb) in enumerate(zip(raw_chunks, embeddings)):
+                in_memory_store.chunks.append({
+                    "id": str(uuid.uuid4()),
+                    "document_id": doc_id,
+                    "content": chunk,
+                    "chunk_index": i,
+                    "embedding": emb,
+                    "created_at": created_at,
+                })
 
     return {
         "documentId": doc_id,
@@ -305,72 +303,71 @@ def search_vector_database(
     )
 
     dense_results: List[Dict[str, Any]] = []
-    conn = get_db_connection()
-
-    if conn:
-        try:
-            with conn.cursor() as cur:
-                vector_str = f"[{','.join(map(str, search_embedding))}]"
-                vector_query = """
-                    SELECT 
-                        c.id,
-                        c.document_id,
-                        d.title AS document_title,
-                        c.content,
-                        c.chunk_index,
-                        1 - (c.embedding <=> %s::vector) AS similarity
-                    FROM document_chunks c
-                    JOIN documents d ON c.document_id = d.id
-                    ORDER BY c.embedding <=> %s::vector
-                    LIMIT %s;
-                """
-                cur.execute(vector_query, (vector_str, vector_str, top_k * 2))
-                rows = cur.fetchall()
-                for row in rows:
-                    dense_results.append({
-                        "id": str(row[0]),
-                        "documentId": str(row[1]),
-                        "documentTitle": row[2],
-                        "content": row[3],
-                        "chunkIndex": row[4],
-                        "similarity": float(row[5]),
-                    })
-
-                if is_general_query:
-                    overview_query = """
-                        SELECT c.id, c.document_id, d.title AS document_title, c.content, c.chunk_index, 0.9 AS similarity
+    with get_db_connection() as conn:
+        if conn:
+            try:
+                with conn.cursor() as cur:
+                    vector_str = f"[{','.join(map(str, search_embedding))}]"
+                    vector_query = """
+                        SELECT 
+                            c.id,
+                            c.document_id,
+                            d.title AS document_title,
+                            c.content,
+                            c.chunk_index,
+                            1 - (c.embedding <=> %s::vector) AS similarity
                         FROM document_chunks c
                         JOIN documents d ON c.document_id = d.id
-                        WHERE c.chunk_index <= 3
-                        LIMIT 6;
+                        ORDER BY c.embedding <=> %s::vector
+                        LIMIT %s;
                     """
-                    cur.execute(overview_query)
-                    ov_rows = cur.fetchall()
-                    for row in ov_rows:
-                        if not any(r["id"] == str(row[0]) for r in dense_results):
-                            dense_results.append({
-                                "id": str(row[0]),
-                                "documentId": str(row[1]),
-                                "documentTitle": row[2],
-                                "content": row[3],
-                                "chunkIndex": row[4],
-                                "similarity": 0.9,
-                            })
-        finally:
-            conn.close()
-    else:
-        scored = []
-        for chunk in in_memory_store.chunks:
-            doc = next((d for d in in_memory_store.documents if d["id"] == chunk["document_id"]), None)
-            sim = cosine_similarity(search_embedding, chunk["embedding"])
-            scored.append({
-                "id": chunk["id"],
-                "documentId": chunk["document_id"],
-                "documentTitle": doc["title"] if doc else "Document",
-                "content": chunk["content"],
-                "chunkIndex": chunk["chunk_index"],
-                "similarity": sim,
-            })
+                    cur.execute(vector_query, (vector_str, vector_str, top_k * 2))
+                    rows = cur.fetchall()
+                    for row in rows:
+                        dense_results.append({
+                            "id": str(row[0]),
+                            "documentId": str(row[1]),
+                            "documentTitle": row[2],
+                            "content": row[3],
+                            "chunkIndex": row[4],
+                            "similarity": float(row[5]),
+                        })
+
+                    if is_general_query:
+                        overview_query = """
+                            SELECT c.id, c.document_id, d.title AS document_title, c.content, c.chunk_index, 0.9 AS similarity
+                            FROM document_chunks c
+                            JOIN documents d ON c.document_id = d.id
+                            WHERE c.chunk_index <= 3
+                            LIMIT 6;
+                        """
+                        cur.execute(overview_query)
+                        ov_rows = cur.fetchall()
+                        for row in ov_rows:
+                            if not any(r["id"] == str(row[0]) for r in dense_results):
+                                dense_results.append({
+                                    "id": str(row[0]),
+                                    "documentId": str(row[1]),
+                                    "documentTitle": row[2],
+                                    "content": row[3],
+                                    "chunkIndex": row[4],
+                                    "similarity": 0.9,
+                                })
+            except Exception as e:
+                logger.error(f"Error during vector search: {e}")
+        else:
+            scored = []
+            for chunk in in_memory_store.chunks:
+                doc = next((d for d in in_memory_store.documents if d["id"] == chunk["document_id"]), None)
+                sim = cosine_similarity(search_embedding, chunk["embedding"])
+                scored.append({
+                    "id": chunk["id"],
+                    "documentId": chunk["document_id"],
+                    "documentTitle": doc["title"] if doc else "Document",
+                    "content": chunk["content"],
+                    "chunkIndex": chunk["chunk_index"],
+                    "similarity": sim,
+                })
         scored.sort(key=lambda x: x["similarity"], reverse=True)
         dense_results = scored[: top_k * 2]
 
@@ -519,26 +516,24 @@ def save_chat_history(
     created_at = datetime.utcnow().isoformat() + "Z"
     chunks_json = json.dumps(retrieved_chunks)
 
-    conn = get_db_connection()
-    if conn:
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """INSERT INTO chat_history (id, user_query_text, retrieved_chunks, ai_response_text, created_at)
-                       VALUES (%s, %s, %s, %s, %s)""",
-                    (chat_id, user_query_text, chunks_json, ai_response_text, created_at),
-                )
-                conn.commit()
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"Error saving chat history to DB: {e}")
-        finally:
-            conn.close()
-    else:
-        in_memory_store.chat_history.append({
-            "id": chat_id,
-            "user_query_text": user_query_text,
-            "retrieved_chunks": retrieved_chunks,
-            "ai_response_text": ai_response_text,
-            "created_at": created_at,
-        })
+    with get_db_connection() as conn:
+        if conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """INSERT INTO chat_history (id, user_query_text, retrieved_chunks, ai_response_text, created_at)
+                           VALUES (%s, %s, %s, %s, %s)""",
+                        (chat_id, user_query_text, chunks_json, ai_response_text, created_at),
+                    )
+                    conn.commit()
+            except Exception as e:
+                conn.rollback()
+                logger.error(f"Error saving chat history to DB: {e}")
+        else:
+            in_memory_store.chat_history.append({
+                "id": chat_id,
+                "user_query_text": user_query_text,
+                "retrieved_chunks": retrieved_chunks,
+                "ai_response_text": ai_response_text,
+                "created_at": created_at,
+            })
