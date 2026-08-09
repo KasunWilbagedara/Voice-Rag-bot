@@ -24,3 +24,11 @@ yarn-error.log*
 .idea/
 .vscode/
 *.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+

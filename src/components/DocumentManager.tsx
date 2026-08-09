@@ -161,7 +161,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ apiKey, onDocu
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf,.docx,.txt,.md,.markdown"
+          accept=".pdf,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.png,.jpg,.jpeg,.webp,.txt,.csv,.json,.md,.markdown"
           onChange={(e) => handleFileUpload(e.target.files)}
           className="hidden"
         />
@@ -179,7 +179,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ apiKey, onDocu
             {isUploading ? 'Ingesting Document...' : 'Click or Drag File Here to Upload'}
           </p>
           <p className="text-xs text-gray-400 mt-1">
-            Supports PDF, DOCX, TXT, and Markdown files
+            Supports PDF, Word, Excel, PowerPoint, Images/OCR, TXT, CSV & Code
           </p>
         </div>
       </div>

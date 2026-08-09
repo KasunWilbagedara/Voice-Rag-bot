@@ -24,5 +24,19 @@ services:
     depends_on:
       - postgres
 
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: voice_rag_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgrespassword@postgres:5432/voicerag
+      - PORT=8000
+    depends_on:
+      - postgres
+
 volumes:
   pgdata:
