@@ -41,44 +41,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const isGemini = localKey.startsWith('AIza');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="w-full max-w-lg glass-panel rounded-3xl p-6 md:p-8 flex flex-col gap-6 relative border border-gray-800 shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-gray-800">
-          <div className="flex items-center gap-2">
-            <Settings className="w-5 h-5 text-brand-400" />
-            <h2 className="text-lg font-bold text-gray-100">Voice-RAG Configurations</h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-gray-400 hover:text-white rounded-xl hover:bg-gray-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* API Key Input (Google Gemini OR OpenAI) */}
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
-              <Key className="w-3.5 h-3.5 text-amber-400" />
-              API Key (Google Gemini or OpenAI)
-            </label>
-
-            <span
-              className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
-                isGemini
-                  ? 'bg-blue-950/80 text-blue-300 border-blue-800'
-                  : 'bg-emerald-950/80 text-emerald-300 border-emerald-800'
-              }`}
-            >
-              {isGemini ? '✨ Google Gemini API Key' : localKey ? 'OpenAI API Key' : 'Enter API Key'}
-            </span>
-          </div>
-
-          <input
-            type="password"
-            value={localKey}
             onChange={(e) => setLocalKey(e.target.value)}
             placeholder="AIzaSy... (Gemini) or sk-proj-... (OpenAI)"
             className="w-full px-4 py-3 rounded-xl bg-gray-900 border border-gray-800 focus:border-brand-500 focus:outline-none text-sm text-gray-100 font-mono"
