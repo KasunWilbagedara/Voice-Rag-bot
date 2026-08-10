@@ -419,7 +419,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
   };
 
   return (
-    <div className="w-full glass-panel-glow rounded-3xl p-6 md:p-8 flex flex-col items-center gap-6 relative overflow-hidden">
+    <div className="w-full bg-white border border-gray-200 rounded p-6 md:p-8 flex flex-col items-center gap-6 relative overflow-hidden shadow-sm">
       <audio ref={audioPlayerRef} className="hidden" />
 
       {/* Header controls & language switcher */}
@@ -427,29 +427,29 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
         <div className="flex items-center gap-2">
           <span className="relative flex h-3 w-3">
             <span
-              className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+              className={`animate-ping absolute inline-flex h-full w-full opacity-75 ${
                 state === 'listening'
-                  ? 'bg-cyan-400'
+                  ? 'bg-black'
                   : state === 'speaking'
                   ? 'bg-emerald-400'
                   : state === 'searching'
-                  ? 'bg-violet-400'
-                  : 'bg-blue-400'
+                  ? 'bg-gray-400'
+                  : 'bg-gray-200'
               }`}
             />
             <span
-              className={`relative inline-flex rounded-full h-3 w-3 ${
+              className={`relative inline-flex h-3 w-3 ${
                 state === 'listening'
-                  ? 'bg-cyan-500'
+                  ? 'bg-black'
                   : state === 'speaking'
                   ? 'bg-emerald-500'
                   : state === 'searching'
-                  ? 'bg-violet-500'
-                  : 'bg-blue-500'
+                  ? 'bg-gray-500'
+                  : 'bg-gray-300'
               }`}
             />
           </span>
-          <span className="text-xs uppercase tracking-wider font-semibold text-gray-400">
+          <span className="text-xs uppercase tracking-widest font-bold text-gray-500">
             {state === 'idle' && 'Ready for Speech'}
             {state === 'listening' && 'Listening...'}
             {state === 'transcribing' && 'Transcribing speech...'}
