@@ -9,6 +9,76 @@ The system enforces **Strict Grounding**, ensuring the AI only answers based on 
 
 ## 2. System Architecture
 
+### Pipeline Diagram
+
+```mermaid
+flowchart TD
+    %% User Inputs
+    User((User))
+    
+    %% Frontend
+    subgraph Frontend [Next.js React Frontend]
+        UI[Voice Interface & Chat]
+    end
+    
+    %% Backend APIs
+    subgraph Backend [Python FastAPI Backend]
+        API_RAG[RAG Service]
+        API_STT[STT Service]
+        API_TTS[TTS Service]
+        Parser[Document Parser]
+    end
+    
+    %% Database
+    subgraph Database [PostgreSQL + pgvector]
+        DB[(Vector DB)]
+    end
+    
+    %% External APIs
+    subgraph External [Google Gemini API]
+        Embed[Embedding Model]
+        LLM[Gemini 2.0 LLM]
+    end
+    
+    %% Flow
+    User -- "Speaks (Audio)" --> UI
+    UI -- "Audio Blob" --> API_STT
+    API_STT -- "Transcribed Text" --> API_RAG
+    
+    %% RAG Flow
+    API_RAG -- "Text to Embed" --> Embed
+    Embed -- "Vector" --> API_RAG
+    API_RAG -- "Vector Search" --> DB
+    DB -- "Top Context Chunks" --> API_RAG
+    API_RAG -- "Chunks + Query" --> LLM
+    LLM -- "Generated Answer" --> API_RAG
+    
+    %% TTS Flow
+    API_RAG -- "Answer Text" --> API_TTS
+    API_TTS -- "Synthesized Audio" --> UI
+    UI -- "Plays Audio" --> User
+    
+    %% Ingestion Flow
+    Admin((Admin)) -- "Uploads PDF/DOCX" --> Parser
+    Parser -- "Raw Text" --> API_RAG
+    API_RAG -- "Chunks" --> Embed
+    Embed -- "Vectors" --> DB
+    
+    %% Styling
+    classDef default fill:#f9fafb,stroke:#d1d5db,stroke-width:1px,color:#000
+    classDef user fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff
+    classDef frontend fill:#000000,stroke:#333333,stroke-width:2px,color:#fff
+    classDef backend fill:#3b82f6,stroke:#2563eb,stroke-width:2px,color:#fff
+    classDef db fill:#8b5cf6,stroke:#7c3aed,stroke-width:2px,color:#fff
+    classDef external fill:#f59e0b,stroke:#d97706,stroke-width:2px,color:#fff
+    
+    class User,Admin user
+    class UI frontend
+    class API_RAG,API_STT,API_TTS,Parser backend
+    class DB db
+    class Embed,LLM external
+```
+
 The architecture is divided into a robust Python backend (FastAPI) and a modern, minimalist Next.js React frontend.
 
 ### Component Breakdown

@@ -11,6 +11,29 @@ Enterprise **Voice-In, Voice-Out Retrieval-Augmented Generation (Voice-RAG)** we
 
 ## 🌟 Key Architecture
 
+### Pipeline Diagram
+
+```mermaid
+flowchart TD
+    User((User)) -- "Voice / Text" --> UI[Next.js Frontend]
+    UI -- "Query" --> API[FastAPI Backend]
+    
+    subgraph Python Backend
+        API --> Embedding[Embedding Engine]
+        Embedding --> DB[(pgvector DB)]
+        DB -. "Relevant Chunks" .-> LLM_Prompt[System Prompt]
+        LLM_Prompt --> LLM[Gemini LLM]
+        LLM --> TTS[Text-to-Speech]
+    end
+    
+    TTS -- "Audio Stream" --> UI
+    UI -- "Plays Answer" --> User
+
+    classDef default fill:#f9fafb,stroke:#d1d5db,color:#000
+    classDef user fill:#10b981,stroke:#059669,color:#fff
+    class User user
+```
+
 1. **Python FastAPI Backend (`backend/`)**:
    - **Framework**: FastAPI + Uvicorn (`http://localhost:8000`)
    - **Document Parsing**: PDF (`pypdf`), Word DOCX (`python-docx`), TXT, Markdown.
