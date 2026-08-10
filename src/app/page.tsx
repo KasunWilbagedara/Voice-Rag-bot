@@ -117,59 +117,59 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-[#090d16] text-gray-100 flex flex-col font-sans">
+    <main className="min-h-screen bg-black text-gray-900 flex flex-col font-sans">
       {/* Top Navbar */}
-      <header className="sticky top-0 z-40 w-full glass-panel border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+      <header className="sticky top-0 z-40 w-full glass-panel border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center shadow-lg glow-blue">
-            <Brain className="w-5 h-5 text-white" />
+          <div className="w-10 h-10 rounded-xl bg-black flex items-center justify-center shadow-sm">
+            <Brain className="w-5 h-5 text-emerald-500" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold text-gray-100 leading-none">Voice-RAG Bot</h1>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-950/80 text-amber-300 border border-amber-800/60 font-bold">
-                🇱🇰 Sinhala (සිංහල)
+              <h1 className="text-base font-bold text-black leading-none">Voice-RAG Bot</h1>
+              <span className="text-[10px] px-2 py-0.5 rounded border border-gray-300 text-gray-600 font-bold uppercase tracking-wider">
+                Sinhala Enabled
               </span>
             </div>
-            <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-1.5">
-              <span>Strict Data Grounding Active</span>
-              <span className="text-gray-600">•</span>
-              <span className="text-cyan-400 font-mono">pgvector HNSW</span>
+            <p className="text-[11px] text-gray-500 mt-1 flex items-center gap-1.5 font-mono">
+              <span>STRICT DATA GROUNDING</span>
+              <span className="text-gray-300">•</span>
+              <span className="text-emerald-600">pgvector</span>
             </p>
           </div>
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex items-center p-1 bg-gray-900/80 rounded-xl border border-gray-800">
+        <div className="flex items-center p-1 bg-gray-100 rounded border border-gray-200">
           <button
             onClick={() => setActiveTab('user')}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-all ${
-              activeTab === 'user' ? 'bg-amber-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-200'
+            className={`px-6 py-1.5 rounded text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-all ${
+              activeTab === 'user' ? 'bg-black text-white' : 'text-gray-500 hover:text-black'
             }`}
           >
             <User className="w-4 h-4" />
-            User Chat
+            User
           </button>
           <button
             onClick={() => setActiveTab('admin')}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-all ${
-              activeTab === 'admin' ? 'bg-violet-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-200'
+            className={`px-6 py-1.5 rounded text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-all ${
+              activeTab === 'admin' ? 'bg-black text-white' : 'text-gray-500 hover:text-black'
             }`}
           >
             <ShieldCheck className="w-4 h-4" />
-            Admin Panel
+            Admin
           </button>
         </div>
 
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsContextDrawerOpen(true)}
-            className="px-3 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 border border-gray-800 text-gray-300 hover:text-white text-xs font-medium flex items-center gap-2 transition-all"
+            className="px-3 py-2 rounded bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 hover:text-black text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all"
           >
-            <Layers className="w-4 h-4 text-violet-400" />
-            <span>Retrieved Chunks</span>
+            <Layers className="w-4 h-4 text-emerald-500" />
+            <span>Context</span>
             {activeContextChunks.length > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full bg-violet-950 text-violet-400 border border-violet-800/60 text-[10px] font-bold">
+              <span className="px-1.5 py-0.5 rounded bg-gray-100 text-emerald-600 border border-gray-200 text-[10px]">
                 {activeContextChunks.length}
               </span>
             )}
@@ -177,7 +177,7 @@ export default function Home() {
 
           <button
             onClick={() => setIsSettingsOpen(true)}
-            className="p-2 rounded-xl bg-gray-900 hover:bg-gray-800 border border-gray-800 text-gray-300 hover:text-white transition-all"
+            className="p-2 rounded bg-white hover:bg-gray-50 border border-gray-200 text-gray-500 hover:text-black transition-all"
             title="Settings"
           >
             <Settings className="w-4 h-4" />
