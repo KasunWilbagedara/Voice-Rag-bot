@@ -39,6 +39,7 @@ export default function Home() {
 
   const [textInput, setTextInput] = useState<string>('');
   const [isSubmittingText, setIsSubmittingText] = useState<boolean>(false);
+  const [muteTextChat, setMuteTextChat] = useState<boolean>(false);
 
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [activeContextChunks, setActiveContextChunks] = useState<any[]>([]);
@@ -90,18 +91,20 @@ export default function Home() {
         retrievedChunks: data.retrievedChunks || [],
       });
 
-      // Play audio via TTS
-      const ttsRes = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: data.answer, voice, apiKey, language }),
-      });
+      // Play audio via TTS only if not muted
+      if (!muteTextChat) {
+        const ttsRes = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: data.answer, voice, apiKey, language }),
+        });
 
-      if (ttsRes.ok) {
-        const audioBlob = await ttsRes.blob();
-        const audioUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(audioUrl);
-        await audio.play();
+        if (ttsRes.ok) {
+          const audioBlob = await ttsRes.blob();
+          const audioUrl = URL.createObjectURL(audioBlob);
+          const audio = new Audio(audioUrl);
+          await audio.play();
+        }
       }
     } catch (err: any) {
       console.error('Text RAG Error:', err);
@@ -217,6 +220,20 @@ export default function Home() {
                 }
                 className="flex-1 bg-transparent px-4 py-2 text-sm text-black placeholder-gray-400 focus:outline-none font-medium"
               />
+              
+              <button
+                type="button"
+                onClick={() => setMuteTextChat(!muteTextChat)}
+                className={`p-2.5 rounded transition-colors border ${
+                  muteTextChat
+                    ? 'bg-red-50 text-red-500 border-red-200 hover:bg-red-100'
+                    : 'bg-gray-50 text-gray-400 border-gray-200 hover:text-black hover:border-black'
+                }`}
+                title={muteTextChat ? 'Unmute AI Voice for Text Chat' : 'Mute AI Voice for Text Chat'}
+              >
+                <Volume2 className={`w-4 h-4 ${muteTextChat ? 'opacity-50 line-through' : ''}`} />
+              </button>
+
               <button
                 type="submit"
                 disabled={isSubmittingText || !textInput.trim()}
