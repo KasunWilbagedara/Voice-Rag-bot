@@ -122,20 +122,20 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ apiKey, onDocu
   };
 
   return (
-    <div className="w-full glass-panel rounded-3xl p-6 flex flex-col gap-5">
+    <div className="w-full glass-panel rounded-lg p-6 flex flex-col gap-5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Database className="w-5 h-5 text-brand-400" />
-          <h2 className="text-lg font-bold text-gray-100">Knowledge Base Documents</h2>
+          <Database className="w-5 h-5 text-emerald-500" />
+          <h2 className="text-lg font-bold text-black">Knowledge Base Documents</h2>
         </div>
         <span
-          className={`text-xs px-2.5 py-1 rounded-full border ${
+          className={`text-xs px-2.5 py-1 rounded border font-bold tracking-wider uppercase ${
             dbActive
-              ? 'bg-emerald-950/60 text-emerald-400 border-emerald-800/40'
-              : 'bg-amber-950/60 text-amber-400 border-amber-800/40'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : 'bg-amber-50 text-amber-700 border-amber-200'
           }`}
         >
-          {dbActive ? 'PostgreSQL pgvector Active' : 'In-Memory Vector Fallback'}
+          {dbActive ? 'PostgreSQL pgvector' : 'In-Memory Fallback'}
         </span>
       </div>
 
@@ -152,10 +152,10 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ apiKey, onDocu
           setIsDragging(false);
           handleFileUpload(e.dataTransfer.files);
         }}
-        className={`border-2 border-dashed transition-all rounded-2xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer group ${
+        className={`border transition-all rounded p-8 flex flex-col items-center justify-center gap-3 cursor-pointer group ${
           isDragging
-            ? 'border-brand-400 bg-brand-950/40'
-            : 'border-gray-800 hover:border-brand-500/50 bg-gray-900/40 hover:bg-gray-900/80'
+            ? 'border-emerald-500 bg-emerald-50'
+            : 'border-gray-300 hover:border-black bg-gray-50 hover:bg-gray-100'
         }`}
       >
         <input
@@ -166,20 +166,20 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ apiKey, onDocu
           className="hidden"
         />
 
-        <div className="w-12 h-12 rounded-full bg-brand-950/60 border border-brand-800/50 flex items-center justify-center text-brand-400 group-hover:scale-110 transition-transform">
+        <div className="w-12 h-12 rounded-full bg-white border border-gray-200 flex items-center justify-center text-black group-hover:scale-110 transition-transform shadow-sm">
           {isUploading || isSeeding ? (
             <Loader2 className="w-6 h-6 animate-spin" />
           ) : (
-            <Upload className="w-6 h-6" />
+            <Upload className="w-6 h-6 text-emerald-600" />
           )}
         </div>
 
         <div className="text-center">
-          <p className="text-sm font-semibold text-gray-200">
-            {isUploading ? 'Ingesting Document...' : 'Click or Drag File Here to Upload'}
+          <p className="text-sm font-bold text-black uppercase tracking-wider">
+            {isUploading ? 'Ingesting Document...' : 'Click or Drag File Here'}
           </p>
-          <p className="text-xs text-gray-400 mt-1">
-            Supports PDF, Word, Excel, PowerPoint, Images/OCR, TXT, CSV & Code
+          <p className="text-xs text-gray-500 mt-1 font-mono">
+            PDF, DOCX, XLSX, PPTX, Images (OCR), CSV
           </p>
         </div>
       </div>
@@ -188,70 +188,70 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ apiKey, onDocu
       <button
         onClick={handleSeedDocument}
         disabled={isSeeding || isUploading}
-        className="w-full py-2.5 px-4 rounded-xl bg-violet-950/50 hover:bg-violet-900/50 border border-violet-800/60 text-violet-300 hover:text-violet-200 text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-50"
+        className="w-full py-2.5 px-4 rounded bg-gray-100 hover:bg-black border border-gray-200 text-black hover:text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-sm disabled:opacity-50"
       >
         {isSeeding ? (
-          <Loader2 className="w-4 h-4 animate-spin text-violet-400" />
+          <Loader2 className="w-4 h-4 animate-spin" />
         ) : (
-          <Sparkles className="w-4 h-4 text-violet-400" />
+          <Sparkles className="w-4 h-4" />
         )}
-        <span>Pre-load Sample Document into RAG Model</span>
+        <span>Pre-load Sample Data</span>
       </button>
 
       {/* Upload status message */}
       {uploadStatus && !errorMessage && (
-        <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-800/50 flex items-center gap-2 text-emerald-300 text-xs">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+        <div className="p-3 rounded bg-emerald-50 border border-emerald-200 flex items-center gap-2 text-emerald-800 text-xs font-bold">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           <span>{uploadStatus}</span>
         </div>
       )}
 
       {errorMessage && (
-        <div className="p-3 rounded-xl bg-red-950/40 border border-red-800/50 flex items-center gap-2 text-red-300 text-xs">
-          <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+        <div className="p-3 rounded bg-red-50 border border-red-200 flex items-center gap-2 text-red-800 text-xs font-bold">
+          <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
           <span>{errorMessage}</span>
         </div>
       )}
 
       {/* Document List */}
       <div className="flex flex-col gap-2 mt-2">
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest border-b border-gray-100 pb-2">
           Indexed Documents ({documents.length})
         </h3>
 
         {documents.length === 0 ? (
-          <div className="py-6 text-center text-xs text-gray-500 italic border border-gray-800/50 rounded-xl">
-            No documents uploaded yet. Click "Pre-load Sample Document" or upload your own file to get started!
+          <div className="py-6 text-center text-xs text-gray-400 font-mono border border-gray-200 bg-gray-50 rounded">
+            NO DOCUMENTS UPLOADED
           </div>
         ) : (
           <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
             {documents.map((doc) => (
               <div
                 key={doc.id}
-                className="p-3 rounded-xl bg-gray-900/80 border border-gray-800 flex items-center justify-between hover:border-gray-700 transition-colors"
+                className="p-3 rounded bg-white border border-gray-200 flex items-center justify-between hover:border-black transition-colors shadow-sm"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="p-2 rounded-lg bg-gray-800 text-brand-400 shrink-0">
+                  <div className="p-2 rounded bg-gray-50 text-gray-600 border border-gray-100 shrink-0">
                     {doc.title.endsWith('.pdf') ? (
-                      <FileText className="w-4 h-4 text-red-400" />
+                      <FileText className="w-4 h-4 text-gray-800" />
                     ) : doc.title.endsWith('.docx') ? (
-                      <FileText className="w-4 h-4 text-blue-400" />
+                      <FileText className="w-4 h-4 text-gray-800" />
                     ) : (
-                      <FileCode className="w-4 h-4 text-emerald-400" />
+                      <FileCode className="w-4 h-4 text-emerald-600" />
                     )}
                   </div>
 
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-200 truncate">{doc.title}</p>
-                    <p className="text-[11px] text-gray-500">
-                      {doc.chunk_count} vector chunks • {new Date(doc.created_at).toLocaleDateString()}
+                    <p className="text-sm font-bold text-black truncate">{doc.title}</p>
+                    <p className="text-[10px] font-mono text-gray-500 mt-0.5">
+                      {doc.chunk_count} chunks • {new Date(doc.created_at).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
 
                 <button
                   onClick={() => handleDelete(doc.id)}
-                  className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-950/30 rounded-lg transition-colors"
+                  className="p-2 text-gray-400 hover:text-white hover:bg-red-500 rounded transition-colors"
                   title="Delete Document"
                 >
                   <Trash2 className="w-4 h-4" />
