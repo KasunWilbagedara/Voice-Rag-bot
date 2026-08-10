@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: postgrespassword
       POSTGRES_DB: voicerag
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
@@ -31,7 +31,7 @@ services:
     container_name: voice_rag_backend
     restart: always
     ports:
-      - "8000:8000"
+      - "9005:8000"
     environment:
       - DATABASE_URL=postgresql://postgres:postgrespassword@postgres:5432/voicerag
       - PORT=8000
