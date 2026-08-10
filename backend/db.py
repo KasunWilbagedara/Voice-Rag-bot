@@ -45,19 +45,22 @@ def get_db_connection():
     conn = None
     if _db_pool is None or _db_pool.closed:
         init_db_pool()
-    
+
     if _db_pool is not None and not _db_pool.closed:
         try:
             conn = _db_pool.getconn()
-            yield conn
         except Exception as e:
-            logger.warning(f"Failed to get connection from pool ({e}).")
-            yield None
-        finally:
-            if conn and _db_pool and not _db_pool.closed:
+            logger.warning(f"Failed to checkout connection from pool ({e}).")
+            conn = None
+
+    try:
+        yield conn
+    finally:
+        if conn and _db_pool and not _db_pool.closed:
+            try:
                 _db_pool.putconn(conn)
-    else:
-        yield None
+            except Exception as e:
+                logger.warning(f"Failed to return connection to pool ({e}).")
 
 def is_db_connected() -> bool:
     with get_db_connection() as conn:
