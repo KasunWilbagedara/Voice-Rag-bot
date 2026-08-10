@@ -21,6 +21,8 @@ services:
       - "3000:3000"
     environment:
       - DATABASE_URL=postgresql://postgres:postgrespassword@postgres:5432/voicerag
+    env_file:
+      - .env
     depends_on:
       - postgres
 
@@ -35,6 +37,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgrespassword@postgres:5432/voicerag
       - PORT=8000
+    env_file:
+      - .env
     depends_on:
       - postgres
 
