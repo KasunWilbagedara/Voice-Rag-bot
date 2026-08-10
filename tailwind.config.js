@@ -26,10 +26,10 @@ module.exports = {
           amber: '#f59e0b'
         },
         dark: {
-          bg: '#090d16',
-          card: '#111827',
-          border: '#1f293d',
-          subtle: '#374151'
+          bg: '#000000',
+          card: '#ffffff',
+          border: '#e5e7eb',
+          subtle: '#f3f4f6'
         }
       },
       animation: {
