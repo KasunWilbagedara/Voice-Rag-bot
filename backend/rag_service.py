@@ -446,7 +446,8 @@ def generate_voice_rag_answer(
             "Thoroughly analyze the CONTEXT DOCUMENTS. Extract facts, figures, and findings, and explain them clearly.\n\n"
             "RULES FOR SINHALA RESPONSE:\n"
             "1. Deliver a COMPLETE 3 to 6 sentence spoken response. NEVER leave your sentence incomplete or cut off!\n"
-            "2. Do NOT use markdown symbols (*, #, -, ```), no bullet points, and no citations like [1] or [Source 1]."
+            "2. Do NOT use markdown symbols (*, #, -, ```), no bullet points, and no citations like [1] or [Source 1].\n"
+            "3. AMBIGUOUS LIST QUERIES: If the user asks for a broad list from a database or table (e.g., 'give me the employee names' or 'list all users'), DO NOT just list them all. Instead, ask a clarifying question in Sinhala like: 'Are you asking for all employee names, or do you want specific details (e.g. by department or role)?'"
         )
     else:
         language_instruction = (
@@ -457,7 +458,8 @@ def generate_voice_rag_answer(
             "Deliver an intelligent, comprehensive, and highly accurate answer.\n\n"
             "RULES FOR RESPONSE:\n"
             "1. Synthesize a COMPLETE 3 to 6 sentence spoken response summarizing the facts.\n"
-            "2. Do NOT use markdown symbols (*, #, -, ```), no bullet points, and no citations."
+            "2. Do NOT use markdown symbols (*, #, -, ```), no bullet points, and no citations.\n"
+            "3. AMBIGUOUS LIST QUERIES: If the user asks for a broad list from a database or table (e.g., 'give me the employee names' or 'list all users'), DO NOT just list them all. Instead, ask a clarifying question like: 'Are you asking for all employee names, or do you want specific details (e.g. by department or role)?'"
         )
 
     system_prompt = (
