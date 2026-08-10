@@ -41,24 +41,61 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const isGemini = localKey.startsWith('AIza');
 
   return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in p-4">
+      <div className="w-full max-w-lg bg-white border border-gray-200 rounded p-6 md:p-8 flex flex-col gap-6 relative shadow-sm">
+        {/* Header */}
+        <div className="flex items-center justify-between pb-4 border-b border-gray-200">
+          <div className="flex items-center gap-2">
+            <Settings className="w-5 h-5 text-emerald-500" />
+            <h2 className="text-lg font-bold text-black uppercase tracking-wider">Configuration</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:text-black rounded hover:bg-gray-100 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* API Key Input */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Key className="w-3.5 h-3.5 text-black" />
+              API Key (Google Gemini or OpenAI)
+            </label>
+            <span
+              className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
+                isGemini
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-gray-100 text-gray-700 border border-gray-200'
+              }`}
+            >
+              {isGemini ? 'Google Gemini Key' : localKey ? 'OpenAI Key' : 'Enter API Key'}
+            </span>
+          </div>
+
+          <input
+            type="password"
+            value={localKey}
             onChange={(e) => setLocalKey(e.target.value)}
             placeholder="AIzaSy... (Gemini) or sk-proj-... (OpenAI)"
-            className="w-full px-4 py-3 rounded-xl bg-gray-900 border border-gray-800 focus:border-brand-500 focus:outline-none text-sm text-gray-100 font-mono"
+            className="w-full px-4 py-3 rounded bg-gray-50 border border-gray-200 focus:border-black focus:outline-none text-sm text-black font-mono transition-colors"
           />
-          <p className="text-[11px] text-gray-400">
-            Paste your Google Gemini API Key (starts with <code className="text-amber-300">AIzaSy</code>) or OpenAI key. Both are fully supported!
+          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+            Your key is stored locally in your browser. Both Gemini and OpenAI are supported.
           </p>
         </div>
 
         {/* LLM Model Selector */}
         <div className="flex flex-col gap-2">
-          <label className="text-xs font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
-            <Cpu className="w-3.5 h-3.5 text-emerald-400" />
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+            <Cpu className="w-3.5 h-3.5 text-black" />
             LLM Generation Model
           </label>
           <div className="grid grid-cols-2 gap-2">
             {[
-              { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash (Fast Multilingual)' },
+              { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
               { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
               { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
               { id: 'gpt-4o', label: 'GPT-4o' },
@@ -66,10 +103,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <button
                 key={m.id}
                 onClick={() => setModel(m.id)}
-                className={`py-2.5 px-3 rounded-xl text-xs font-medium border text-left transition-all ${
+                className={`py-2.5 px-3 rounded text-xs font-bold uppercase tracking-wider border text-center transition-all ${
                   model === m.id
-                    ? 'bg-amber-950/50 text-amber-300 border-amber-500/60 font-bold'
-                    : 'bg-gray-900 text-gray-400 border-gray-800 hover:border-gray-700'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-white text-gray-500 border-gray-200 hover:border-black hover:text-black'
                 }`}
               >
                 {m.label}
@@ -78,16 +115,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
         </div>
 
-        {/* TTS Voice Selector & Quality */}
+        {/* TTS Voice Selector */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
-              <Volume2 className="w-3.5 h-3.5 text-cyan-400" />
-              Human Voice Persona & Tone
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Volume2 className="w-3.5 h-3.5 text-black" />
+              Human Voice Persona
             </label>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-800 font-bold flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-cyan-400" /> HD Neural Synthesis
-            </span>
           </div>
 
           <div className="grid grid-cols-3 gap-2">
@@ -102,34 +136,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <button
                 key={v.id}
                 onClick={() => setVoice(v.id)}
-                className={`py-2 px-2.5 rounded-xl text-xs font-medium border text-center transition-all ${
+                className={`py-2 px-2 rounded text-[10px] font-bold uppercase tracking-wider border text-center transition-all ${
                   voice === v.id
-                    ? 'bg-amber-950/50 text-amber-300 border-amber-500/60 font-bold shadow-lg'
-                    : 'bg-gray-900 text-gray-400 border-gray-800 hover:border-gray-700'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-white text-gray-500 border-gray-200 hover:border-black hover:text-black'
                 }`}
               >
                 {v.label}
               </button>
             ))}
           </div>
-
-          <p className="text-[11px] text-gray-400 mt-1">
-            Audio output automatically applies speech cleaning, removing markdown symbols, list numbers, and code syntax for natural human phrasing.
-          </p>
         </div>
 
         {/* Save button */}
         <button
           onClick={handleSave}
-          className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all shadow-lg glow-blue mt-2"
+          className="w-full py-3 rounded bg-black hover:bg-gray-800 text-white font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-sm mt-2"
         >
           {isSaved ? (
             <>
-              <Check className="w-4 h-4" /> Saved Settings!
+              <Check className="w-4 h-4 text-emerald-400" /> Saved Successfully!
             </>
           ) : (
             <>
-              <Save className="w-4 h-4" /> Save Settings
+              <Save className="w-4 h-4" /> Save Configuration
             </>
           )}
         </button>
