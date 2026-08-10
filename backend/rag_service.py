@@ -368,22 +368,22 @@ def search_vector_database(
                     "chunkIndex": chunk["chunk_index"],
                     "similarity": sim,
                 })
-        scored.sort(key=lambda x: x["similarity"], reverse=True)
-        dense_results = scored[: top_k * 2]
+            scored.sort(key=lambda x: x["similarity"], reverse=True)
+            dense_results = scored[: top_k * 2]
 
-        if is_general_query or len(dense_results) < top_k:
-            overview_chunks = [c for c in in_memory_store.chunks if c["chunk_index"] <= 3]
-            for chunk in overview_chunks:
-                if not any(r["id"] == chunk["id"] for r in dense_results):
-                    doc = next((d for d in in_memory_store.documents if d["id"] == chunk["document_id"]), None)
-                    dense_results.append({
-                        "id": chunk["id"],
-                        "documentId": chunk["document_id"],
-                        "documentTitle": doc["title"] if doc else "Document",
-                        "content": chunk["content"],
-                        "chunkIndex": chunk["chunk_index"],
-                        "similarity": 0.88,
-                    })
+            if is_general_query or len(dense_results) < top_k:
+                overview_chunks = [c for c in in_memory_store.chunks if c["chunk_index"] <= 3]
+                for chunk in overview_chunks:
+                    if not any(r["id"] == chunk["id"] for r in dense_results):
+                        doc = next((d for d in in_memory_store.documents if d["id"] == chunk["document_id"]), None)
+                        dense_results.append({
+                            "id": chunk["id"],
+                            "documentId": chunk["document_id"],
+                            "documentTitle": doc["title"] if doc else "Document",
+                            "content": chunk["content"],
+                            "chunkIndex": chunk["chunk_index"],
+                            "similarity": 0.88,
+                        })
 
     bm25_results_1 = bm25_search_in_memory(query_str, top_k=top_k)
     bm25_results_2 = bm25_search_in_memory(translated_search_str, top_k=top_k)
