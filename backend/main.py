@@ -28,6 +28,20 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Configure CORS for Next.js frontend demonstration UI
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include API Routers
+app.include_router(documents.router)
+app.include_router(rag.router)
+app.include_router(audio.router)
+
 @app.get("/")
 def read_root():
     return {
