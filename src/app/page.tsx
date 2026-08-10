@@ -204,7 +204,7 @@ export default function Home() {
             {/* Text Input Fallback */}
             <form
               onSubmit={handleTextSubmit}
-              className="glass-panel p-2 rounded-2xl flex items-center gap-2 border border-gray-800/80 focus-within:border-amber-500/60 transition-all"
+              className="bg-white p-2 rounded flex items-center gap-2 border border-gray-200 focus-within:border-black transition-all shadow-sm"
             >
               <input
                 type="text"
@@ -215,31 +215,31 @@ export default function Home() {
                     ? 'සිංහලෙන් ප්‍රශ්නයක් යොමු කරන්න... (Ask in Sinhala)'
                     : 'Type a question in English...'
                 }
-                className="flex-1 bg-transparent px-4 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none"
+                className="flex-1 bg-transparent px-4 py-2 text-sm text-black placeholder-gray-400 focus:outline-none font-medium"
               />
               <button
                 type="submit"
                 disabled={isSubmittingText || !textInput.trim()}
-                className="p-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white transition-colors"
+                className="p-2.5 rounded bg-black hover:bg-gray-800 disabled:opacity-50 text-white transition-colors"
               >
                 <Send className="w-4 h-4" />
               </button>
             </form>
 
             {/* Conversation History Timeline */}
-            <div className="glass-panel rounded-3xl p-6 flex flex-col gap-4 w-full">
-              <div className="flex items-center justify-between pb-2 border-b border-gray-800">
+            <div className="bg-white rounded p-6 flex flex-col gap-4 w-full border border-gray-200 shadow-sm">
+              <div className="flex items-center justify-between pb-2 border-b border-gray-200">
                 <div className="flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-brand-400" />
-                  <h3 className="text-sm font-bold text-gray-200 uppercase tracking-wider">
+                  <MessageSquare className="w-4 h-4 text-emerald-500" />
+                  <h3 className="text-sm font-bold text-black uppercase tracking-wider">
                     Conversation History
                   </h3>
                 </div>
-                <span className="text-xs text-gray-500">{chatHistory.length} messages</span>
+                <span className="text-xs text-gray-500 font-bold">{chatHistory.length} messages</span>
               </div>
 
               {chatHistory.length === 0 ? (
-                <div className="py-12 text-center text-xs text-gray-500 italic">
+                <div className="py-12 text-center text-xs text-gray-400 font-bold uppercase tracking-wider">
                   No conversations yet. Speak into the mic or type a query!
                 </div>
               ) : (
@@ -247,39 +247,39 @@ export default function Home() {
                   {chatHistory.map((msg) => (
                     <div
                       key={msg.id}
-                      className="p-4 rounded-2xl bg-gray-900/60 border border-gray-800 flex flex-col gap-3 hover:border-gray-700 transition-colors"
+                      className="p-4 rounded bg-gray-50 border border-gray-200 flex flex-col gap-3 hover:border-black transition-colors"
                     >
                       {/* User Query */}
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-2.5">
-                          <div className="w-6 h-6 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800 flex items-center justify-center shrink-0 mt-0.5">
-                            <Mic className="w-3.5 h-3.5" />
+                          <div className="w-6 h-6 rounded-full bg-black text-white flex items-center justify-center shrink-0 mt-0.5">
+                            <User className="w-3.5 h-3.5" />
                           </div>
-                          <p className="text-sm font-medium text-gray-200">{msg.userQuery}</p>
+                          <p className="text-sm font-bold text-black">{msg.userQuery}</p>
                         </div>
-                        <span className="text-[10px] text-gray-500 shrink-0 font-mono">
+                        <span className="text-[10px] text-gray-400 shrink-0 font-mono font-bold">
                           {msg.timestamp}
                         </span>
                       </div>
 
                       {/* AI Response */}
-                      <div className="flex items-start gap-2.5 pl-2 border-l-2 border-amber-500/60">
-                        <div className="w-6 h-6 rounded-full bg-amber-950 text-amber-400 border border-amber-800 flex items-center justify-center shrink-0 mt-0.5">
-                          <Volume2 className="w-3.5 h-3.5" />
+                      <div className="flex items-start gap-2.5 pl-2 border-l-2 border-emerald-500 ml-3">
+                        <div className="w-6 h-6 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0 mt-0.5">
+                          <Brain className="w-3.5 h-3.5" />
                         </div>
-                        <p className="text-sm text-gray-100 font-medium leading-relaxed">{msg.aiResponse}</p>
+                        <p className="text-sm text-gray-800 font-medium leading-relaxed">{msg.aiResponse}</p>
                       </div>
 
                       {/* Chunk Match Footer */}
                       {msg.retrievedChunks && msg.retrievedChunks.length > 0 && (
-                        <div className="flex items-center justify-between pt-2 border-t border-gray-800/60 text-xs">
-                          <span className="text-[11px] text-gray-400 flex items-center gap-1">
-                            <Sparkles className="w-3 h-3 text-violet-400" />
+                        <div className="flex items-center justify-between pt-2 border-t border-gray-200 mt-2 text-xs">
+                          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                            <Database className="w-3 h-3 text-emerald-500" />
                             Grounded in {msg.retrievedChunks.length} chunks
                           </span>
                           <button
                             onClick={() => openContextForMessage(msg)}
-                            className="text-[11px] text-amber-400 hover:text-amber-300 font-medium hover:underline flex items-center gap-1"
+                            className="text-[10px] text-emerald-600 hover:text-emerald-700 font-bold uppercase tracking-wider hover:underline flex items-center gap-1"
                           >
                             Inspect Source Data &rarr;
                           </button>
@@ -296,13 +296,13 @@ export default function Home() {
         {/* === ADMIN TAB === */}
         {activeTab === 'admin' && (
           <div className="flex flex-col gap-6 w-full animate-in fade-in zoom-in-95 duration-200">
-            <div className="glass-panel rounded-3xl p-6 border border-violet-900/30">
+            <div className="bg-white rounded p-6 border border-gray-200 shadow-sm">
               <div className="mb-4">
-                <h2 className="text-xl font-bold text-gray-100 flex items-center gap-2">
-                  <Database className="w-5 h-5 text-violet-400" />
+                <h2 className="text-xl font-bold text-black flex items-center gap-2 uppercase tracking-wider">
+                  <Database className="w-5 h-5 text-emerald-500" />
                   Knowledge Base Administration
                 </h2>
-                <p className="text-sm text-gray-400 mt-1">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mt-1">
                   Upload databases (Excel/CSV), PDFs, and Documents. The AI will strictly restrict its answers to this data.
                 </p>
               </div>
@@ -312,12 +312,12 @@ export default function Home() {
             </div>
 
             {/* Sample Queries Box */}
-            <div className="glass-panel rounded-3xl p-6 flex flex-col gap-3 border border-gray-800/80">
-              <div className="flex items-center gap-2 text-sm font-bold text-gray-200 uppercase tracking-wider">
-                <Globe className="w-4 h-4 text-amber-400" />
+            <div className="bg-gray-50 rounded p-6 flex flex-col gap-3 border border-gray-200 shadow-sm">
+              <div className="flex items-center gap-2 text-sm font-bold text-black uppercase tracking-wider">
+                <Globe className="w-4 h-4 text-emerald-500" />
                 <span>Test Strict Mode</span>
               </div>
-              <p className="text-xs text-gray-400 mb-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">
                 Click a query below while on the User Tab to verify the bot rejects questions outside the uploaded database.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -333,10 +333,10 @@ export default function Home() {
                       setActiveTab('user');
                       setTextInput(q.query);
                     }}
-                    className="p-3 rounded-xl bg-gray-900/80 hover:bg-gray-800/80 border border-gray-800 text-left text-xs text-amber-200 hover:text-white transition-all flex items-center justify-between group"
+                    className="p-3 rounded bg-white hover:border-black border border-gray-200 text-left text-[11px] font-bold text-gray-600 hover:text-black transition-all flex items-center justify-between group uppercase tracking-wider shadow-sm"
                   >
                     <span>"{q.label}"</span>
-                    <span className="text-gray-500 group-hover:text-amber-400 transition-colors">&rarr;</span>
+                    <span className="text-gray-300 group-hover:text-emerald-500 transition-colors">&rarr;</span>
                   </button>
                 ))}
               </div>

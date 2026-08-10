@@ -463,49 +463,49 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
           {/* Instant Real-Time vs Server HD Mode */}
           <button
             onClick={() => setUseInstantMode(!useInstantMode)}
-            className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 border ${
               useInstantMode
-                ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-700/80 shadow-md'
-                : 'bg-gray-900 text-gray-400 border border-gray-800 hover:text-gray-200'
+                ? 'bg-black text-white border-black'
+                : 'bg-white text-gray-400 border-gray-200 hover:text-black hover:border-black'
             }`}
-            title="Real-Time Mode enables instant <500ms voice answers via live browser speech detection & zero-delay audio playback"
+            title="Real-Time Mode enables instant <500ms voice answers"
           >
-            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-            {useInstantMode ? '⚡ Real-Time Instant Mode' : '🎙️ Studio HD Mode'}
+            <Sparkles className={`w-3.5 h-3.5 ${useInstantMode ? 'text-emerald-400' : 'text-gray-400'}`} />
+            {useInstantMode ? 'Instant Mode' : 'Studio HD Mode'}
           </button>
 
-          <div className="flex items-center gap-1 bg-gray-900/90 border border-gray-800 p-1 rounded-full text-xs">
+          <div className="flex items-center p-0.5 bg-gray-100 border border-gray-200 rounded text-[10px] font-bold uppercase tracking-wider">
             <button
               onClick={() => onLanguageChange && onLanguageChange('si')}
-              className={`px-3 py-1 rounded-full font-bold transition-all flex items-center gap-1 ${
+              className={`px-3 py-1 rounded transition-all flex items-center gap-1 ${
                 language === 'si'
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md'
-                  : 'text-gray-400 hover:text-gray-200'
+                  ? 'bg-black text-white'
+                  : 'text-gray-500 hover:text-black'
               }`}
             >
-              🇱🇰 සිංහල (Sinhala)
+              Sinhala
             </button>
             <button
               onClick={() => onLanguageChange && onLanguageChange('en')}
-              className={`px-3 py-1 rounded-full font-bold transition-all flex items-center gap-1 ${
+              className={`px-3 py-1 rounded transition-all flex items-center gap-1 ${
                 language === 'en'
-                  ? 'bg-brand-600 text-white shadow-md'
-                  : 'text-gray-400 hover:text-gray-200'
+                  ? 'bg-black text-white'
+                  : 'text-gray-500 hover:text-black'
               }`}
             >
-              🇺🇸 English
+              English
             </button>
           </div>
 
           <button
             onClick={() => setIsHandsFree(!isHandsFree)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 border ${
               isHandsFree
-                ? 'bg-brand-600/30 text-brand-400 border border-brand-500/40'
-                : 'bg-gray-800/60 text-gray-400 hover:text-gray-200 border border-gray-700/50'
+                ? 'bg-black text-white border-black'
+                : 'bg-white text-gray-400 border-gray-200 hover:text-black hover:border-black'
             }`}
           >
-            <Zap className="w-3.5 h-3.5" />
+            <Zap className={`w-3.5 h-3.5 ${isHandsFree ? 'text-emerald-400' : 'text-gray-400'}`} />
             {isHandsFree ? 'Hands-Free On' : 'Hands-Free Off'}
           </button>
         </div>
@@ -517,23 +517,23 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
       {/* Big Mic Button */}
       <div className="relative my-2">
         {state === 'listening' && (
-          <div className="absolute -inset-4 rounded-full bg-cyan-500/20 animate-ping" />
+          <div className="absolute -inset-4 rounded-full border-2 border-emerald-500 animate-ping opacity-20" />
         )}
         {state === 'speaking' && (
-          <div className="absolute -inset-4 rounded-full bg-emerald-500/20 animate-pulse" />
+          <div className="absolute -inset-4 rounded-full border-2 border-emerald-500 animate-pulse opacity-20" />
         )}
 
         <button
           onClick={toggleMic}
           disabled={state === 'transcribing' || state === 'searching'}
-          className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center transition-all transform hover:scale-105 active:scale-95 shadow-2xl ${
+          className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center transition-all transform hover:scale-105 active:scale-95 shadow-sm border ${
             state === 'listening'
-              ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white glow-cyan'
+              ? 'bg-black border-emerald-500 text-emerald-400'
               : state === 'speaking'
-              ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white glow-emerald'
+              ? 'bg-black border-black text-emerald-500'
               : state === 'searching' || state === 'transcribing'
-              ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white cursor-wait opacity-80'
-              : 'bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-400 hover:to-orange-500 glow-blue'
+              ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-wait'
+              : 'bg-black border-black text-white hover:bg-gray-900'
           }`}
         >
           {state === 'transcribing' || state === 'searching' ? (
@@ -566,42 +566,42 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
 
       {/* Live Speech & Response Preview */}
       {(currentQuery || currentResponse) && (
-        <div className="w-full flex flex-col gap-3 mt-2 pt-4 border-t border-gray-800">
+        <div className="w-full flex flex-col gap-3 mt-2 pt-4 border-t border-gray-200">
           {currentQuery && (
-            <div className="p-3 rounded-xl bg-gray-900/60 border border-gray-800/80">
-              <span className="text-[10px] font-bold tracking-wider text-cyan-400 uppercase block mb-1">
+            <div className="p-3 rounded bg-gray-50 border border-gray-200">
+              <span className="text-[10px] font-bold tracking-widest text-gray-400 uppercase block mb-1">
                 You Spoke
               </span>
-              <p className="text-sm text-gray-200 font-medium">{currentQuery}</p>
+              <p className="text-sm text-black font-bold">{currentQuery}</p>
             </div>
           )}
 
           {currentResponse && (
-            <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-800/40 flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold tracking-wider text-emerald-400 uppercase flex items-center gap-1">
-                  <Sparkles className="w-3 h-3" /> Voice AI Response ({language === 'si' ? 'Sinhala' : 'English'})
+            <div className="p-4 rounded bg-white border border-gray-200 flex flex-col gap-2 shadow-sm">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                <span className="text-[10px] font-bold tracking-widest text-emerald-600 uppercase flex items-center gap-1">
+                  <Sparkles className="w-3 h-3" /> AI Response ({language === 'si' ? 'Sinhala' : 'English'})
                 </span>
 
                 <div className="flex items-center gap-2">
                   {state === 'speaking' ? (
                     <button
                       onClick={stopSpeaking}
-                      className="px-2.5 py-1 rounded-lg bg-red-900/80 hover:bg-red-800 text-red-200 border border-red-700/60 text-[11px] font-bold flex items-center gap-1 transition-all"
+                      className="px-2.5 py-1 rounded bg-gray-100 hover:bg-gray-200 text-black border border-gray-200 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all"
                     >
-                      🛑 Stop Speaking (නවත්වන්න)
+                      🛑 Stop Speaking
                     </button>
                   ) : (
                     <button
                       onClick={() => speakTextWithBrowserTTS(currentResponse)}
-                      className="px-2.5 py-1 rounded-lg bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 border border-emerald-700/60 text-[11px] font-bold flex items-center gap-1 transition-all"
+                      className="px-2.5 py-1 rounded bg-white hover:bg-gray-50 text-black border border-gray-200 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all shadow-sm"
                     >
-                      🔊 Replay Voice (නැවත කියවන්න)
+                      🔊 Replay Voice
                     </button>
                   )}
                 </div>
               </div>
-              <p className="text-sm text-gray-100 font-medium leading-relaxed">{currentResponse}</p>
+              <p className="text-sm text-black font-medium leading-relaxed">{currentResponse}</p>
             </div>
           )}
         </div>

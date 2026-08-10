@@ -27,19 +27,19 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ isActive, mode
       const height = canvas.height;
       const centerY = height / 2;
 
-      // Color scheme based on state
-      let primaryColor = '#3b82f6'; // Blue idle
-      let secondaryColor = '#60a5fa';
+      // Color scheme based on minimalist monochrome + emerald state
+      let primaryColor = '#e5e7eb'; // Light gray idle
+      let secondaryColor = '#d1d5db';
 
       if (mode === 'listening') {
-        primaryColor = '#06b6d4'; // Cyan listening
-        secondaryColor = '#38bdf8';
+        primaryColor = '#10b981'; // Emerald listening
+        secondaryColor = '#059669';
       } else if (mode === 'transcribing' || mode === 'searching') {
-        primaryColor = '#8b5cf6'; // Violet thinking
-        secondaryColor = '#c084fc';
+        primaryColor = '#9ca3af'; // Darker gray thinking
+        secondaryColor = '#6b7280';
       } else if (mode === 'speaking') {
-        primaryColor = '#10b981'; // Emerald speaking
-        secondaryColor = '#34d399';
+        primaryColor = '#059669'; // Emerald speaking
+        secondaryColor = '#10b981';
       }
 
       const barCount = 32;
@@ -87,7 +87,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ isActive, mode
   }, [isActive, mode]);
 
   return (
-    <div className="w-full h-24 flex items-center justify-center relative overflow-hidden rounded-2xl glass-panel p-2">
+    <div className="w-full h-24 flex items-center justify-center relative overflow-hidden rounded bg-gray-50 border border-gray-200 p-2 shadow-inner">
       <canvas
         ref={canvasRef}
         width={480}
