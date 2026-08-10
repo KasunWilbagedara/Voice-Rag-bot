@@ -438,20 +438,25 @@ def generate_voice_rag_answer(
 
     if is_sinhala:
         language_instruction = (
+            "CRITICAL STRICT KNOWLEDGE RULE:\n"
+            "You MUST ONLY answer based on the CONTEXT DOCUMENTS provided below. Do NOT use outside knowledge.\n"
+            "If the answer cannot be found in the CONTEXT DOCUMENTS, you MUST reply exactly with: 'සපයා ඇති දත්ත වල මෙම තොරතුරු සොයාගත නොහැක.' (I cannot find this information in the provided data).\n\n"
             "CRITICAL SINHALA VOICE & ACCURACY REQUIREMENT:\n"
             "You MUST synthesize a comprehensive, smart, and highly articulate answer in natural, fluent SINHALA (සිංහල).\n"
-            "Thoroughly analyze the CONTEXT DOCUMENTS provided below. Extract all main topics, case study details, project team issues, facts, or findings, and explain them clearly in Sinhala.\n\n"
+            "Thoroughly analyze the CONTEXT DOCUMENTS. Extract facts, figures, and findings, and explain them clearly.\n\n"
             "RULES FOR SINHALA RESPONSE:\n"
             "1. Deliver a COMPLETE 3 to 6 sentence spoken response. NEVER leave your sentence incomplete or cut off!\n"
-            "2. If asked about a case study or summary ('මේකේ කේස්ස්ටඩියගැන පැහැදිලි කරන්න'), summarize the core problem, context, team conflict, or solution clearly.\n"
-            "3. Do NOT use markdown symbols (*, #, -, ```), no bullet points, and no citations like [1] or [Source 1], as your response will be read aloud."
+            "2. Do NOT use markdown symbols (*, #, -, ```), no bullet points, and no citations like [1] or [Source 1]."
         )
     else:
         language_instruction = (
+            "CRITICAL STRICT KNOWLEDGE RULE:\n"
+            "You MUST ONLY answer based on the CONTEXT DOCUMENTS provided below. Do NOT use outside knowledge.\n"
+            "If the answer cannot be found in the CONTEXT DOCUMENTS, you MUST reply exactly with: 'I cannot find this information in the uploaded documents.'\n\n"
             "CRITICAL VOICE & ACCURACY REQUIREMENT:\n"
-            "Deliver an intelligent, comprehensive, and highly accurate answer grounded strictly in the CONTEXT DOCUMENTS below.\n\n"
+            "Deliver an intelligent, comprehensive, and highly accurate answer.\n\n"
             "RULES FOR RESPONSE:\n"
-            "1. Synthesize a COMPLETE 3 to 6 sentence spoken response summarizing main facts, case studies, or findings.\n"
+            "1. Synthesize a COMPLETE 3 to 6 sentence spoken response summarizing the facts.\n"
             "2. Do NOT use markdown symbols (*, #, -, ```), no bullet points, and no citations."
         )
 
