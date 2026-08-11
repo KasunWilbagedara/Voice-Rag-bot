@@ -113,6 +113,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
 
     // Pre-clean text to remove markdown, brackets, and citations for speech
     const cleanSpeechText = text
+      .replace(/```[\s\S]*?```/g, '')
       .replace(/\[[^\]]*\]/g, '')
       .replace(/[*#\`\-_~]/g, '')
       .replace(/\s+/g, ' ')
