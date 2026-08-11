@@ -578,34 +578,38 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
             </div>
           )}
 
-          {currentResponse && (
-            <div className="p-4 rounded bg-white border border-gray-200 flex flex-col gap-2 shadow-sm">
-              <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-                <span className="text-[10px] font-bold tracking-widest text-emerald-600 uppercase flex items-center gap-1">
-                  <Sparkles className="w-3 h-3" /> AI Response ({language === 'si' ? 'Sinhala' : 'English'})
-                </span>
+          {currentResponse && (() => {
+            const { cleanText, chartData } = parseChartDataFromResponse(currentResponse);
+            return (
+              <div className="p-4 rounded bg-white border border-gray-200 flex flex-col gap-2 shadow-sm">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                  <span className="text-[10px] font-bold tracking-widest text-emerald-600 uppercase flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" /> AI Response ({language === 'si' ? 'Sinhala' : 'English'})
+                  </span>
 
-                <div className="flex items-center gap-2">
-                  {state === 'speaking' ? (
-                    <button
-                      onClick={stopSpeaking}
-                      className="px-2.5 py-1 rounded bg-gray-100 hover:bg-gray-200 text-black border border-gray-200 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all"
-                    >
-                      🛑 Stop Speaking
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => speakTextWithBrowserTTS(currentResponse)}
-                      className="px-2.5 py-1 rounded bg-white hover:bg-gray-50 text-black border border-gray-200 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all shadow-sm"
-                    >
-                      🔊 Replay Voice
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {state === 'speaking' ? (
+                      <button
+                        onClick={stopSpeaking}
+                        className="px-2.5 py-1 rounded bg-gray-100 hover:bg-gray-200 text-black border border-gray-200 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all"
+                      >
+                        🛑 Stop Speaking
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => speakTextWithBrowserTTS(cleanText)}
+                        className="px-2.5 py-1 rounded bg-white hover:bg-gray-50 text-black border border-gray-200 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all shadow-sm"
+                      >
+                        🔊 Replay Voice
+                      </button>
+                    )}
+                  </div>
                 </div>
+                <p className="text-sm text-black font-medium leading-relaxed">{cleanText}</p>
+                {chartData && <DynamicChart chartData={chartData} />}
               </div>
-              <p className="text-sm text-black font-medium leading-relaxed">{currentResponse}</p>
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
     </div>
