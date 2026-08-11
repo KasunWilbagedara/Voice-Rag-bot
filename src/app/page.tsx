@@ -19,6 +19,7 @@ import { VoiceInterface } from '@/components/VoiceInterface';
 import { DocumentManager } from '@/components/DocumentManager';
 import { ContextDrawer } from '@/components/ContextDrawer';
 import { SettingsModal } from '@/components/SettingsModal';
+import { DynamicChart, parseChartDataFromResponse } from '@/components/DynamicChart';
 
 interface ChatMessage {
   id: string;
@@ -260,32 +261,41 @@ export default function Home() {
                   No conversations yet. Speak into the mic or type a query!
                 </div>
               ) : (
-                <div className="flex flex-col gap-4 max-h-[500px] overflow-y-auto pr-1">
-                  {chatHistory.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className="p-4 rounded bg-gray-50 border border-gray-200 flex flex-col gap-3 hover:border-black transition-colors"
-                    >
-                      {/* User Query */}
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-2.5">
-                          <div className="w-6 h-6 rounded-full bg-black text-white flex items-center justify-center shrink-0 mt-0.5">
-                            <User className="w-3.5 h-3.5" />
+                <div className="flex flex-col gap-4 max-h-[600px] overflow-y-auto pr-1">
+                  {chatHistory.map((msg) => {
+                    const { cleanText, chartData } = parseChartDataFromResponse(msg.aiResponse);
+                    return (
+                      <div
+                        key={msg.id}
+                        className="p-4 rounded bg-gray-50 border border-gray-200 flex flex-col gap-3 hover:border-black transition-colors"
+                      >
+                        {/* User Query */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-2.5">
+                            <div className="w-6 h-6 rounded-full bg-black text-white flex items-center justify-center shrink-0 mt-0.5">
+                              <User className="w-3.5 h-3.5" />
+                            </div>
+                            <p className="text-sm font-bold text-black">{msg.userQuery}</p>
                           </div>
-                          <p className="text-sm font-bold text-black">{msg.userQuery}</p>
+                          <span className="text-[10px] text-gray-400 shrink-0 font-mono font-bold">
+                            {msg.timestamp}
+                          </span>
                         </div>
-                        <span className="text-[10px] text-gray-400 shrink-0 font-mono font-bold">
-                          {msg.timestamp}
-                        </span>
-                      </div>
 
-                      {/* AI Response */}
-                      <div className="flex items-start gap-2.5 pl-2 border-l-2 border-emerald-500 ml-3">
-                        <div className="w-6 h-6 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0 mt-0.5">
-                          <Brain className="w-3.5 h-3.5" />
+                        {/* AI Response Text */}
+                        <div className="flex items-start gap-2.5 pl-2 border-l-2 border-emerald-500 ml-3">
+                          <div className="w-6 h-6 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0 mt-0.5">
+                            <Brain className="w-3.5 h-3.5" />
+                          </div>
+                          <p className="text-sm text-gray-800 font-medium leading-relaxed">{cleanText}</p>
                         </div>
-                        <p className="text-sm text-gray-800 font-medium leading-relaxed">{msg.aiResponse}</p>
-                      </div>
+
+                        {/* Interactive Recharts Chart Component */}
+                        {chartData && (
+                          <div className="ml-3">
+                            <DynamicChart chartData={chartData} />
+                          </div>
+                        )}
 
                       {/* Chunk Match Footer */}
                       {msg.retrievedChunks && msg.retrievedChunks.length > 0 && (
@@ -303,7 +313,8 @@ export default function Home() {
                         </div>
                       )}
                     </div>
-                  ))}
+                  );
+                })}
                 </div>
               )}
             </div>
