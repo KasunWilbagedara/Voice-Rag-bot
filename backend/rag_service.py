@@ -446,8 +446,26 @@ def generate_voice_rag_answer(
             "Thoroughly analyze the CONTEXT DOCUMENTS. Extract facts, figures, and findings, and explain them clearly.\n\n"
             "RULES FOR SINHALA RESPONSE:\n"
             "1. Deliver a COMPLETE 3 to 6 sentence spoken response. NEVER leave your sentence incomplete or cut off!\n"
-            "2. Do NOT use markdown symbols (*, #, -, ```), no bullet points, and no citations like [1] or [Source 1].\n"
-            "3. AMBIGUOUS LIST QUERIES: If the user asks for a broad list from a database or table (e.g., 'give me the employee names' or 'list all users'), DO NOT just list them all. Instead, ask a clarifying question in Sinhala like: 'Are you asking for all employee names, or do you want specific details (e.g. by department or role)?'"
+            "2. Do NOT use markdown symbols (*, #, -), no bullet points, and no citations like [1] or [Source 1] in spoken text.\n"
+            "3. AMBIGUOUS LIST QUERIES: If the user asks for a broad list from a database or table (e.g., 'give me the employee names' or 'list all users'), DO NOT just list them all. Instead, ask a clarifying question in Sinhala like: 'Are you asking for all employee names, or do you want specific details (e.g. by department or role)?'\n"
+            "4. COMPARATIVE, STATISTICAL & CHART DATA RULE:\n"
+            "If the user asks for comparative data, statistics, figures, tabular comparisons, or numerical data (e.g., 'Compare the salaries of employees', 'Show revenue breakdown', 'Sales comparison'), you MUST provide the spoken answer AND append a hidden JSON schema representing the data at the very end of your response inside a markdown code block ```json ... ```.\n"
+            "The JSON schema MUST follow this exact structure:\n"
+            "```json\n"
+            "{\n"
+            '  "type": "chart",\n'
+            '  "chartType": "bar",\n'
+            '  "title": "Chart Title",\n'
+            '  "labels": ["Label 1", "Label 2"],\n'
+            '  "datasets": [\n'
+            "    {\n"
+            '      "label": "Dataset Name",\n'
+            '      "data": [100, 200]\n'
+            "    }\n"
+            "  ]\n"
+            "}\n"
+            "```\n"
+            "Use 'bar' for entity comparisons (salaries, counts, etc.), 'pie' for proportions/percentages, and 'line' for trends over time. If the user query is NOT asking for comparative, statistical, or tabular data, do NOT output any JSON code block."
         )
     else:
         language_instruction = (
