@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, MicOff, Volume2, Loader2, Sparkles, AlertCircle, Zap, Key } from 'lucide-react';
 import { AudioVisualizer } from './AudioVisualizer';
+import { DynamicChart, parseChartDataFromResponse } from './DynamicChart';
 
 interface VoiceInterfaceProps {
   apiKey?: string;
