@@ -13,11 +13,14 @@ from backend.rag_service import (
 router = APIRouter(prefix="/api/rag", tags=["RAG"])
 logger = logging.getLogger("voicerag.rag_router")
 
+from typing import Optional, List, Dict, Any
+
 class RagQueryRequest(BaseModel):
     query: str
     apiKey: Optional[str] = None
     model: Optional[str] = "gemini-flash-latest"
     language: Optional[str] = "si"
+    conversationHistory: Optional[List[Dict[str, str]]] = None
 
 @router.post("")
 def process_rag_query(req: RagQueryRequest):
@@ -32,19 +35,23 @@ def process_rag_query(req: RagQueryRequest):
             query_text=req.query,
             custom_api_key=req.apiKey,
         )
-        answer = generate_voice_rag_answer(
+        rag_res = generate_voice_rag_answer(
             user_query=req.query,
             retrieved_chunks=retrieved_chunks,
             custom_api_key=req.apiKey,
             model_name=req.model or "gemini-2.0-flash",
             target_language=req.language or "si",
+            conversation_history=req.conversationHistory,
         )
-        save_chat_history(req.query, retrieved_chunks, answer)
+        answer = rag_res["answer"]
+        final_chunks = rag_res["retrievedChunks"]
+
+        save_chat_history(req.query, final_chunks, answer)
 
         return {
             "query": req.query,
             "answer": answer,
-            "retrievedChunks": retrieved_chunks,
+            "retrievedChunks": final_chunks,
         }
     except Exception as e:
         logger.error(f"RAG Pipeline Error: {e}")

@@ -5,7 +5,7 @@ import math
 import logging
 import time
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 import openai
 from google import genai
@@ -18,6 +18,7 @@ from backend.db import (
     in_memory_store,
     cosine_similarity,
 )
+from backend import db_query_service
 
 logger = logging.getLogger("voicerag.rag_service")
 
@@ -417,39 +418,382 @@ def search_vector_database(
     return final_chunks if final_chunks else dense_results[:top_k]
 
 
-# --- 7. HIGH-INTELLIGENCE LLM GENERATOR (google-genai SDK) ---
+# Global cached embedding model & LRU caches
+_CACHED_EMBEDDING_MODEL: Optional[str] = None
+_EMBEDDING_CACHE: Dict[str, List[float]] = {}
+
+
+# --- 1. RECURSIVE STRUCTURAL CHUNKING ---
+def recursive_structural_chunk(
+    text: str,
+    target_size: int = 450,
+    overlap: int = 80,
+) -> List[str]:
+    cleaned = text.replace("\r\n", "\n").strip()
+    if not cleaned:
+        return []
+
+    sections = re.split(r"(?=\n#{1,3}\s+|\n--- Page \d+ ---\n|\n### Slide \d+)", cleaned)
+    chunks: List[str] = []
+
+    for section in sections:
+        sec_text = section.strip()
+        if not sec_text:
+            continue
+
+        if len(sec_text) <= target_size + overlap:
+            if len(sec_text) > 10:
+                chunks.append(sec_text)
+        else:
+            paragraphs = sec_text.split("\n\n")
+            current_chunk = ""
+
+            for para in paragraphs:
+                para_clean = para.strip()
+                if not para_clean:
+                    continue
+
+                if len(current_chunk) + len(para_clean) + 2 <= target_size:
+                    current_chunk += ("\n\n" if current_chunk else "") + para_clean
+                else:
+                    if current_chunk and len(current_chunk) > 10:
+                        chunks.append(current_chunk.strip())
+
+                    if len(para_clean) > target_size:
+                        sentences = re.split(r"(?<=[.!?;])\s+", para_clean)
+                        sub_chunk = ""
+                        for sent in sentences:
+                            if len(sub_chunk) + len(sent) + 1 <= target_size:
+                                sub_chunk += (" " if sub_chunk else "") + sent
+                            else:
+                                if sub_chunk and len(sub_chunk) > 10:
+                                    chunks.append(sub_chunk.strip())
+                                sub_chunk = sent
+                        if sub_chunk and len(sub_chunk) > 10:
+                            chunks.append(sub_chunk.strip())
+                        current_chunk = ""
+                    else:
+                        current_chunk = para_clean
+
+            if current_chunk and len(current_chunk) > 10:
+                chunks.append(current_chunk.strip())
+
+    return chunks if chunks else [cleaned[:target_size]]
+
+
+# --- 2. CROSS-LINGUAL QUERY TRANSLATION (Sinhala -> English for Search) ---
+def translate_query_for_search(
+    query_text: str,
+    custom_api_key: Optional[str] = None,
+) -> str:
+    """If user asks in Sinhala, generates a fast English translation to match English documents."""
+    if not query_text or not any("\u0d80" <= c <= "\u0dff" for c in query_text):
+        return query_text
+
+    try:
+        api_key = get_api_key(custom_api_key)
+        if is_gemini_key(api_key):
+            client = genai.Client(api_key=api_key)
+            prompt = f"Translate this Sinhala user question into a concise English document search query: '{query_text}'. Output ONLY the English search string."
+            for m_name in ["gemini-flash-latest", "gemini-2.0-flash", "gemini-3.6-flash"]:
+                try:
+                    res = client.models.generate_content(
+                        model=m_name,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(max_output_tokens=60, temperature=0.1)
+                    )
+                    if res and res.text and res.text.strip():
+                        return res.text.strip()
+                except Exception:
+                    continue
+    except Exception as e:
+        logger.debug(f"Query translation fallback: {e}")
+
+    return query_text
+
+
+# --- 3. FAST EMBEDDING ENGINE WITH LRU CACHING ---
+def get_embedding(text: str, custom_api_key: Optional[str] = None) -> List[float]:
+    global _CACHED_EMBEDDING_MODEL, _EMBEDDING_CACHE
+    cleaned_text = text.replace("\n", " ").strip()
+    cache_key = f"{custom_api_key or 'default'}_{hash(cleaned_text)}"
+
+    if cache_key in _EMBEDDING_CACHE:
+        return _EMBEDDING_CACHE[cache_key]
+
+    api_key = get_api_key(custom_api_key)
+
+    if is_gemini_key(api_key):
+        client = genai.Client(api_key=api_key)
+        if _CACHED_EMBEDDING_MODEL:
+            try:
+                res = client.models.embed_content(model=_CACHED_EMBEDDING_MODEL, contents=cleaned_text)
+                emb = res.embedding.values if hasattr(res, "embedding") and res.embedding else res.embeddings[0].values
+                _EMBEDDING_CACHE[cache_key] = emb
+                return emb
+            except Exception:
+                pass
+
+        models_to_try = [
+            "gemini-embedding-001",
+            "gemini-embedding-2",
+            "models/gemini-embedding-001",
+            "models/gemini-embedding-2",
+        ]
+        for m in models_to_try:
+            try:
+                res = client.models.embed_content(model=m, contents=cleaned_text)
+                _CACHED_EMBEDDING_MODEL = m
+                emb = res.embedding.values if hasattr(res, "embedding") and res.embedding else res.embeddings[0].values
+                _EMBEDDING_CACHE[cache_key] = emb
+                return emb
+            except Exception:
+                continue
+
+        raise RuntimeError("Gemini embedding failed.")
+    else:
+        client = openai.OpenAI(api_key=api_key)
+        res = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=cleaned_text,
+            encoding_format="float",
+        )
+        emb = res.data[0].embedding
+        _EMBEDDING_CACHE[cache_key] = emb
+        return emb
+
+
+def get_embeddings_batch(texts: List[str], custom_api_key: Optional[str] = None) -> List[List[float]]:
+    global _CACHED_EMBEDDING_MODEL
+    api_key = get_api_key(custom_api_key)
+    cleaned_texts = [t.replace("\n", " ") for t in texts]
+
+    if is_gemini_key(api_key):
+        client = genai.Client(api_key=api_key)
+        target_model = _CACHED_EMBEDDING_MODEL or "gemini-embedding-001"
+        embeddings = []
+        for t in cleaned_texts:
+            try:
+                res = client.models.embed_content(model=target_model, contents=t)
+                emb = res.embedding.values if hasattr(res, "embedding") and res.embedding else res.embeddings[0].values
+                embeddings.append(emb)
+            except Exception:
+                embeddings.append(get_embedding(t, custom_api_key))
+        return embeddings
+    else:
+        client = openai.OpenAI(api_key=api_key)
+        res = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=cleaned_texts,
+            encoding_format="float",
+        )
+        return [item.embedding for item in res.data]
+
+
+# --- 4. DYNAMIC LLM TEXT-TO-SQL GENERATOR ---
+def generate_llm_sql_query(
+    user_query: str,
+    schemas_summary: str,
+    custom_api_key: Optional[str] = None,
+) -> Optional[Tuple[str, str]]:
+    """Uses LLM to convert user natural language questions into safe read-only SQL queries."""
+    if not schemas_summary or not user_query:
+        return None
+
+    api_key = get_api_key(custom_api_key)
+    prompt = (
+        f"You are a Text-to-SQL engine for a customer database.\n"
+        f"AVAILABLE DATABASE SCHEMAS:\n{schemas_summary}\n\n"
+        f"USER QUESTION: '{user_query}'\n\n"
+        f"Task: If this question requires querying any database table, write a single valid read-only SELECT SQL query.\n"
+        f"Output MUST be in format:\nDB_ID: <database_id>\nSQL: <SELECT_query>\n"
+        f"If NO database query is needed, output ONLY 'NONE'."
+    )
+
+    try:
+        if is_gemini_key(api_key):
+            client = genai.Client(api_key=api_key)
+            for m in ["gemini-flash-latest", "gemini-2.0-flash"]:
+                try:
+                    res = client.models.generate_content(
+                        model=m,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(temperature=0.0, max_output_tokens=150)
+                    )
+                    if res and res.text:
+                        text = res.text.strip()
+                        if "NONE" in text.upper():
+                            return None
+                        match = re.search(r"DB_ID:\s*([^\n]+)\s*SQL:\s*(SELECT[^\n;]+)", text, re.IGNORECASE)
+                        if match:
+                            return match.group(1).strip(), match.group(2).strip()
+                except Exception:
+                    continue
+        else:
+            client = openai.OpenAI(api_key=api_key)
+            completion = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+                max_tokens=150,
+            )
+            text = completion.choices[0].message.content.strip()
+            if "NONE" in text.upper():
+                return None
+            match = re.search(r"DB_ID:\s*([^\n]+)\s*SQL:\s*(SELECT[^\n;]+)", text, re.IGNORECASE)
+            if match:
+                return match.group(1).strip(), match.group(2).strip()
+    except Exception as e:
+        logger.debug(f"LLM Text-to-SQL generation note: {e}")
+
+    return None
+
+
+# --- 5. HIGH-INTELLIGENCE LLM GENERATOR & MULTI-SOURCE FUSION ---
 def generate_voice_rag_answer(
     user_query: str,
     retrieved_chunks: List[Dict[str, Any]],
     custom_api_key: Optional[str] = None,
     model_name: str = "gemini-flash-latest",
     target_language: str = "si",
-) -> str:
+    conversation_history: Optional[List[Dict[str, str]]] = None,
+) -> Dict[str, Any]:
+    """
+    Synthesizes a response by fusing unstructured vector document RAG chunks, 
+    dynamic LLM Text-to-SQL query results, and multi-turn chat history.
+    """
     api_key = get_api_key(custom_api_key)
     is_sinhala = target_language == "si"
+    db_context_blocks = []
+    enriched_chunks = list(retrieved_chunks)
+
+    # 1. Legacy Student Database Match
+    student_record = db_query_service.query_student_by_id_or_name(user_query)
+    if student_record:
+        db_context_blocks.append(
+            f"STRUCTURED STUDENT DATABASE RECORD:\n"
+            f"- Student ID: {student_record.get('student_id')}\n"
+            f"- Full Name: {student_record.get('name')}\n"
+            f"- Email: {student_record.get('email')}\n"
+            f"- Department: {student_record.get('department')}\n"
+            f"- GPA: {student_record.get('gpa')}\n"
+            f"- Academic Status: {student_record.get('status')}\n"
+        )
+        enriched_chunks.append({
+            "id": f"db_student_{student_record.get('student_id')}",
+            "documentId": "database_students",
+            "documentTitle": f"Database: Student ({student_record.get('student_id')})",
+            "content": f"Student Record: {student_record.get('name')} | ID: {student_record.get('student_id')} | Dept: {student_record.get('department')} | GPA: {student_record.get('gpa')}",
+            "chunkIndex": 0,
+            "similarity": 1.0,
+            "type": "database_record"
+        })
+
+    # 2. Dynamic LLM Text-to-SQL + Heuristic Auto Query Execution
+    try:
+        schemas_summary = db_query_service.db_manager.get_all_schemas_summary()
+        
+        # Try AI Text-to-SQL Generation first
+        llm_sql_pair = generate_llm_sql_query(user_query, schemas_summary, custom_api_key)
+        if llm_sql_pair:
+            target_db, generated_sql = llm_sql_pair
+            sql_res = db_query_service.db_manager.execute_safe_sql(generated_sql, db_id=target_db)
+            if sql_res and sql_res.get("rows"):
+                rows_data = sql_res["rows"]
+                db_context_blocks.append(
+                    f"AI TEXT-TO-SQL RESULT (Target DB: '{target_db}', SQL: '{generated_sql}'):\n"
+                    + json.dumps(rows_data[:5], indent=2)
+                )
+                enriched_chunks.append({
+                    "id": f"db_ai_sql_{target_db}",
+                    "documentId": f"db_{target_db}",
+                    "documentTitle": f"AI Text-to-SQL: {target_db}",
+                    "content": f"Executed SQL: {generated_sql}\nRetrieved Rows:\n" + json.dumps(rows_data[:4]),
+                    "chunkIndex": 0,
+                    "similarity": 1.0,
+                    "type": "database_sql"
+                })
+
+        # Heuristic fallback for active databases if AI query returned empty
+        if not llm_sql_pair:
+            all_dbs = db_query_service.db_manager.list_databases()
+            query_words = [w.strip() for w in user_query.replace("?", " ").replace("!", " ").split() if len(w.strip()) > 2]
+            
+            for db in all_dbs:
+                db_id = db["id"]
+                schemas = db_query_service.db_manager.get_database_schema(db_id)
+                for schema in schemas:
+                    table_name = schema["table_name"]
+                    if table_name in ["documents", "document_chunks", "chat_history"]:
+                        continue
+
+                    matching_word = None
+                    for word in query_words:
+                        word_clean = word.strip(",.'\"")
+                        if re.match(r"^(ORD|CUST|TCK|STU|FAQ|ID|ST)[-_]?\d+$", word_clean, re.IGNORECASE) or len(word_clean) >= 4:
+                            matching_word = word_clean
+                            break
+
+                    sql_stmt = None
+                    if matching_word:
+                        text_cols = [c["column"] for c in schema["columns"] if "CHAR" in c["type"].upper() or "TEXT" in c["type"].upper() or "VARCHAR" in c["type"].upper()]
+                        if text_cols:
+                            where_clauses = [f"LOWER({col}) LIKE LOWER('%{matching_word}%')" for col in text_cols[:4]]
+                            sql_stmt = f"SELECT * FROM {table_name} WHERE {' OR '.join(where_clauses)} LIMIT 5;"
+                    
+                    if not sql_stmt and any(kw in user_query.lower() for kw in ["all", "list", "show", "customer", "order", "ticket", "faq", "price", "status"]):
+                        sql_stmt = f"SELECT * FROM {table_name} LIMIT 5;"
+
+                    if sql_stmt:
+                        sql_res = db_query_service.db_manager.execute_safe_sql(sql_stmt, db_id=db_id)
+                        if sql_res and sql_res.get("rows"):
+                            rows_data = sql_res["rows"]
+                            db_context_blocks.append(
+                                f"DATABASE '{db['name']}' -> TABLE '{table_name}' (Executed SQL: {sql_stmt}):\n"
+                                + json.dumps(rows_data[:5], indent=2)
+                            )
+                            enriched_chunks.append({
+                                "id": f"db_sql_{db_id}_{table_name}",
+                                "documentId": f"db_{db_id}",
+                                "documentTitle": f"Database: {db['name']} ({table_name})",
+                                "content": f"SQL Query: {sql_stmt}\nResult Rows:\n" + json.dumps(rows_data[:3]),
+                                "chunkIndex": 0,
+                                "similarity": 0.95,
+                                "type": "database_sql"
+                            })
+    except Exception as db_err:
+        logger.warning(f"Multi-DB SQL Query execution note: {db_err}")
+
+    # Build context string
+    db_context_str = "\n\n".join(db_context_blocks) if db_context_blocks else "No specific database table match."
+
+    # Process Multi-Turn Conversation History Context
+    history_str = "None"
+    if conversation_history:
+        recent_turns = conversation_history[-4:]
+        history_lines = [f"{turn.get('role', 'user').upper()}: {turn.get('content', '')}" for turn in recent_turns]
+        history_str = "\n".join(history_lines)
 
     if retrieved_chunks:
-        context_text = "\n\n".join([
+        doc_context_text = "\n\n".join([
             f"--- DOCUMENT CHUNK {idx + 1} ({chunk.get('documentTitle', 'Doc')}) ---\n{chunk.get('content', '')}"
             for idx, chunk in enumerate(retrieved_chunks[:8])
         ])
     else:
-        context_text = "No document uploaded yet."
+        doc_context_text = "No document chunks retrieved."
 
     if is_sinhala:
         language_instruction = (
-            "CRITICAL STRICT KNOWLEDGE RULE:\n"
-            "You MUST ONLY answer based on the CONTEXT DOCUMENTS provided below. Do NOT use outside knowledge.\n"
-            "If the answer cannot be found in the CONTEXT DOCUMENTS, you MUST reply exactly with: 'සපයා ඇති දත්ත වල මෙම තොරතුරු සොයාගත නොහැක.' (I cannot find this information in the provided data).\n\n"
             "CRITICAL SINHALA VOICE & ACCURACY REQUIREMENT:\n"
             "You MUST synthesize a comprehensive, smart, and highly articulate answer in natural, fluent SINHALA (සිංහල).\n"
-            "Thoroughly analyze the CONTEXT DOCUMENTS. Extract facts, figures, and findings, and explain them clearly.\n\n"
+            "Thoroughly analyze BOTH the STRUCTURED DATABASE RECORDS and CONTEXT DOCUMENTS provided below. Explain customer facts, order statuses, policy answers, or student details clearly in Sinhala.\n\n"
             "RULES FOR SINHALA RESPONSE:\n"
             "1. Deliver a COMPLETE 3 to 6 sentence spoken response. NEVER leave your sentence incomplete or cut off!\n"
-            "2. Do NOT use markdown symbols (*, #, -), no bullet points, and no citations like [1] or [Source 1] in spoken text.\n"
-            "3. AMBIGUOUS LIST QUERIES: If the user asks for a broad list from a database or table (e.g., 'give me the employee names' or 'list all users'), DO NOT just list them all. Instead, ask a clarifying question in Sinhala like: 'Are you asking for all employee names, or do you want specific details (e.g. by department or role)?'\n"
-            "4. COMPARATIVE, STATISTICAL & CHART DATA RULE:\n"
-            "If the user asks for comparative data, statistics, figures, tabular comparisons, or numerical data (e.g., 'Compare the salaries of employees', 'Show revenue breakdown', 'Sales comparison'), you MUST provide the spoken answer AND append a hidden JSON schema representing the data at the very end of your response inside a markdown code block ```json ... ```.\n"
+            "2. If database customer/order/ticket/student facts are provided below, explicitly state the ID, name, status, and details in natural spoken Sinhala.\n"
+            "3. Take into account PREVIOUS CONVERSATION HISTORY for follow-up questions.\n"
+            "4. Do NOT use markdown symbols (*, #, -), no bullet points, and no citations like [1] or [Source 1] in spoken text.\n"
+            "5. COMPARATIVE, STATISTICAL & CHART DATA RULE:\n"
+            "If the user asks for comparative data, statistics, figures, tabular comparisons, or numerical data, you MUST provide the spoken answer AND append a hidden JSON schema representing the data at the very end of your response inside a markdown code block ```json ... ```.\n"
             "The JSON schema MUST follow this exact structure:\n"
             "```json\n"
             "{\n"
@@ -465,50 +809,34 @@ def generate_voice_rag_answer(
             "  ]\n"
             "}\n"
             "```\n"
-            "Use 'bar' for entity comparisons (salaries, counts, etc.), 'pie' for proportions/percentages, and 'line' for trends over time. If the user query is NOT asking for comparative, statistical, or tabular data, do NOT output any JSON code block."
+            "Use 'bar' for entity comparisons, 'pie' for proportions, and 'line' for trends. If NOT comparative data, do NOT output JSON."
         )
     else:
         language_instruction = (
-            "CRITICAL STRICT KNOWLEDGE RULE:\n"
-            "You MUST ONLY answer based on the CONTEXT DOCUMENTS provided below. Do NOT use outside knowledge.\n"
-            "If the answer cannot be found in the CONTEXT DOCUMENTS, you MUST reply exactly with: 'I cannot find this information in the uploaded documents.'\n\n"
             "CRITICAL VOICE & ACCURACY REQUIREMENT:\n"
-            "Deliver an intelligent, comprehensive, and highly accurate answer.\n\n"
+            "Deliver an intelligent, comprehensive, and highly accurate answer grounded strictly in the STRUCTURED DATABASE RECORDS and CONTEXT DOCUMENTS below.\n\n"
             "RULES FOR RESPONSE:\n"
-            "1. Synthesize a COMPLETE 3 to 6 sentence spoken response summarizing the facts.\n"
-            "2. Do NOT use markdown symbols (*, #, -), no bullet points, and no citations in spoken text.\n"
-            "3. AMBIGUOUS LIST QUERIES: If the user asks for a broad list from a database or table (e.g., 'give me the employee names' or 'list all users'), DO NOT just list them all. Instead, ask a clarifying question like: 'Are you asking for all employee names, or do you want specific details (e.g. by department or role)?'\n"
-            "4. COMPARATIVE, STATISTICAL & CHART DATA RULE:\n"
-            "If the user asks for comparative data, statistics, figures, tabular comparisons, or numerical data (e.g., 'Compare the salaries of employees', 'Show revenue breakdown', 'Sales comparison'), you MUST provide the spoken answer AND append a hidden JSON schema representing the data at the very end of your response inside a markdown code block ```json ... ```.\n"
-            "The JSON schema MUST follow this exact structure:\n"
-            "```json\n"
-            "{\n"
-            '  "type": "chart",\n'
-            '  "chartType": "bar",\n'
-            '  "title": "Chart Title",\n'
-            '  "labels": ["Label 1", "Label 2"],\n'
-            '  "datasets": [\n'
-            "    {\n"
-            '      "label": "Dataset Name",\n'
-            '      "data": [100, 200]\n'
-            "    }\n"
-            "  ]\n"
-            "}\n"
-            "```\n"
-            "Use 'bar' for entity comparisons (salaries, counts, etc.), 'pie' for proportions/percentages, and 'line' for trends over time. If the user query is NOT asking for comparative, statistical, or tabular data, do NOT output any JSON code block."
+            "1. Synthesize a COMPLETE 3 to 6 sentence spoken response.\n"
+            "2. If customer, order, ticket, or student database records are provided, state key facts (IDs, amounts, statuses, names) clearly.\n"
+            "3. Consider PREVIOUS CONVERSATION HISTORY for contextual follow-up questions.\n"
+            "4. Do NOT use markdown symbols (*, #, -), no bullet points, and no citations.\n"
+            "5. COMPARATIVE, STATISTICAL & CHART DATA RULE:\n"
+            "If comparing numbers or statistical data, append a hidden JSON schema representing the data at the end inside ```json ... ```."
         )
 
     system_prompt = (
-        f"You are an exceptionally smart, articulate, and accurate AI Voice Assistant powering an enterprise Voice-RAG system.\n\n"
+        f"You are an exceptionally smart, articulate, and accurate Customer Support AI Voice Assistant powering an enterprise Multi-DB & Multi-Doc Voice-RAG system.\n\n"
         f"{language_instruction}\n\n"
-        f"CONTEXT DOCUMENTS:\n{context_text}"
+        f"PREVIOUS CONVERSATION HISTORY:\n{history_str}\n\n"
+        f"CONNECTED STRUCTURED DATABASE Context:\n{db_context_str}\n\n"
+        f"UNSTRUCTURED CONTEXT DOCUMENTS:\n{doc_context_text}"
     )
 
+    generated_text = ""
     if is_gemini_key(api_key):
         client = genai.Client(api_key=api_key)
         full_prompt = f"{system_prompt}\n\nUSER QUESTION: {user_query}"
 
-        # Valid Gemini models supporting generateContent in google-genai
         models_to_try = [
             "gemini-flash-latest",
             "gemini-2.0-flash",
@@ -529,11 +857,13 @@ def generate_voice_rag_answer(
                     ),
                 )
                 if res and res.text and res.text.strip():
-                    return res.text.strip()
+                    generated_text = res.text.strip()
+                    break
             except Exception as e:
                 last_err = e
 
-        raise RuntimeError(f"Gemini LLM generation failed: {last_err}")
+        if not generated_text:
+            raise RuntimeError(f"Gemini LLM generation failed: {last_err}")
     else:
         client = openai.OpenAI(api_key=api_key)
         active_model = model_name if "gpt" in model_name else "gpt-4o-mini"
@@ -547,7 +877,12 @@ def generate_voice_rag_answer(
             max_tokens=1200,
         )
         ans = completion.choices[0].message.content
-        return ans.strip() if ans else ("පිළිතුරක් සෑදීමට නොහැකි විය." if is_sinhala else "I could not generate a response.")
+        generated_text = ans.strip() if ans else ("පිළිතුරක් සෑදීමට නොහැකි විය." if is_sinhala else "I could not generate a response.")
+
+    return {
+        "answer": generated_text,
+        "retrievedChunks": enriched_chunks,
+    }
 
 
 def save_chat_history(

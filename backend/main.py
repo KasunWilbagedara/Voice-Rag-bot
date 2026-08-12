@@ -4,8 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import PORT
-from backend.db import init_db_schema, close_db_pool, is_db_connected
-from backend.routers import documents, rag, audio
+from backend.db import init_db_schema, close_db_pool, is_db_connected, seed_initial_students
+from backend.routers import documents, rag, audio, students, databases
 
 logging.basicConfig(
     level=logging.INFO,
@@ -17,6 +17,7 @@ logger = logging.getLogger("voicerag.main")
 async def lifespan(app: FastAPI):
     logger.info("Initializing Python Voice-RAG Backend...")
     init_db_schema()
+    seed_initial_students()
     yield
     logger.info("Shutting down Python Voice-RAG Backend...")
     close_db_pool()
@@ -41,6 +42,8 @@ app.add_middleware(
 app.include_router(documents.router)
 app.include_router(rag.router)
 app.include_router(audio.router)
+app.include_router(students.router)
+app.include_router(databases.router)
 
 @app.get("/")
 def read_root():
