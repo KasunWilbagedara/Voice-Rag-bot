@@ -540,9 +540,9 @@ def generate_llm_sql_query(
 
     api_key = get_api_key(custom_api_key)
 
-    # Extract any alphanumeric IDs (e.g. ORD-9021, CUST-1001, STU1042)
-    extracted_ids = re.findall(r"\b[A-Za-z0-9]+[-_][A-Za-z0-9]+\b|\bSTU\d+\b|\bORD\d+\b", user_query, re.IGNORECASE)
-    id_hint = f"EXTRACTED QUERY IDS: {', '.join(extracted_ids)}" if extracted_ids else ""
+    # Extract any alphanumeric IDs or numeric tokens (e.g. ORD-9021, CUST-1001, STU1042, 456736)
+    extracted_ids = re.findall(r"\b[A-Za-z0-9]+[-_][A-Za-z0-9]+\b|\bSTU\d+\b|\bORD\d+\b|\b\d{3,10}\b", user_query, re.IGNORECASE)
+    id_hint = f"EXTRACTED QUERY IDS / NUMERIC TARGETS: {', '.join(extracted_ids)}" if extracted_ids else ""
 
     prompt = (
         f"You are an expert Text-to-SQL engine for connected customer & enterprise databases.\n"
@@ -552,7 +552,7 @@ def generate_llm_sql_query(
         f"Rules:\n"
         f"1. Use column names and table names exactly as shown in the schemas.\n"
         f"2. For analytical or comparative questions (e.g. 'who earns more male or female', 'average gpa by department', 'top spending customers'), write aggregate SQL queries using COUNT(*), AVG(), SUM(), GROUP BY, and ORDER BY DESC.\n"
-        f"3. For text or ID searches, use wildcard matching e.g. WHERE order_id LIKE '%ORD-9021%' or LOWER(name) LIKE '%amara%'.\n"
+        f"3. For numeric or text/ID target searches (e.g. 456736, fnlwgt, ORD-9021), search numeric and text columns e.g. WHERE fnlwgt = 456736 OR CAST(fnlwgt AS TEXT) LIKE '%456736%' OR order_id LIKE '%ORD-9021%'.\n"
         f"4. Output format MUST be:\n"
         f"DB_ID: <database_id>\n"
         f"SQL: <SELECT_query>\n"
@@ -699,18 +699,26 @@ def generate_voice_rag_answer(
                     col_names = [c["column"].lower() for c in schema["columns"]]
                     is_table_match = (table_name.lower() in query_lower) or any(col in query_lower for col in col_names if len(col) >= 4)
 
+                    # Check if target numbers or ID words exist in user query
+                    target_words = []
+                    for word in user_query.split():
+                        word_clean = word.strip(",.'\"!?")
+                        if len(word_clean) >= 3 and (re.match(r"^[A-Za-z0-9]+[-_][A-Za-z0-9]+$", word_clean) or word_clean.isdigit()):
+                            # Exclude generic small numbers like 1, 2, 10
+                            if not (word_clean.isdigit() and int(word_clean) <= 20):
+                                target_words.append(word_clean)
+
                     sql_stmt = None
-                    if is_table_match:
+                    if target_words:
+                        all_cols = [c["column"] for c in schema["columns"]]
+                        if all_cols:
+                            clauses = []
+                            for tw in target_words:
+                                clauses.extend([f"CAST({col} AS TEXT) LIKE '%{tw}%'" for col in all_cols])
+                            sql_stmt = f"SELECT * FROM {table_name} WHERE {' OR '.join(clauses)} LIMIT 10;"
+
+                    if not sql_stmt and is_table_match:
                         sql_stmt = f"SELECT * FROM {table_name} LIMIT 10;"
-                    else:
-                        for word in user_query.split():
-                            word_clean = word.strip(",.'\"!?")
-                            if len(word_clean) >= 3 and (re.match(r"^[A-Za-z0-9]+[-_][A-Za-z0-9]+$", word_clean) or word_clean.isdigit()):
-                                text_cols = [c["column"] for c in schema["columns"] if "CHAR" in c["type"].upper() or "TEXT" in c["type"].upper() or "VARCHAR" in c["type"].upper()]
-                                if text_cols:
-                                    clauses = [f"LOWER({col}) LIKE LOWER('%{word_clean}%')" for col in text_cols[:4]]
-                                    sql_stmt = f"SELECT * FROM {table_name} WHERE {' OR '.join(clauses)} LIMIT 5;"
-                                    break
 
                     if not sql_stmt and any(kw in query_lower for kw in ["all", "list", "show", "customer", "order", "ticket", "faq", "price", "status", "salary", "income", "data"]):
                         sql_stmt = f"SELECT * FROM {table_name} LIMIT 10;"
@@ -850,12 +858,12 @@ def generate_voice_rag_answer(
         ans = completion.choices[0].message.content
         generated_text = ans.strip() if ans else ("පිළිතුරක් සෑදීමට නොහැකි විය." if is_sinhala else "I could not generate a response.")
 
-    # Strip any internal LLM scratchpad / reasoning lines e.g. "thought Let's check row..."
+    # Strip any internal LLM scratchpad / reasoning lines e.g. "thought...", "Wait,..."
     if generated_text:
         clean_lines = []
         for line in generated_text.splitlines():
             l_strip = line.strip()
-            if l_strip.lower().startswith(("thought ", "thought:", "thinking:", "reasoning:")):
+            if l_strip.lower().startswith(("thought ", "thought:", "thinking:", "reasoning:", "wait,", "wait ")):
                 continue
             clean_lines.append(line)
         generated_text = "\n".join(clean_lines).strip()
