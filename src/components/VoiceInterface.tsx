@@ -421,7 +421,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
   };
 
   return (
-    <div className="w-full bg-white border border-gray-200 rounded p-6 md:p-8 flex flex-col items-center gap-6 relative overflow-hidden shadow-sm">
+    <div className="w-full glass-panel border border-gray-800/80 rounded-3xl p-6 md:p-8 flex flex-col items-center gap-6 relative overflow-hidden shadow-2xl">
       <audio ref={audioPlayerRef} className="hidden" />
 
       {/* Header controls & language switcher */}
@@ -431,27 +431,27 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
             <span
               className={`animate-ping absolute inline-flex h-full w-full opacity-75 ${
                 state === 'listening'
-                  ? 'bg-black'
+                  ? 'bg-amber-400'
                   : state === 'speaking'
                   ? 'bg-emerald-400'
                   : state === 'searching'
-                  ? 'bg-gray-400'
-                  : 'bg-gray-200'
+                  ? 'bg-violet-400'
+                  : 'bg-gray-600'
               }`}
             />
             <span
-              className={`relative inline-flex h-3 w-3 ${
+              className={`relative inline-flex h-3 w-3 rounded-full ${
                 state === 'listening'
-                  ? 'bg-black'
+                  ? 'bg-amber-500'
                   : state === 'speaking'
                   ? 'bg-emerald-500'
                   : state === 'searching'
-                  ? 'bg-gray-500'
-                  : 'bg-gray-300'
+                  ? 'bg-violet-500'
+                  : 'bg-gray-500'
               }`}
             />
           </span>
-          <span className="text-xs uppercase tracking-widest font-bold text-gray-500">
+          <span className="text-xs uppercase tracking-wider font-bold text-gray-400">
             {state === 'idle' && 'Ready for Speech'}
             {state === 'listening' && 'Listening...'}
             {state === 'transcribing' && 'Transcribing speech...'}
@@ -465,34 +465,34 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
           {/* Instant Real-Time vs Server HD Mode */}
           <button
             onClick={() => setUseInstantMode(!useInstantMode)}
-            className={`px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 border ${
+            className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 border ${
               useInstantMode
-                ? 'bg-black text-white border-black'
-                : 'bg-white text-gray-400 border-gray-200 hover:text-black hover:border-black'
+                ? 'bg-amber-950/80 text-amber-300 border-amber-800/60'
+                : 'bg-gray-900/80 text-gray-400 border-gray-800 hover:text-white'
             }`}
-            title="Real-Time Mode enables instant <500ms voice answers"
+            title="Real-Time Mode enables instant voice answers"
           >
-            <Sparkles className={`w-3.5 h-3.5 ${useInstantMode ? 'text-emerald-400' : 'text-gray-400'}`} />
+            <Sparkles className={`w-3.5 h-3.5 ${useInstantMode ? 'text-amber-400' : 'text-gray-400'}`} />
             {useInstantMode ? 'Instant Mode' : 'Studio HD Mode'}
           </button>
 
-          <div className="flex items-center p-0.5 bg-gray-100 border border-gray-200 rounded text-[10px] font-bold uppercase tracking-wider">
+          <div className="flex items-center p-0.5 bg-gray-900 border border-gray-800 rounded-xl text-[10px] font-bold uppercase tracking-wider">
             <button
               onClick={() => onLanguageChange && onLanguageChange('si')}
-              className={`px-3 py-1 rounded transition-all flex items-center gap-1 ${
+              className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1 ${
                 language === 'si'
-                  ? 'bg-black text-white'
-                  : 'text-gray-500 hover:text-black'
+                  ? 'bg-amber-500 text-black font-extrabold'
+                  : 'text-gray-400 hover:text-white'
               }`}
             >
               Sinhala
             </button>
             <button
               onClick={() => onLanguageChange && onLanguageChange('en')}
-              className={`px-3 py-1 rounded transition-all flex items-center gap-1 ${
+              className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1 ${
                 language === 'en'
-                  ? 'bg-black text-white'
-                  : 'text-gray-500 hover:text-black'
+                  ? 'bg-amber-500 text-black font-extrabold'
+                  : 'text-gray-400 hover:text-white'
               }`}
             >
               English
@@ -501,10 +501,10 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
 
           <button
             onClick={() => setIsHandsFree(!isHandsFree)}
-            className={`px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 border ${
+            className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 border ${
               isHandsFree
-                ? 'bg-black text-white border-black'
-                : 'bg-white text-gray-400 border-gray-200 hover:text-black hover:border-black'
+                ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60'
+                : 'bg-gray-900/80 text-gray-400 border-gray-800 hover:text-white'
             }`}
           >
             <Zap className={`w-3.5 h-3.5 ${isHandsFree ? 'text-emerald-400' : 'text-gray-400'}`} />
@@ -519,7 +519,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
       {/* Big Mic Button */}
       <div className="relative my-2">
         {state === 'listening' && (
-          <div className="absolute -inset-4 rounded-full border-2 border-emerald-500 animate-ping opacity-20" />
+          <div className="absolute -inset-4 rounded-full border-2 border-amber-500 animate-ping opacity-20" />
         )}
         {state === 'speaking' && (
           <div className="absolute -inset-4 rounded-full border-2 border-emerald-500 animate-pulse opacity-20" />
@@ -528,29 +528,29 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
         <button
           onClick={toggleMic}
           disabled={state === 'transcribing' || state === 'searching'}
-          className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center transition-all transform hover:scale-105 active:scale-95 shadow-sm border ${
+          className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center transition-all transform hover:scale-105 active:scale-95 shadow-xl border ${
             state === 'listening'
-              ? 'bg-black border-emerald-500 text-emerald-400'
+              ? 'bg-amber-500 border-amber-400 text-black'
               : state === 'speaking'
-              ? 'bg-black border-black text-emerald-500'
+              ? 'bg-emerald-600 border-emerald-400 text-white'
               : state === 'searching' || state === 'transcribing'
-              ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-wait'
-              : 'bg-black border-black text-white hover:bg-gray-900'
+              ? 'bg-gray-800 border-gray-700 text-gray-400 cursor-wait'
+              : 'bg-gradient-to-tr from-amber-500 to-orange-600 border-amber-400 text-white hover:brightness-110'
           }`}
         >
           {state === 'transcribing' || state === 'searching' ? (
-            <Loader2 className="w-10 h-10 animate-spin" />
+            <Loader2 className="w-10 h-10 animate-spin text-white" />
           ) : state === 'listening' ? (
-            <MicOff className="w-10 h-10 animate-pulse" />
+            <MicOff className="w-10 h-10 animate-pulse text-black" />
           ) : state === 'speaking' ? (
-            <Volume2 className="w-10 h-10 animate-bounce" />
+            <Volume2 className="w-10 h-10 animate-bounce text-white" />
           ) : (
-            <Mic className="w-10 h-10" />
+            <Mic className="w-10 h-10 text-white" />
           )}
         </button>
       </div>
 
-      <p className="text-sm font-medium text-gray-300 text-center">
+      <p className="text-xs font-medium text-gray-400 text-center">
         {state === 'idle' && (language === 'si' ? 'කතා කිරීමට මයික්‍රෆෝනය ඔබන්න (Speak in Sinhala or English)' : 'Click microphone to start speaking')}
         {state === 'listening' && (liveTranscript ? ` Listening: "${liveTranscript}"` : 'Listening... speak now')}
         {state === 'transcribing' && 'Transcribing speech...'}
@@ -568,44 +568,44 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
 
       {/* Live Speech & Response Preview */}
       {(currentQuery || currentResponse) && (
-        <div className="w-full flex flex-col gap-3 mt-2 pt-4 border-t border-gray-200">
+        <div className="w-full flex flex-col gap-3 mt-2 pt-4 border-t border-gray-800/80">
           {currentQuery && (
-            <div className="p-3 rounded bg-gray-50 border border-gray-200">
-              <span className="text-[10px] font-bold tracking-widest text-gray-400 uppercase block mb-1">
+            <div className="p-3.5 rounded-2xl bg-gray-900/80 border border-gray-800">
+              <span className="text-[10px] font-bold tracking-wider text-cyan-400 uppercase block mb-1">
                 You Spoke
               </span>
-              <p className="text-sm text-black font-bold">{currentQuery}</p>
+              <p className="text-sm text-gray-100 font-semibold">{currentQuery}</p>
             </div>
           )}
 
           {currentResponse && (() => {
             const { cleanText, chartData } = parseChartDataFromResponse(currentResponse);
             return (
-              <div className="p-4 rounded bg-white border border-gray-200 flex flex-col gap-2 shadow-sm">
-                <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-                  <span className="text-[10px] font-bold tracking-widest text-emerald-600 uppercase flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" /> AI Response ({language === 'si' ? 'Sinhala' : 'English'})
+              <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-800/40 flex flex-col gap-2">
+                <div className="flex items-center justify-between border-b border-amber-900/40 pb-2">
+                  <span className="text-[10px] font-bold tracking-wider text-amber-400 uppercase flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" /> AI Spoken Answer
                   </span>
 
                   <div className="flex items-center gap-2">
                     {state === 'speaking' ? (
                       <button
                         onClick={stopSpeaking}
-                        className="px-2.5 py-1 rounded bg-gray-100 hover:bg-gray-200 text-black border border-gray-200 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all"
+                        className="px-2.5 py-1 rounded-lg bg-gray-900 hover:bg-gray-800 text-amber-300 border border-amber-800/50 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all"
                       >
                         🛑 Stop Speaking
                       </button>
                     ) : (
                       <button
                         onClick={() => speakTextWithBrowserTTS(cleanText)}
-                        className="px-2.5 py-1 rounded bg-white hover:bg-gray-50 text-black border border-gray-200 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all shadow-sm"
+                        className="px-2.5 py-1 rounded-lg bg-gray-900 hover:bg-gray-800 text-amber-300 border border-amber-800/50 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all"
                       >
                         🔊 Replay Voice
                       </button>
                     )}
                   </div>
                 </div>
-                <p className="text-sm text-black font-medium leading-relaxed">{cleanText}</p>
+                <p className="text-sm text-gray-100 font-medium leading-relaxed">{cleanText}</p>
                 {chartData && <DynamicChart chartData={chartData} />}
               </div>
             );

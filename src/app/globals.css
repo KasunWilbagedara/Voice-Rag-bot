@@ -4,41 +4,47 @@
 
 @layer base {
   body {
-    @apply bg-black text-gray-900 antialiased selection:bg-emerald-500 selection:text-white min-h-screen overflow-x-hidden;
+    @apply bg-[#070a11] text-gray-100 antialiased selection:bg-amber-500 selection:text-black min-h-screen overflow-x-hidden;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-    /* Grainy Noise Background */
-    background-color: #000000;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.15'/%3E%3C/svg%3E");
+    background-color: #070a11;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(245, 158, 11, 0.06) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(59, 130, 246, 0.06) 0px, transparent 50%),
+      radial-gradient(at 50% 100%, rgba(139, 92, 246, 0.05) 0px, transparent 50%);
   }
 }
 
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: #000000;
+  background: #090d16;
 }
 ::-webkit-scrollbar-thumb {
-  background: #333333;
+  background: #1f293d;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #10b981;
+  background: #f59e0b;
 }
 
-/* Minimalist Panels */
+/* Premium Dark Glassmorphism Panels */
 .glass-panel {
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
 }
 
 .glass-panel-glow {
-  background: #ffffff;
-  border: 1px solid #10b981;
-  box-shadow: 0 0 15px -3px rgba(16, 185, 129, 0.4);
+  background: rgba(23, 32, 54, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  box-shadow: 0 0 25px -3px rgba(245, 158, 11, 0.25);
 }
 
 /* Glow effects */
@@ -50,6 +56,6 @@
   box-shadow: 0 0 35px -5px rgba(59, 130, 246, 0.35);
 }
 
-.glow-emerald {
-  box-shadow: 0 0 30px -5px rgba(16, 185, 129, 0.3);
+.glow-amber {
+  box-shadow: 0 0 30px -5px rgba(245, 158, 11, 0.3);
 }
