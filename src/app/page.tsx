@@ -34,7 +34,9 @@ interface ChatMessage {
 export default function Home() {
   const [apiKey, setApiKey] = useState<string>('');
   const [voice, setVoice] = useState<string>('nova');
-  const [model, setModel] = useState<string>('gpt-4o-mini');
+  const [model, setModel] = useState<string>('gemini-2.0-flash');
+  const [provider, setProvider] = useState<string>('gemini');
+  const [baseUrl, setBaseUrl] = useState<string>('');
   const [language, setLanguage] = useState<string>('si'); // Default Sinhala 'si'
 
   const [activeRightTab, setActiveRightTab] = useState<'documents' | 'databases'>('databases');
@@ -89,6 +91,8 @@ export default function Home() {
           query,
           apiKey,
           model,
+          provider,
+          baseUrl,
           language,
           conversationHistory: historyFormatted,
         }),
@@ -201,6 +205,8 @@ export default function Home() {
             apiKey={apiKey}
             voice={voice}
             model={model}
+            provider={provider}
+            baseUrl={baseUrl}
             language={language}
             onLanguageChange={setLanguage}
             onQueryComplete={handleQueryCompleted}
@@ -401,6 +407,10 @@ export default function Home() {
         setVoice={setVoice}
         model={model}
         setModel={setModel}
+        provider={provider}
+        setProvider={setProvider}
+        baseUrl={baseUrl}
+        setBaseUrl={setBaseUrl}
       />
     </main>
   );

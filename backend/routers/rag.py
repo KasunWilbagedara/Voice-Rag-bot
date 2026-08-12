@@ -18,7 +18,9 @@ from typing import Optional, List, Dict, Any
 class RagQueryRequest(BaseModel):
     query: str
     apiKey: Optional[str] = None
-    model: Optional[str] = "gemini-flash-latest"
+    model: Optional[str] = "gemini-2.0-flash"
+    provider: Optional[str] = None
+    baseUrl: Optional[str] = None
     language: Optional[str] = "si"
     conversationHistory: Optional[List[Dict[str, str]]] = None
 
@@ -42,6 +44,8 @@ def process_rag_query(req: RagQueryRequest):
             model_name=req.model or "gemini-2.0-flash",
             target_language=req.language or "si",
             conversation_history=req.conversationHistory,
+            provider=req.provider,
+            base_url=req.baseUrl,
         )
         answer = rag_res["answer"]
         final_chunks = rag_res["retrievedChunks"]

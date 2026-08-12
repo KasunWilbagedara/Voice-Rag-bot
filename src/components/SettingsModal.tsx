@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Key, Settings, Volume2, Cpu, Save, Check, Sparkles } from 'lucide-react';
+import { X, Key, Settings, Volume2, Cpu, Save, Check, Globe, Server } from 'lucide-react';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -12,6 +12,10 @@ interface SettingsModalProps {
   setVoice: (voice: string) => void;
   model: string;
   setModel: (model: string) => void;
+  provider: string;
+  setProvider: (provider: string) => void;
+  baseUrl: string;
+  setBaseUrl: (url: string) => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -23,14 +27,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   setVoice,
   model,
   setModel,
+  provider,
+  setProvider,
+  baseUrl,
+  setBaseUrl,
 }) => {
   const [localKey, setLocalKey] = useState(apiKey);
+  const [localBaseUrl, setLocalBaseUrl] = useState(baseUrl);
+  const [customModel, setCustomModel] = useState(model);
   const [isSaved, setIsSaved] = useState(false);
 
   if (!isOpen) return null;
 
   const handleSave = () => {
     setApiKey(localKey);
+    setBaseUrl(localBaseUrl);
+    setModel(customModel);
     setIsSaved(true);
     setTimeout(() => {
       setIsSaved(false);
@@ -38,108 +50,184 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }, 800);
   };
 
-  const isGemini = localKey.startsWith('AIza');
+  const handleProviderSelect = (p: string) => {
+    setProvider(p);
+    if (p === 'gemini') {
+      setCustomModel('gemini-2.0-flash');
+    } else if (p === 'openai') {
+      setCustomModel('gpt-4o-mini');
+    } else if (p === 'groq') {
+      setCustomModel('llama-3.3-70b-versatile');
+      if (!localBaseUrl) setLocalBaseUrl('https://api.groq.com/openai/v1');
+    } else if (p === 'ollama') {
+      setCustomModel('llama3.2');
+      if (!localBaseUrl) setLocalBaseUrl('http://localhost:11434/v1');
+    }
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in p-4">
-      <div className="w-full max-w-lg bg-white border border-gray-200 rounded p-6 md:p-8 flex flex-col gap-6 relative shadow-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md animate-fade-in p-4">
+      <div className="w-full max-w-xl glass-panel bg-slate-900/90 border border-slate-700/70 rounded-2xl p-6 md:p-8 flex flex-col gap-6 relative shadow-2xl text-gray-100 max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-gray-200">
+        <div className="flex items-center justify-between pb-4 border-b border-gray-800">
           <div className="flex items-center gap-2">
-            <Settings className="w-5 h-5 text-emerald-500" />
-            <h2 className="text-lg font-bold text-black uppercase tracking-wider">Configuration</h2>
+            <Settings className="w-5 h-5 text-amber-400" />
+            <h2 className="text-lg font-bold text-gray-100 tracking-wide">LLM Provider & Voice Configuration</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-black rounded hover:bg-gray-100 transition-colors"
+            className="p-2 text-gray-400 hover:text-white rounded-xl hover:bg-gray-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
+        {/* AI Provider Selector */}
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+            <Globe className="w-3.5 h-3.5 text-amber-400" />
+            Select LLM Provider
+          </label>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {[
+              { id: 'gemini', label: 'Google Gemini', icon: '✨' },
+              { id: 'openai', label: 'OpenAI', icon: '🧠' },
+              { id: 'groq', label: 'Groq Cloud', icon: '⚡' },
+              { id: 'ollama', label: 'Local / Ollama', icon: '🦙' },
+            ].map((p) => (
+              <button
+                key={p.id}
+                onClick={() => handleProviderSelect(p.id)}
+                className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-1 border ${
+                  provider === p.id
+                    ? 'bg-amber-500 text-black border-amber-400 shadow-lg shadow-amber-500/20'
+                    : 'bg-gray-950 text-gray-400 border-gray-800 hover:border-gray-700 hover:text-white'
+                }`}
+              >
+                <span className="text-sm">{p.icon}</span>
+                <span>{p.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* API Key Input */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
-              <Key className="w-3.5 h-3.5 text-black" />
-              API Key (Google Gemini or OpenAI)
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Key className="w-3.5 h-3.5 text-amber-400" />
+              API Key ({provider.toUpperCase()})
             </label>
-            <span
-              className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
-                isGemini
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                  : 'bg-gray-100 text-gray-700 border border-gray-200'
-              }`}
-            >
-              {isGemini ? 'Google Gemini Key' : localKey ? 'OpenAI Key' : 'Enter API Key'}
-            </span>
           </div>
 
           <input
             type="password"
             value={localKey}
             onChange={(e) => setLocalKey(e.target.value)}
-            placeholder="AIzaSy... (Gemini) or sk-proj-... (OpenAI)"
-            className="w-full px-4 py-3 rounded bg-gray-50 border border-gray-200 focus:border-black focus:outline-none text-sm text-black font-mono transition-colors"
+            placeholder={
+              provider === 'gemini'
+                ? 'AIzaSy...'
+                : provider === 'groq'
+                ? 'gsk_...'
+                : provider === 'ollama'
+                ? 'Optional for local Ollama'
+                : 'sk-proj-...'
+            }
+            className="w-full px-4 py-2.5 rounded-xl bg-gray-950 border border-gray-800 focus:border-amber-500 focus:outline-none text-sm text-gray-100 font-mono transition-colors"
           />
-          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
-            Your key is stored locally in your browser. Both Gemini and OpenAI are supported.
+          <p className="text-[10px] text-gray-500">
+            Keys are kept local to your browser session and never logged.
           </p>
+        </div>
+
+        {/* Custom Base URL (Ollama / OpenRouter / Custom Endpoints) */}
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+            <Server className="w-3.5 h-3.5 text-amber-400" />
+            Custom API Base URL (Optional)
+          </label>
+          <input
+            type="text"
+            value={localBaseUrl}
+            onChange={(e) => setLocalBaseUrl(e.target.value)}
+            placeholder="http://localhost:11434/v1 or https://openrouter.ai/api/v1"
+            className="w-full px-4 py-2.5 rounded-xl bg-gray-950 border border-gray-800 focus:border-amber-500 focus:outline-none text-sm text-gray-100 font-mono transition-colors"
+          />
         </div>
 
         {/* LLM Model Selector */}
         <div className="flex flex-col gap-2">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
-            <Cpu className="w-3.5 h-3.5 text-black" />
-            LLM Generation Model
+          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+            <Cpu className="w-3.5 h-3.5 text-amber-400" />
+            LLM Model ID
           </label>
           <div className="grid grid-cols-2 gap-2">
-            {[
-              { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
-              { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-              { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-              { id: 'gpt-4o', label: 'GPT-4o' },
-            ].map((m) => (
+            {(provider === 'gemini'
+              ? [
+                  { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+                  { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+                  { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+                ]
+              : provider === 'groq'
+              ? [
+                  { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B' },
+                  { id: 'mixtral-8x7b-32768', label: 'Mixtral 8x7b' },
+                ]
+              : provider === 'ollama'
+              ? [
+                  { id: 'llama3.2', label: 'Ollama Llama 3.2' },
+                  { id: 'deepseek-r1:70b', label: 'DeepSeek R1' },
+                ]
+              : [
+                  { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+                  { id: 'gpt-4o', label: 'GPT-4o' },
+                ]
+            ).map((m) => (
               <button
                 key={m.id}
-                onClick={() => setModel(m.id)}
-                className={`py-2.5 px-3 rounded text-xs font-bold uppercase tracking-wider border text-center transition-all ${
-                  model === m.id
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    : 'bg-white text-gray-500 border-gray-200 hover:border-black hover:text-black'
+                onClick={() => setCustomModel(m.id)}
+                className={`py-2 px-3 rounded-xl text-xs font-semibold border text-center transition-all ${
+                  customModel === m.id
+                    ? 'bg-amber-500 text-black border-amber-400 font-bold'
+                    : 'bg-gray-950 text-gray-400 border-gray-800 hover:border-gray-700 hover:text-white'
                 }`}
               >
                 {m.label}
               </button>
             ))}
           </div>
+
+          <input
+            type="text"
+            value={customModel}
+            onChange={(e) => setCustomModel(e.target.value)}
+            placeholder="Or type custom model name (e.g. deepseek-r1, llama3)..."
+            className="w-full px-4 py-2 mt-1 rounded-xl bg-gray-950 border border-gray-800 focus:border-amber-500 focus:outline-none text-xs text-gray-200 transition-colors"
+          />
         </div>
 
         {/* TTS Voice Selector */}
         <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
-              <Volume2 className="w-3.5 h-3.5 text-black" />
-              Human Voice Persona
-            </label>
-          </div>
-
+          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+            <Volume2 className="w-3.5 h-3.5 text-amber-400" />
+            Voice Persona
+          </label>
           <div className="grid grid-cols-3 gap-2">
             {[
-              { id: 'nova', label: 'Nova (Warm Female)' },
+              { id: 'nova', label: 'Nova (Female)' },
               { id: 'alloy', label: 'Alloy (Neutral)' },
-              { id: 'echo', label: 'Echo (Warm Male)' },
+              { id: 'echo', label: 'Echo (Male)' },
               { id: 'fable', label: 'Fable (Narrator)' },
-              { id: 'onyx', label: 'Onyx (Deep Male)' },
+              { id: 'onyx', label: 'Onyx (Deep)' },
               { id: 'shimmer', label: 'Shimmer (Bright)' },
             ].map((v) => (
               <button
                 key={v.id}
                 onClick={() => setVoice(v.id)}
-                className={`py-2 px-2 rounded text-[10px] font-bold uppercase tracking-wider border text-center transition-all ${
+                className={`py-2 px-2 rounded-xl text-[11px] font-semibold border text-center transition-all ${
                   voice === v.id
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    : 'bg-white text-gray-500 border-gray-200 hover:border-black hover:text-black'
+                    ? 'bg-amber-500 text-black border-amber-400 font-bold'
+                    : 'bg-gray-950 text-gray-400 border-gray-800 hover:border-gray-700 hover:text-white'
                 }`}
               >
                 {v.label}
@@ -151,11 +239,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Save button */}
         <button
           onClick={handleSave}
-          className="w-full py-3 rounded bg-black hover:bg-gray-800 text-white font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-sm mt-2"
+          className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/20 mt-2"
         >
           {isSaved ? (
             <>
-              <Check className="w-4 h-4 text-emerald-400" /> Saved Successfully!
+              <Check className="w-4 h-4 text-black" /> Saved Configuration!
             </>
           ) : (
             <>

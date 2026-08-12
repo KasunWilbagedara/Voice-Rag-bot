@@ -82,6 +82,8 @@ async def unified_voice_pipeline(
     apiKey: Optional[str] = Form(None),
     voice: Optional[str] = Form("nova"),
     model: Optional[str] = Form("gemini-2.0-flash"),
+    provider: Optional[str] = Form(None),
+    baseUrl: Optional[str] = Form(None),
     language: Optional[str] = Form("si"),
 ):
     try:
@@ -123,6 +125,8 @@ async def unified_voice_pipeline(
             custom_api_key=apiKey,
             model_name=model or "gemini-2.0-flash",
             target_language=language or "si",
+            provider=provider,
+            base_url=baseUrl,
         )
         ai_response_text = rag_res["answer"]
         final_chunks = rag_res["retrievedChunks"]

@@ -9,6 +9,8 @@ interface VoiceInterfaceProps {
   apiKey?: string;
   voice?: string;
   model?: string;
+  provider?: string;
+  baseUrl?: string;
   language?: string;
   onLanguageChange?: (lang: string) => void;
   onQueryComplete?: (data: {
@@ -23,7 +25,9 @@ type VoiceState = 'idle' | 'listening' | 'transcribing' | 'searching' | 'speakin
 export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
   apiKey,
   voice = 'nova',
-  model = 'gemini-flash-latest',
+  model = 'gemini-2.0-flash',
+  provider = 'gemini',
+  baseUrl = '',
   language = 'si',
   onLanguageChange,
   onQueryComplete,
@@ -190,7 +194,9 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
         body: JSON.stringify({
           query: queryText,
           apiKey,
-          model: model || 'gemini-1.5-flash',
+          model: model || 'gemini-2.0-flash',
+          provider,
+          baseUrl,
           language,
         }),
       });
@@ -344,6 +350,8 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
       if (apiKey) formData.append('apiKey', apiKey);
       if (voice) formData.append('voice', voice);
       if (model) formData.append('model', model);
+      if (provider) formData.append('provider', provider);
+      if (baseUrl) formData.append('baseUrl', baseUrl);
       if (language) formData.append('language', language);
 
       const res = await fetch('/api/voice-pipeline', {

@@ -528,11 +528,13 @@ def get_embeddings_batch(texts: List[str], custom_api_key: Optional[str] = None)
         return [item.embedding for item in res.data]
 
 
-# --- 4. DYNAMIC LLM TEXT-TO-SQL GENERATOR ---
 def generate_llm_sql_query(
     user_query: str,
     schemas_summary: str,
     custom_api_key: Optional[str] = None,
+    model_name: Optional[str] = "gemini-2.0-flash",
+    provider: Optional[str] = None,
+    base_url: Optional[str] = None,
 ) -> Optional[Tuple[str, str]]:
     """Uses LLM to convert user natural language questions into safe read-only SQL queries."""
     if not schemas_summary or not user_query:
@@ -583,14 +585,21 @@ def generate_llm_sql_query(
         return None
 
     try:
-        if is_gemini_key(api_key):
+        is_gemini = (provider == "gemini") or (is_gemini_key(api_key) and not provider and not base_url)
+
+        if is_gemini and not base_url:
             client = genai.Client(api_key=api_key)
-            for m in ["gemini-flash-latest", "gemini-2.0-flash"]:
+            models_to_try = [model_name] if model_name else []
+            for m in ["gemini-2.0-flash", "gemini-flash-latest", "gemini-1.5-flash"]:
+                if m not in models_to_try:
+                    models_to_try.append(m)
+
+            for m in models_to_try:
                 try:
                     res = client.models.generate_content(
                         model=m,
                         contents=prompt,
-                        config=types.GenerateContentConfig(temperature=0.0, max_output_tokens=250)
+                        config=types.GenerateContentConfig(temperature=0.0, max_output_tokens=300)
                     )
                     if res and res.text:
                         parsed = parse_sql_output(res.text)
@@ -599,12 +608,30 @@ def generate_llm_sql_query(
                 except Exception:
                     continue
         else:
-            client = openai.OpenAI(api_key=api_key)
+            # OpenAI / Groq / Ollama / Custom API
+            resolved_base_url = base_url
+            if provider == "groq" and not resolved_base_url:
+                resolved_base_url = "https://api.groq.com/openai/v1"
+            elif provider == "ollama" and not resolved_base_url:
+                resolved_base_url = "http://localhost:11434/v1"
+            elif provider == "openrouter" and not resolved_base_url:
+                resolved_base_url = "https://openrouter.ai/api/v1"
+
+            client_kwargs = {}
+            if api_key:
+                client_kwargs["api_key"] = api_key
+            else:
+                client_kwargs["api_key"] = "ollama"
+            if resolved_base_url:
+                client_kwargs["base_url"] = resolved_base_url
+
+            client = openai.OpenAI(**client_kwargs)
+            active_model = model_name or "gpt-4o-mini"
             completion = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=active_model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
-                max_tokens=250,
+                max_tokens=300,
             )
             text = completion.choices[0].message.content
             if text:
@@ -622,9 +649,11 @@ def generate_voice_rag_answer(
     user_query: str,
     retrieved_chunks: List[Dict[str, Any]],
     custom_api_key: Optional[str] = None,
-    model_name: str = "gemini-flash-latest",
+    model_name: str = "gemini-2.0-flash",
     target_language: str = "si",
     conversation_history: Optional[List[Dict[str, str]]] = None,
+    provider: Optional[str] = None,
+    base_url: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Synthesizes a response by fusing unstructured vector document RAG chunks, 
@@ -662,7 +691,14 @@ def generate_voice_rag_answer(
         schemas_summary = db_query_service.db_manager.get_all_schemas_summary()
         
         # Try AI Text-to-SQL Generation first
-        llm_sql_pair = generate_llm_sql_query(user_query, schemas_summary, custom_api_key)
+        llm_sql_pair = generate_llm_sql_query(
+            user_query=user_query,
+            schemas_summary=schemas_summary,
+            custom_api_key=custom_api_key,
+            model_name=model_name,
+            provider=provider,
+            base_url=base_url,
+        )
         if llm_sql_pair:
             target_db, generated_sql = llm_sql_pair
             sql_res = db_query_service.db_manager.execute_safe_sql(generated_sql, db_id=target_db)
@@ -741,21 +777,21 @@ def generate_voice_rag_answer(
                                 "type": "database_sql"
                             })
     except Exception as db_err:
-        logger.warning(f"Multi-DB SQL Query execution note: {db_err}")
+        logger.warning(f"Note: DB query execution fallback: {db_err}")
 
-    # Build context string
-    db_context_str = "\n\n".join(db_context_blocks) if db_context_blocks else "No specific database table match."
+    # Build prompt context
+    db_context_str = "\n\n".join(db_context_blocks) if db_context_blocks else "No relevant database records matched."
 
-    # Process Multi-Turn Conversation History Context
-    history_str = "None"
+    # Format multi-turn conversation history
+    history_str = "No previous history."
     if conversation_history:
-        recent_turns = conversation_history[-4:]
-        history_lines = [f"{turn.get('role', 'user').upper()}: {turn.get('content', '')}" for turn in recent_turns]
+        recent_history = conversation_history[-6:]
+        history_lines = [f"{msg.get('role', 'user').upper()}: {msg.get('content', '')}" for msg in recent_history]
         history_str = "\n".join(history_lines)
 
     if retrieved_chunks:
         doc_context_text = "\n\n".join([
-            f"--- DOCUMENT CHUNK {idx + 1} ({chunk.get('documentTitle', 'Doc')}) ---\n{chunk.get('content', '')}"
+            f"[Source {idx+1}: Document '{chunk.get('documentTitle')}' (Doc ID: {chunk.get('documentId')})]\n{chunk.get('content')}"
             for idx, chunk in enumerate(retrieved_chunks[:8])
         ])
     else:
@@ -812,19 +848,18 @@ def generate_voice_rag_answer(
     )
 
     generated_text = ""
-    if is_gemini_key(api_key):
+    is_gemini = (provider == "gemini") or (is_gemini_key(api_key) and not provider and not base_url)
+
+    if is_gemini and not base_url:
         client = genai.Client(api_key=api_key)
         full_prompt = f"{system_prompt}\n\nUSER QUESTION: {user_query}"
 
-        models_to_try = [
-            "gemini-flash-latest",
-            "gemini-2.0-flash",
-            "gemini-3.6-flash",
-            "gemini-pro-latest",
-            "gemini-3.5-flash",
-        ]
-        last_err = None
+        models_to_try = [model_name] if model_name else []
+        for m in ["gemini-2.0-flash", "gemini-flash-latest", "gemini-1.5-flash", "gemini-pro-latest"]:
+            if m not in models_to_try:
+                models_to_try.append(m)
 
+        last_err = None
         for m_name in models_to_try:
             try:
                 res = client.models.generate_content(
@@ -844,8 +879,25 @@ def generate_voice_rag_answer(
         if not generated_text:
             raise RuntimeError(f"Gemini LLM generation failed: {last_err}")
     else:
-        client = openai.OpenAI(api_key=api_key)
-        active_model = model_name if "gpt" in model_name else "gpt-4o-mini"
+        # OpenAI / Groq / Ollama / Custom API
+        resolved_base_url = base_url
+        if provider == "groq" and not resolved_base_url:
+            resolved_base_url = "https://api.groq.com/openai/v1"
+        elif provider == "ollama" and not resolved_base_url:
+            resolved_base_url = "http://localhost:11434/v1"
+        elif provider == "openrouter" and not resolved_base_url:
+            resolved_base_url = "https://openrouter.ai/api/v1"
+
+        client_kwargs = {}
+        if api_key:
+            client_kwargs["api_key"] = api_key
+        else:
+            client_kwargs["api_key"] = "ollama"
+        if resolved_base_url:
+            client_kwargs["base_url"] = resolved_base_url
+
+        client = openai.OpenAI(**client_kwargs)
+        active_model = model_name or "gpt-4o-mini"
         completion = client.chat.completions.create(
             model=active_model,
             messages=[
