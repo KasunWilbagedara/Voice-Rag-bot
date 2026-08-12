@@ -52,6 +52,24 @@ export async function POST(req: Request) {
       return NextResponse.json(data, { status: res.status });
     }
 
+    if (action === 'seed') {
+      const res = await fetch(`${PYTHON_BACKEND_URL}/api/databases/seed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
+    }
+
+    if (action === 'reset') {
+      const res = await fetch(`${PYTHON_BACKEND_URL}/api/databases/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
+    }
+
     // Default list schemas
     const res = await fetch(`${PYTHON_BACKEND_URL}/api/databases/schemas`, {
       headers: { 'Content-Type': 'application/json' },

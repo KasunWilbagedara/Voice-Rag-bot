@@ -124,6 +124,69 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error initializing SQLite customer datasets: {e}")
 
+    def reseed_sample_data(self) -> Dict[str, Any]:
+        """Clears existing rows and reseeds standard sample customer & order data."""
+        try:
+            conn = sqlite3.connect(self.sqlite_db_path)
+            cur = conn.cursor()
+            cur.execute("DELETE FROM customers;")
+            cur.execute("DELETE FROM orders;")
+            cur.execute("DELETE FROM support_tickets;")
+            cur.execute("DELETE FROM products_faq;")
+
+            cur.executemany(
+                "INSERT INTO customers VALUES (?, ?, ?, ?, ?, ?);",
+                [
+                    ("CUST-101", "Amara Perera", "amara.p@example.lk", "VIP Premium", "Active", 145000.0),
+                    ("CUST-102", "Ruwan Fernando", "ruwan.f@example.lk", "Gold", "Active", 82000.0),
+                    ("CUST-103", "Dilini Silva", "dilini.s@example.lk", "Standard", "Active", 23500.0),
+                ]
+            )
+            cur.executemany(
+                "INSERT INTO orders VALUES (?, ?, ?, ?, ?, ?);",
+                [
+                    ("ORD-9021", "CUST-101", "Voice AI Router Enterprise Package", 45000.0, "Delivered", "2026-08-01"),
+                    ("ORD-9022", "CUST-102", "Smart Customer Bot Add-on", 18500.0, "Processing", "2026-08-10"),
+                    ("ORD-9023", "CUST-101", "Cloud Vector Storage Expansion", 12000.0, "Shipped", "2026-08-11"),
+                ]
+            )
+            cur.executemany(
+                "INSERT INTO support_tickets VALUES (?, ?, ?, ?, ?, ?);",
+                [
+                    ("TCK-5501", "Amara Perera", "API Integration", "Needs assistance setting up custom webhook for Voice RAG", "In Progress", "High"),
+                    ("TCK-5502", "Ruwan Fernando", "Billing Inquiry", "Requesting VAT invoice for Order ORD-9022", "Resolved", "Medium"),
+                ]
+            )
+            cur.executemany(
+                "INSERT INTO products_faq VALUES (?, ?, ?, ?, ?);",
+                [
+                    ("FAQ-1", "Refund Policy", "What is the refund period for Voice RAG Bot subscriptions?", "Refunds are processed within 14 business days of submission upon approval by support.", "Billing"),
+                    ("FAQ-2", "Supported Audio Formats", "Which audio input formats are accepted by the bot?", "The bot accepts WAV, MP3, M4A, WEBM, and OGG audio streams for real-time speech recognition.", "Technical"),
+                ]
+            )
+            conn.commit()
+            conn.close()
+            return {"status": "success", "message": "Reseeded sample customer & order database tables successfully."}
+        except Exception as e:
+            logger.error(f"Reseed error: {e}")
+            raise
+
+    def reset_all_data(self) -> Dict[str, Any]:
+        """Clears all customer datasets, orders, and custom uploaded tables."""
+        try:
+            conn = sqlite3.connect(self.sqlite_db_path)
+            cur = conn.cursor()
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            tables = [row[0] for row in cur.fetchall() if not row[0].startswith("sqlite_")]
+            for t in tables:
+                cur.execute(f"DELETE FROM {t};")
+            conn.commit()
+            conn.close()
+            return {"status": "success", "message": "Cleared all customer database records and uploaded datasets."}
+        except Exception as e:
+            logger.error(f"Reset error: {e}")
+            raise
+
     def list_databases(self) -> List[Dict[str, Any]]:
         """Returns list of registered active database connections and summary."""
         result = []

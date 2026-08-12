@@ -89,6 +89,24 @@ def execute_test_query(req: QueryDbRequest):
         logger.error(f"Query execution error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.post("/seed")
+def seed_sample_database_records():
+    try:
+        res = db_manager.reseed_sample_data()
+        return res
+    except Exception as e:
+        logger.error(f"Error seeding sample databases: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/reset")
+def reset_all_database_records():
+    try:
+        res = db_manager.reset_all_data()
+        return res
+    except Exception as e:
+        logger.error(f"Error resetting database records: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.delete("/{db_id}")
 def remove_database(db_id: str):
     try:

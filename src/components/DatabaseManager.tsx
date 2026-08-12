@@ -197,6 +197,39 @@ export const DatabaseManager: React.FC = () => {
     }
   };
 
+  const handleSeedData = async () => {
+    try {
+      setStatusMsg('Seeding sample customer & order database records...');
+      const res = await fetch('/api/databases?action=seed', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setStatusMsg(data.message || 'Sample customer database seeded successfully!');
+        fetchSchemas();
+      } else {
+        setErrorMsg(data.error || 'Failed to seed data');
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Seeding error');
+    }
+  };
+
+  const handleResetData = async () => {
+    if (!confirm('Are you sure you want to clear all customer database records?')) return;
+    try {
+      setStatusMsg('Clearing customer database records...');
+      const res = await fetch('/api/databases?action=reset', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setStatusMsg(data.message || 'All customer database records cleared successfully!');
+        fetchSchemas();
+      } else {
+        setErrorMsg(data.error || 'Failed to clear data');
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Clear data error');
+    }
+  };
+
   const currentDbSchemas = schemas[selectedDbId] || [];
 
   return (
@@ -216,7 +249,24 @@ export const DatabaseManager: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleSeedData}
+            className="px-2.5 py-1.5 rounded-xl bg-emerald-950/80 hover:bg-emerald-900/80 border border-emerald-800/60 text-emerald-300 text-[11px] font-bold flex items-center gap-1 transition-all"
+            title="Populate test customer & order records"
+          >
+            <Plus className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Seed Test Data</span>
+          </button>
+          <button
+            onClick={handleResetData}
+            className="px-2.5 py-1.5 rounded-xl bg-rose-950/80 hover:bg-rose-900/80 border border-rose-800/60 text-rose-300 text-[11px] font-bold flex items-center gap-1 transition-all"
+            title="Clear test customer records"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+            <span>Clear Data</span>
+          </button>
+
           <button
             onClick={() => setActiveTab('tables')}
             className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
