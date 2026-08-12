@@ -55,8 +55,10 @@ def text_to_speech(req: TtsRequest):
         raise HTTPException(status_code=400, detail="Text string is required.")
 
     try:
+        import re
+        speech_text = re.sub(r"```[\s\S]*?```", "", req.text).strip()
         audio_bytes = generate_speech_audio(
-            text=req.text,
+            text=speech_text or req.text,
             voice=req.voice or "nova",
             custom_api_key=req.apiKey,
             language=req.language or "si",
@@ -115,22 +117,28 @@ async def unified_voice_pipeline(
         )
 
         # 3. LLM Answer Generation (1200 Token Limit -> No Truncation)
-        ai_response_text = generate_voice_rag_answer(
+        rag_res = generate_voice_rag_answer(
             user_query=user_query_text,
             retrieved_chunks=retrieved_chunks,
             custom_api_key=apiKey,
             model_name=model or "gemini-2.0-flash",
             target_language=language or "si",
         )
+        ai_response_text = rag_res["answer"]
+        final_chunks = rag_res["retrievedChunks"]
+
+        # Clean JSON blocks for audio TTS playback
+        import re
+        speech_clean_text = re.sub(r"```[\s\S]*?```", "", ai_response_text).strip()
 
         # 4. Save Chat History
-        save_chat_history(user_query_text, retrieved_chunks, ai_response_text)
+        save_chat_history(user_query_text, final_chunks, ai_response_text)
 
         # 5. Text-to-Speech
         audio_base64 = None
         try:
             tts_audio_bytes = generate_speech_audio(
-                text=ai_response_text,
+                text=speech_clean_text or ai_response_text,
                 voice=voice or "nova",
                 custom_api_key=apiKey,
                 language=language or "si",
@@ -142,7 +150,7 @@ async def unified_voice_pipeline(
         return {
             "userQueryText": user_query_text,
             "aiResponseText": ai_response_text,
-            "retrievedChunks": retrieved_chunks,
+            "retrievedChunks": final_chunks,
             "audioBase64": audio_base64,
             "audioFormat": "audio/mp3",
         }

@@ -539,14 +539,47 @@ def generate_llm_sql_query(
         return None
 
     api_key = get_api_key(custom_api_key)
+
+    # Extract any alphanumeric IDs (e.g. ORD-9021, CUST-1001, STU1042)
+    extracted_ids = re.findall(r"\b[A-Za-z0-9]+[-_][A-Za-z0-9]+\b|\bSTU\d+\b|\bORD\d+\b", user_query, re.IGNORECASE)
+    id_hint = f"EXTRACTED QUERY IDS: {', '.join(extracted_ids)}" if extracted_ids else ""
+
     prompt = (
-        f"You are a Text-to-SQL engine for a customer database.\n"
+        f"You are an expert Text-to-SQL engine for connected customer & enterprise databases.\n"
         f"AVAILABLE DATABASE SCHEMAS:\n{schemas_summary}\n\n"
-        f"USER QUESTION: '{user_query}'\n\n"
-        f"Task: If this question requires querying any database table, write a single valid read-only SELECT SQL query.\n"
-        f"Output MUST be in format:\nDB_ID: <database_id>\nSQL: <SELECT_query>\n"
-        f"If NO database query is needed, output ONLY 'NONE'."
+        f"USER QUESTION: '{user_query}'\n{id_hint}\n\n"
+        f"Task: Write a single valid read-only SELECT SQL query to fetch the requested records or comparative stats.\n"
+        f"Rules:\n"
+        f"1. Use column names and table names exactly as shown in the schemas.\n"
+        f"2. For ID or text searches, use wildcard matching e.g. WHERE order_id LIKE '%ORD-9021%' or LOWER(name) LIKE '%amara%'.\n"
+        f"3. Output format MUST be:\n"
+        f"DB_ID: <database_id>\n"
+        f"SQL: <SELECT_query>\n"
+        f"If no DB table is relevant, output ONLY 'NONE'."
     )
+
+    def parse_sql_output(text: str) -> Optional[Tuple[str, str]]:
+        if not text or "NONE" in text.strip().upper():
+            return None
+
+        # Strip markdown code blocks if any
+        cleaned = re.sub(r"```(?:sql)?", "", text).replace("```", "").strip()
+
+        db_match = re.search(r"DB_ID:\s*([^\n\r]+)", cleaned, re.IGNORECASE)
+        sql_match = re.search(r"SQL:\s*(SELECT[\s\S]+)", cleaned, re.IGNORECASE)
+
+        if db_match and sql_match:
+            db_id = db_match.group(1).strip().strip("'\"`")
+            sql_stmt = sql_match.group(2).strip().rstrip(";") + ";"
+            return db_id, sql_stmt
+
+        # Fallback regex search for any SELECT statement
+        select_match = re.search(r"(SELECT[\s\S]+?;)", cleaned, re.IGNORECASE)
+        if select_match:
+            first_db_id = "customer_support_db" if "customer_support_db" in schemas_summary else "primary_db"
+            return first_db_id, select_match.group(1).strip()
+
+        return None
 
     try:
         if is_gemini_key(api_key):
@@ -556,15 +589,12 @@ def generate_llm_sql_query(
                     res = client.models.generate_content(
                         model=m,
                         contents=prompt,
-                        config=types.GenerateContentConfig(temperature=0.0, max_output_tokens=150)
+                        config=types.GenerateContentConfig(temperature=0.0, max_output_tokens=250)
                     )
                     if res and res.text:
-                        text = res.text.strip()
-                        if "NONE" in text.upper():
-                            return None
-                        match = re.search(r"DB_ID:\s*([^\n]+)\s*SQL:\s*(SELECT[^\n;]+)", text, re.IGNORECASE)
-                        if match:
-                            return match.group(1).strip(), match.group(2).strip()
+                        parsed = parse_sql_output(res.text)
+                        if parsed:
+                            return parsed
                 except Exception:
                     continue
         else:
@@ -573,14 +603,13 @@ def generate_llm_sql_query(
                 model="gpt-4o-mini",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
-                max_tokens=150,
+                max_tokens=250,
             )
-            text = completion.choices[0].message.content.strip()
-            if "NONE" in text.upper():
-                return None
-            match = re.search(r"DB_ID:\s*([^\n]+)\s*SQL:\s*(SELECT[^\n;]+)", text, re.IGNORECASE)
-            if match:
-                return match.group(1).strip(), match.group(2).strip()
+            text = completion.choices[0].message.content
+            if text:
+                parsed = parse_sql_output(text)
+                if parsed:
+                    return parsed
     except Exception as e:
         logger.debug(f"LLM Text-to-SQL generation note: {e}")
 
