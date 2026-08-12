@@ -681,11 +681,11 @@ def generate_voice_rag_answer(
                     "type": "database_sql"
                 })
 
-        # Heuristic fallback for active databases if AI query returned empty
-        if not llm_sql_pair:
+        # Heuristic fallback for active databases if AI query returned empty or failed
+        if not db_context_blocks:
             all_dbs = db_query_service.db_manager.list_databases()
-            query_words = [w.strip() for w in user_query.replace("?", " ").replace("!", " ").split() if len(w.strip()) > 2]
-            
+            query_lower = user_query.lower()
+
             for db in all_dbs:
                 db_id = db["id"]
                 schemas = db_query_service.db_manager.get_database_schema(db_id)
@@ -694,22 +694,25 @@ def generate_voice_rag_answer(
                     if table_name in ["documents", "document_chunks", "chat_history"]:
                         continue
 
-                    matching_word = None
-                    for word in query_words:
-                        word_clean = word.strip(",.'\"")
-                        if re.match(r"^(ORD|CUST|TCK|STU|FAQ|ID|ST)[-_]?\d+$", word_clean, re.IGNORECASE) or len(word_clean) >= 4:
-                            matching_word = word_clean
-                            break
+                    # Check if table name or any column name is mentioned in user query
+                    col_names = [c["column"].lower() for c in schema["columns"]]
+                    is_table_match = (table_name.lower() in query_lower) or any(col in query_lower for col in col_names if len(col) >= 4)
 
                     sql_stmt = None
-                    if matching_word:
-                        text_cols = [c["column"] for c in schema["columns"] if "CHAR" in c["type"].upper() or "TEXT" in c["type"].upper() or "VARCHAR" in c["type"].upper()]
-                        if text_cols:
-                            where_clauses = [f"LOWER({col}) LIKE LOWER('%{matching_word}%')" for col in text_cols[:4]]
-                            sql_stmt = f"SELECT * FROM {table_name} WHERE {' OR '.join(where_clauses)} LIMIT 5;"
-                    
-                    if not sql_stmt and any(kw in user_query.lower() for kw in ["all", "list", "show", "customer", "order", "ticket", "faq", "price", "status"]):
-                        sql_stmt = f"SELECT * FROM {table_name} LIMIT 5;"
+                    if is_table_match:
+                        sql_stmt = f"SELECT * FROM {table_name} LIMIT 10;"
+                    else:
+                        for word in user_query.split():
+                            word_clean = word.strip(",.'\"!?")
+                            if len(word_clean) >= 3 and (re.match(r"^[A-Za-z0-9]+[-_][A-Za-z0-9]+$", word_clean) or word_clean.isdigit()):
+                                text_cols = [c["column"] for c in schema["columns"] if "CHAR" in c["type"].upper() or "TEXT" in c["type"].upper() or "VARCHAR" in c["type"].upper()]
+                                if text_cols:
+                                    clauses = [f"LOWER({col}) LIKE LOWER('%{word_clean}%')" for col in text_cols[:4]]
+                                    sql_stmt = f"SELECT * FROM {table_name} WHERE {' OR '.join(clauses)} LIMIT 5;"
+                                    break
+
+                    if not sql_stmt and any(kw in query_lower for kw in ["all", "list", "show", "customer", "order", "ticket", "faq", "price", "status", "salary", "income", "data"]):
+                        sql_stmt = f"SELECT * FROM {table_name} LIMIT 10;"
 
                     if sql_stmt:
                         sql_res = db_query_service.db_manager.execute_safe_sql(sql_stmt, db_id=db_id)
@@ -723,7 +726,7 @@ def generate_voice_rag_answer(
                                 "id": f"db_sql_{db_id}_{table_name}",
                                 "documentId": f"db_{db_id}",
                                 "documentTitle": f"Database: {db['name']} ({table_name})",
-                                "content": f"SQL Query: {sql_stmt}\nResult Rows:\n" + json.dumps(rows_data[:3]),
+                                "content": f"SQL Query: {sql_stmt}\nResult Rows:\n" + json.dumps(rows_data[:5]),
                                 "chunkIndex": 0,
                                 "similarity": 0.95,
                                 "type": "database_sql"

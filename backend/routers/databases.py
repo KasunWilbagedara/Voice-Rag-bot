@@ -68,8 +68,24 @@ async def upload_csv_table(
             csv_filename=file.filename,
             csv_bytes=content
         )
+        # Also auto-ingest CSV data into RAG Document Vector Store for dual-path retrieval
+        try:
+            from backend.rag_service import ingest_document
+            csv_str = content.decode('utf-8', errors='ignore')
+            lines = csv_str.splitlines()
+            header = lines[0] if lines else ""
+            sample_rows = "\n".join(lines[1:60])
+            doc_text = f"DATASET TABLE NAME: '{result['tableName']}' (Source File: {file.filename})\nColumns & Schema: {header}\nSample Row Records:\n{sample_rows}"
+            ingest_document(
+                title=f"CSV Dataset: {file.filename} (Table: {result['tableName']})",
+                file_type="csv",
+                content=doc_text
+            )
+        except Exception as v_err:
+            logger.warning(f"CSV vector RAG auto-ingest note: {v_err}")
+
         return {
-            "message": f"Dataset '{file.filename}' ingested into table '{result['tableName']}' successfully.",
+            "message": f"Dataset '{file.filename}' ingested into table '{result['tableName']}' and Vector Store successfully.",
             "dataset": result
         }
     except Exception as e:
