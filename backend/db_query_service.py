@@ -291,7 +291,7 @@ class DatabaseManager:
         return schemas
 
     def get_all_schemas_summary(self) -> str:
-        """Generates a clean text prompt representation of all active DB schemas for LLM Text-to-SQL synthesis."""
+        """Generates a clean text prompt representation of all active DB schemas + sample data rows for LLM Text-to-SQL synthesis."""
         all_dbs = self.list_databases()
         summary_lines = []
         for db in all_dbs:
@@ -302,6 +302,15 @@ class DatabaseManager:
             for s in schemas:
                 col_strs = [f"{c['column']} ({c['type']})" for c in s["columns"]]
                 summary_lines.append(f"  - Table '{s['table_name']}': {', '.join(col_strs)}")
+                
+                # Fetch 2 sample data rows for value awareness
+                try:
+                    sample_res = self.execute_safe_sql(f"SELECT * FROM {s['table_name']} LIMIT 2;", db_id=db["id"])
+                    if sample_res and sample_res.get("rows"):
+                        sample_str = json.dumps(sample_res["rows"][:2])
+                        summary_lines.append(f"    Sample Row Values: {sample_str}")
+                except Exception:
+                    pass
         return "\n".join(summary_lines)
 
     def register_connection(self, name: str, db_type: str, uri_or_path: str) -> Dict[str, Any]:

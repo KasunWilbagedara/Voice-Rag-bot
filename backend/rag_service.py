@@ -546,13 +546,14 @@ def generate_llm_sql_query(
 
     prompt = (
         f"You are an expert Text-to-SQL engine for connected customer & enterprise databases.\n"
-        f"AVAILABLE DATABASE SCHEMAS:\n{schemas_summary}\n\n"
+        f"AVAILABLE DATABASE SCHEMAS & SAMPLE VALUES:\n{schemas_summary}\n\n"
         f"USER QUESTION: '{user_query}'\n{id_hint}\n\n"
-        f"Task: Write a single valid read-only SELECT SQL query to fetch the requested records or comparative stats.\n"
+        f"Task: Write a single valid read-only SELECT SQL query to answer the question accurately.\n"
         f"Rules:\n"
         f"1. Use column names and table names exactly as shown in the schemas.\n"
-        f"2. For ID or text searches, use wildcard matching e.g. WHERE order_id LIKE '%ORD-9021%' or LOWER(name) LIKE '%amara%'.\n"
-        f"3. Output format MUST be:\n"
+        f"2. For analytical or comparative questions (e.g. 'who earns more male or female', 'average gpa by department', 'top spending customers'), write aggregate SQL queries using COUNT(*), AVG(), SUM(), GROUP BY, and ORDER BY DESC.\n"
+        f"3. For text or ID searches, use wildcard matching e.g. WHERE order_id LIKE '%ORD-9021%' or LOWER(name) LIKE '%amara%'.\n"
+        f"4. Output format MUST be:\n"
         f"DB_ID: <database_id>\n"
         f"SQL: <SELECT_query>\n"
         f"If no DB table is relevant, output ONLY 'NONE'."
@@ -848,6 +849,16 @@ def generate_voice_rag_answer(
         )
         ans = completion.choices[0].message.content
         generated_text = ans.strip() if ans else ("පිළිතුරක් සෑදීමට නොහැකි විය." if is_sinhala else "I could not generate a response.")
+
+    # Strip any internal LLM scratchpad / reasoning lines e.g. "thought Let's check row..."
+    if generated_text:
+        clean_lines = []
+        for line in generated_text.splitlines():
+            l_strip = line.strip()
+            if l_strip.lower().startswith(("thought ", "thought:", "thinking:", "reasoning:")):
+                continue
+            clean_lines.append(line)
+        generated_text = "\n".join(clean_lines).strip()
 
     return {
         "answer": generated_text,
