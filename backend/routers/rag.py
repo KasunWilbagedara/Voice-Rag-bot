@@ -17,6 +17,8 @@ from typing import Optional, List, Dict, Any
 
 class RagQueryRequest(BaseModel):
     query: str
+    sessionId: Optional[str] = None
+    userId: Optional[str] = "local-user"
     apiKey: Optional[str] = None
     model: Optional[str] = "gemini-2.0-flash"
     provider: Optional[str] = None
@@ -50,12 +52,20 @@ def process_rag_query(req: RagQueryRequest):
         answer = rag_res["answer"]
         final_chunks = rag_res["retrievedChunks"]
 
-        save_chat_history(req.query, final_chunks, answer)
+        save_chat_history(
+            req.query,
+            final_chunks,
+            answer,
+            session_id=req.sessionId,
+            user_id=req.userId or "local-user",
+            language=req.language or "si",
+        )
 
         return {
             "query": req.query,
             "answer": answer,
             "retrievedChunks": final_chunks,
+            "sessionId": req.sessionId,
         }
     except Exception as e:
         logger.error(f"RAG Pipeline Error: {e}")

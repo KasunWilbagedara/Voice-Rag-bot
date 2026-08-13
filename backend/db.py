@@ -13,6 +13,7 @@ class InMemoryStore:
     def __init__(self):
         self.documents: List[Dict[str, Any]] = []
         self.chunks: List[Dict[str, Any]] = []
+        self.chat_sessions: List[Dict[str, Any]] = []
         self.chat_history: List[Dict[str, Any]] = []
         self.students: List[Dict[str, Any]] = []
 
@@ -104,14 +105,29 @@ def init_db_schema():
             );
             """,
             """
+            CREATE TABLE IF NOT EXISTS chat_sessions (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id VARCHAR(255) NOT NULL DEFAULT 'local-user',
+                title TEXT NOT NULL DEFAULT 'New Chat',
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            """,
+            """
             CREATE TABLE IF NOT EXISTS chat_history (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                session_id UUID REFERENCES chat_sessions(id) ON DELETE CASCADE,
                 user_query_text TEXT NOT NULL,
                 retrieved_chunks JSONB,
                 ai_response_text TEXT NOT NULL,
+                language VARCHAR(16) DEFAULT 'si',
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
             """,
+            "ALTER TABLE chat_history ADD COLUMN IF NOT EXISTS session_id UUID REFERENCES chat_sessions(id) ON DELETE CASCADE;",
+            "ALTER TABLE chat_history ADD COLUMN IF NOT EXISTS language VARCHAR(16) DEFAULT 'si';",
+            "CREATE INDEX IF NOT EXISTS chat_history_session_id_idx ON chat_history(session_id);",
+            "CREATE INDEX IF NOT EXISTS chat_sessions_user_updated_idx ON chat_sessions(user_id, updated_at DESC);",
             """
             CREATE TABLE IF NOT EXISTS students (
                 student_id VARCHAR(50) PRIMARY KEY,

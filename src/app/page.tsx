@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Mic,
   Database,
@@ -14,6 +14,11 @@ import {
   Brain,
   Globe,
   Download,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plus,
+  Trash2,
+  Clock3,
 } from 'lucide-react';
 import { VoiceInterface } from '@/components/VoiceInterface';
 import { DocumentManager } from '@/components/DocumentManager';
@@ -28,7 +33,100 @@ interface ChatMessage {
   aiResponse: string;
   retrievedChunks: any[];
   timestamp: string;
+  createdAt: string;
   language: string;
+}
+
+interface ChatSession {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+const CHAT_SESSIONS_STORAGE_KEY = 'voice-rag-chat-sessions-v1';
+const ACTIVE_SESSION_STORAGE_KEY = 'voice-rag-active-session-v1';
+const DEFAULT_USER_ID = 'local-user';
+
+function createSession(title: string = 'New Chat'): ChatSession {
+  const now = new Date().toISOString();
+  return {
+    id: crypto.randomUUID(),
+    title,
+    messages: [],
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function formatMessageTime(date: Date): string {
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function getSessionTitle(query: string): string {
+  const cleanQuery = query.trim().replace(/\s+/g, ' ');
+  if (!cleanQuery) return 'New Chat';
+  return cleanQuery.length > 54 ? `${cleanQuery.slice(0, 54)}...` : cleanQuery;
+}
+
+function normalizeMessage(raw: any): ChatMessage | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const createdAt = raw.createdAt || raw.timestamp || new Date().toISOString();
+  return {
+    id: String(raw.id || crypto.randomUUID()),
+    userQuery: String(raw.userQuery || ''),
+    aiResponse: String(raw.aiResponse || ''),
+    retrievedChunks: Array.isArray(raw.retrievedChunks) ? raw.retrievedChunks : [],
+    timestamp: raw.timestamp && !String(raw.timestamp).includes('T')
+      ? String(raw.timestamp)
+      : formatMessageTime(new Date(createdAt)),
+    createdAt,
+    language: String(raw.language || 'si'),
+  };
+}
+
+function normalizeSession(raw: any): ChatSession | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const now = new Date().toISOString();
+  const messages = Array.isArray(raw.messages)
+    ? raw.messages.map(normalizeMessage).filter(Boolean) as ChatMessage[]
+    : [];
+
+  return {
+    id: String(raw.id || crypto.randomUUID()),
+    title: String(raw.title || messages[0]?.userQuery || 'New Chat'),
+    messages,
+    createdAt: String(raw.createdAt || raw.created_at || now),
+    updatedAt: String(raw.updatedAt || raw.updated_at || messages[0]?.createdAt || now),
+  };
+}
+
+function mergeSessions(localSessions: ChatSession[], remoteSessions: ChatSession[]): ChatSession[] {
+  const sessionMap = new Map<string, ChatSession>();
+  [...remoteSessions, ...localSessions].forEach((session) => {
+    const existing = sessionMap.get(session.id);
+    if (!existing || new Date(session.updatedAt).getTime() > new Date(existing.updatedAt).getTime()) {
+      sessionMap.set(session.id, session);
+    }
+  });
+
+  return Array.from(sessionMap.values()).sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  );
+}
+
+function getSessionGroupLabel(updatedAt: string): string {
+  const updated = new Date(updatedAt);
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const startOfSessionDay = new Date(updated.getFullYear(), updated.getMonth(), updated.getDate()).getTime();
+  const daysAgo = Math.floor((startOfToday - startOfSessionDay) / 86400000);
+
+  if (daysAgo <= 0) return 'Today';
+  if (daysAgo === 1) return 'Yesterday';
+  if (daysAgo <= 7) return 'Last Week';
+  return 'Older';
 }
 
 export default function Home() {
@@ -44,28 +142,132 @@ export default function Home() {
   const [textInput, setTextInput] = useState<string>('');
   const [isSubmittingText, setIsSubmittingText] = useState<boolean>(false);
 
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string>('');
+  const [hasLoadedSessions, setHasLoadedSessions] = useState<boolean>(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [activeContextChunks, setActiveContextChunks] = useState<any[]>([]);
   const [activeQueryForContext, setActiveQueryForContext] = useState<string>('');
   const [isContextDrawerOpen, setIsContextDrawerOpen] = useState<boolean>(false);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
 
+  const activeSession = useMemo(
+    () => chatSessions.find((session) => session.id === activeSessionId) || null,
+    [chatSessions, activeSessionId]
+  );
+  const chatHistory = activeSession?.messages || [];
+
+  const conversationHistoryForApi = useMemo(
+    () => chatHistory.slice().reverse().map((m) => [
+      { role: 'user', content: m.userQuery },
+      { role: 'assistant', content: m.aiResponse },
+    ]).flat(),
+    [chatHistory]
+  );
+
+  const groupedSessions = useMemo(() => {
+    return chatSessions.reduce<Record<string, ChatSession[]>>((groups, session) => {
+      const label = getSessionGroupLabel(session.updatedAt);
+      groups[label] = groups[label] || [];
+      groups[label].push(session);
+      return groups;
+    }, {});
+  }, [chatSessions]);
+
+  useEffect(() => {
+    const loadSessions = async () => {
+      let localSessions: ChatSession[] = [];
+      let storedActiveId = '';
+
+      try {
+        const storedSessions = localStorage.getItem(CHAT_SESSIONS_STORAGE_KEY);
+        storedActiveId = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY) || '';
+        if (storedSessions) {
+          const parsed = JSON.parse(storedSessions);
+          if (Array.isArray(parsed)) {
+            localSessions = parsed.map(normalizeSession).filter(Boolean) as ChatSession[];
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to restore chat sessions from localStorage:', err);
+      }
+
+      let remoteSessions: ChatSession[] = [];
+      try {
+        const res = await fetch(`/api/chat/sessions?userId=${DEFAULT_USER_ID}`, { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.sessions)) {
+            remoteSessions = data.sessions.map(normalizeSession).filter(Boolean) as ChatSession[];
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load chat sessions from backend:', err);
+      }
+
+      const mergedSessions = mergeSessions(localSessions, remoteSessions);
+      const sessionsToUse = mergedSessions.length > 0 ? mergedSessions : [createSession()];
+      const nextActiveId = sessionsToUse.some((session) => session.id === storedActiveId)
+        ? storedActiveId
+        : sessionsToUse[0].id;
+
+      setChatSessions(sessionsToUse);
+      setActiveSessionId(nextActiveId);
+      setHasLoadedSessions(true);
+    };
+
+    loadSessions();
+  }, []);
+
+  useEffect(() => {
+    if (!hasLoadedSessions) return;
+    localStorage.setItem(CHAT_SESSIONS_STORAGE_KEY, JSON.stringify(chatSessions));
+  }, [chatSessions, hasLoadedSessions]);
+
+  useEffect(() => {
+    if (!hasLoadedSessions || !activeSessionId) return;
+    localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, activeSessionId);
+  }, [activeSessionId, hasLoadedSessions]);
+
   const handleQueryCompleted = (data: {
     userQuery: string;
     aiResponse: string;
     retrievedChunks: any[];
   }) => {
+    const createdAt = new Date();
     const newMessage: ChatMessage = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       userQuery: data.userQuery,
       aiResponse: data.aiResponse,
       retrievedChunks: data.retrievedChunks || [],
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      timestamp: formatMessageTime(createdAt),
+      createdAt: createdAt.toISOString(),
       language: language,
     };
 
-    setChatHistory((prev) => [newMessage, ...prev]);
+    setChatSessions((prev) => {
+      const currentSessionId = activeSessionId || prev[0]?.id || createSession().id;
+      const existingSession = prev.find((session) => session.id === currentSessionId);
+      const sessionToUpdate = existingSession || createSession();
+      const updatedSession: ChatSession = {
+        ...sessionToUpdate,
+        id: currentSessionId,
+        title: sessionToUpdate.title === 'New Chat'
+          ? getSessionTitle(data.userQuery)
+          : sessionToUpdate.title,
+        messages: [newMessage, ...sessionToUpdate.messages],
+        updatedAt: createdAt.toISOString(),
+      };
+
+      const nextSessions = existingSession
+        ? prev.map((session) => session.id === currentSessionId ? updatedSession : session)
+        : [updatedSession, ...prev];
+
+      return nextSessions.sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
+    });
     setActiveContextChunks(data.retrievedChunks || []);
     setActiveQueryForContext(data.userQuery);
   };
@@ -78,23 +280,20 @@ export default function Home() {
     setTextInput('');
     setIsSubmittingText(true);
 
-    const historyFormatted = chatHistory.slice().reverse().map((m) => [
-      { role: 'user', content: m.userQuery },
-      { role: 'assistant', content: m.aiResponse },
-    ]).flat();
-
     try {
       const res = await fetch('/api/rag', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query,
+          sessionId: activeSessionId,
+          userId: DEFAULT_USER_ID,
           apiKey,
           model,
           provider,
           baseUrl,
           language,
-          conversationHistory: historyFormatted,
+          conversationHistory: conversationHistoryForApi,
         }),
       });
 
@@ -143,6 +342,58 @@ export default function Home() {
     document.body.removeChild(link);
   };
 
+  const createBackendSession = (session: ChatSession) => {
+    fetch('/api/chat/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: session.id,
+        userId: DEFAULT_USER_ID,
+        title: session.title,
+      }),
+    }).catch((err) => {
+      console.warn('Failed to create backend chat session:', err);
+    });
+  };
+
+  const handleNewChat = () => {
+    const nextSession = createSession();
+    setChatSessions((prev) => [nextSession, ...prev]);
+    setActiveSessionId(nextSession.id);
+    setTextInput('');
+    setActiveContextChunks([]);
+    setActiveQueryForContext('');
+    setIsContextDrawerOpen(false);
+    createBackendSession(nextSession);
+  };
+
+  const handleSelectSession = (session: ChatSession) => {
+    setActiveSessionId(session.id);
+    const latestMessage = session.messages[0];
+    setActiveContextChunks(latestMessage?.retrievedChunks || []);
+    setActiveQueryForContext(latestMessage?.userQuery || '');
+  };
+
+  const handleDeleteSession = (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const remainingSessions = chatSessions.filter((session) => session.id !== sessionId);
+    const sessionsToUse = remainingSessions.length > 0 ? remainingSessions : [createSession()];
+    setChatSessions(sessionsToUse);
+
+    if (sessionId === activeSessionId) {
+      setActiveSessionId(sessionsToUse[0].id);
+      const latestMessage = sessionsToUse[0].messages[0];
+      setActiveContextChunks(latestMessage?.retrievedChunks || []);
+      setActiveQueryForContext(latestMessage?.userQuery || '');
+    }
+
+    fetch(`/api/chat/sessions/${encodeURIComponent(sessionId)}?userId=${DEFAULT_USER_ID}`, {
+      method: 'DELETE',
+    }).catch((err) => {
+      console.warn('Failed to delete backend chat session:', err);
+    });
+  };
+
   const openContextForMessage = (msg: ChatMessage) => {
     setActiveContextChunks(msg.retrievedChunks || []);
     setActiveQueryForContext(msg.userQuery);
@@ -150,7 +401,105 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-[#090d16] text-gray-100 flex flex-col font-sans">
+    <main className="min-h-screen bg-[#090d16] text-gray-100 flex font-sans">
+      <aside
+        className={`sticky top-0 hidden h-screen shrink-0 border-r border-gray-800/80 bg-[#070a11]/95 md:flex md:flex-col transition-[width] duration-200 ${
+          isSidebarCollapsed ? 'w-16' : 'w-80'
+        }`}
+      >
+        <div className="flex h-full min-h-0 flex-col">
+          <div className="flex items-center justify-between gap-2 border-b border-gray-800/80 p-3">
+            {!isSidebarCollapsed && (
+              <div className="min-w-0">
+                <p className="truncate text-xs font-bold uppercase tracking-wider text-gray-300">Chat Sessions</p>
+                <p className="truncate text-[11px] text-gray-500">{chatSessions.length} saved</p>
+              </div>
+            )}
+            <button
+              onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-gray-800 bg-gray-900 text-gray-300 transition-colors hover:border-gray-700 hover:text-white"
+              title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {isSidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            </button>
+          </div>
+
+          <div className="p-3">
+            <button
+              onClick={handleNewChat}
+              className={`flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-amber-500 text-xs font-extrabold text-black transition-colors hover:bg-amber-400 ${
+                isSidebarCollapsed ? 'px-0' : 'px-3'
+              }`}
+              title="New Chat"
+            >
+              <Plus className="h-4 w-4" />
+              {!isSidebarCollapsed && <span>New Chat</span>}
+            </button>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+            {!hasLoadedSessions ? (
+              <div className="px-2 py-6 text-center text-[11px] text-gray-500">Loading...</div>
+            ) : (
+              ['Today', 'Yesterday', 'Last Week', 'Older'].map((groupLabel) => {
+                const sessions = groupedSessions[groupLabel] || [];
+                if (sessions.length === 0) return null;
+
+                return (
+                  <div key={groupLabel} className="mb-4">
+                    {!isSidebarCollapsed && (
+                      <div className="mb-1 flex items-center gap-1.5 px-2 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                        <Clock3 className="h-3 w-3" />
+                        <span>{groupLabel}</span>
+                      </div>
+                    )}
+                    <div className="flex flex-col gap-1">
+                      {sessions.map((session) => {
+                        const isActive = session.id === activeSessionId;
+                        return (
+                          <div
+                            key={session.id}
+                            className={`group flex h-11 w-full items-center rounded-lg border transition-colors ${
+                              isActive
+                                ? 'border-amber-500/60 bg-amber-950/40 text-amber-100'
+                                : 'border-transparent text-gray-400 hover:border-gray-800 hover:bg-gray-900 hover:text-gray-100'
+                            }`}
+                          >
+                            <button
+                              onClick={() => handleSelectSession(session)}
+                              className={`flex min-w-0 flex-1 items-center gap-2 px-2 text-left ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                              title={session.title}
+                            >
+                              <MessageSquare className={`h-4 w-4 shrink-0 ${isActive ? 'text-amber-300' : 'text-gray-500'}`} />
+                              {!isSidebarCollapsed && (
+                                <>
+                                  <span className="min-w-0 flex-1 truncate text-xs font-semibold">{session.title}</span>
+                                  <span className="shrink-0 text-[10px] text-gray-600">{session.messages.length}</span>
+                                </>
+                              )}
+                            </button>
+                            {!isSidebarCollapsed && (
+                              <button
+                                onClick={(e) => handleDeleteSession(session.id, e)}
+                                className="mr-1 grid h-7 w-7 shrink-0 place-items-center rounded-md text-gray-600 opacity-0 transition-all hover:bg-red-950/60 hover:text-red-300 group-hover:opacity-100"
+                                title="Delete session"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col">
       {/* Top Navbar */}
       <header className="sticky top-0 z-40 w-full glass-panel border-b border-gray-800 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -202,12 +551,14 @@ export default function Home() {
         <div className="lg:col-span-6 flex flex-col gap-6">
           {/* Main Voice Interface */}
           <VoiceInterface
+            sessionId={activeSessionId}
             apiKey={apiKey}
             voice={voice}
             model={model}
             provider={provider}
             baseUrl={baseUrl}
             language={language}
+            conversationHistory={conversationHistoryForApi}
             onLanguageChange={setLanguage}
             onQueryComplete={handleQueryCompleted}
           />
@@ -387,6 +738,7 @@ export default function Home() {
             </div>
           </div>
         </div>
+      </div>
       </div>
 
       {/* Context Viewer Drawer */}
