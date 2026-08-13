@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import PORT
 from backend.db import init_db_schema, close_db_pool, is_db_connected, seed_initial_students
-from backend.routers import documents, rag, audio, students, databases
+from backend.routers import documents, rag, audio, students, databases, chat_sessions
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,6 +44,7 @@ app.include_router(rag.router)
 app.include_router(audio.router)
 app.include_router(students.router)
 app.include_router(databases.router)
+app.include_router(chat_sessions.router)
 
 @app.get("/")
 def read_root():

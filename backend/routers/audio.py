@@ -1,6 +1,7 @@
 import base64
+import json
 import logging
-from typing import Optional
+from typing import Optional, List, Dict
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Response
 from pydantic import BaseModel
 
@@ -79,12 +80,15 @@ def text_to_speech(req: TtsRequest):
 @router.post("/api/voice-pipeline")
 async def unified_voice_pipeline(
     audio: UploadFile = File(...),
+    sessionId: Optional[str] = Form(None),
+    userId: Optional[str] = Form("local-user"),
     apiKey: Optional[str] = Form(None),
     voice: Optional[str] = Form("nova"),
     model: Optional[str] = Form("gemini-2.0-flash"),
     provider: Optional[str] = Form(None),
     baseUrl: Optional[str] = Form(None),
     language: Optional[str] = Form("si"),
+    conversationHistory: Optional[str] = Form(None),
 ):
     try:
         audio_bytes = await audio.read()
@@ -118,6 +122,15 @@ async def unified_voice_pipeline(
             custom_api_key=apiKey,
         )
 
+        parsed_history: Optional[List[Dict[str, str]]] = None
+        if conversationHistory:
+            try:
+                parsed = json.loads(conversationHistory)
+                if isinstance(parsed, list):
+                    parsed_history = parsed
+            except json.JSONDecodeError:
+                logger.debug("Ignoring invalid conversationHistory payload.")
+
         # 3. LLM Answer Generation (1200 Token Limit -> No Truncation)
         rag_res = generate_voice_rag_answer(
             user_query=user_query_text,
@@ -125,6 +138,7 @@ async def unified_voice_pipeline(
             custom_api_key=apiKey,
             model_name=model or "gemini-2.0-flash",
             target_language=language or "si",
+            conversation_history=parsed_history,
             provider=provider,
             base_url=baseUrl,
         )
@@ -136,7 +150,14 @@ async def unified_voice_pipeline(
         speech_clean_text = re.sub(r"```[\s\S]*?```", "", ai_response_text).strip()
 
         # 4. Save Chat History
-        save_chat_history(user_query_text, final_chunks, ai_response_text)
+        save_chat_history(
+            user_query_text,
+            final_chunks,
+            ai_response_text,
+            session_id=sessionId,
+            user_id=userId or "local-user",
+            language=language or "si",
+        )
 
         # 5. Text-to-Speech
         audio_base64 = None
@@ -155,6 +176,7 @@ async def unified_voice_pipeline(
             "userQueryText": user_query_text,
             "aiResponseText": ai_response_text,
             "retrievedChunks": final_chunks,
+            "sessionId": sessionId,
             "audioBase64": audio_base64,
             "audioFormat": "audio/mp3",
         }

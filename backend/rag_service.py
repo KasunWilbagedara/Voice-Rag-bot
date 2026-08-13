@@ -926,23 +926,295 @@ def generate_voice_rag_answer(
     }
 
 
-def save_chat_history(
-    user_query_text: str,
-    retrieved_chunks: List[Dict[str, Any]],
-    ai_response_text: str,
-):
-    chat_id = str(uuid.uuid4())
-    created_at = datetime.utcnow().isoformat() + "Z"
-    chunks_json = json.dumps(retrieved_chunks)
+def _default_session_title(user_query_text: Optional[str]) -> str:
+    clean_query = (user_query_text or "").strip()
+    if not clean_query:
+        return "New Chat"
+    return clean_query[:54] + ("..." if len(clean_query) > 54 else "")
+
+
+def _normalize_session_id(session_id: Optional[str]) -> str:
+    if session_id:
+        try:
+            return str(uuid.UUID(session_id))
+        except ValueError:
+            logger.warning("Invalid session_id received; creating a new chat session.")
+    return str(uuid.uuid4())
+
+
+def _serialize_datetime(value: Any) -> str:
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
+def _deserialize_chunks(value: Any) -> List[Dict[str, Any]]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, list) else []
+        except json.JSONDecodeError:
+            return []
+    return []
+
+
+def ensure_chat_session(
+    session_id: Optional[str] = None,
+    user_id: str = "local-user",
+    title: Optional[str] = None,
+) -> Dict[str, Any]:
+    resolved_id = _normalize_session_id(session_id)
+    resolved_title = (title or "New Chat").strip() or "New Chat"
+    now = datetime.utcnow().isoformat() + "Z"
 
     with get_db_connection() as conn:
         if conn:
             try:
                 with conn.cursor() as cur:
                     cur.execute(
-                        """INSERT INTO chat_history (id, user_query_text, retrieved_chunks, ai_response_text, created_at)
-                           VALUES (%s, %s, %s, %s, %s)""",
-                        (chat_id, user_query_text, chunks_json, ai_response_text, created_at),
+                        """
+                        INSERT INTO chat_sessions (id, user_id, title, created_at, updated_at)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT (id) DO UPDATE SET
+                            updated_at = EXCLUDED.updated_at,
+                            title = CASE
+                                WHEN chat_sessions.title = 'New Chat' THEN EXCLUDED.title
+                                ELSE chat_sessions.title
+                            END
+                        RETURNING id, user_id, title, created_at, updated_at;
+                        """,
+                        (resolved_id, user_id, resolved_title, now, now),
+                    )
+                    row = cur.fetchone()
+                    conn.commit()
+                    return {
+                        "id": str(row[0]),
+                        "userId": row[1],
+                        "title": row[2],
+                        "createdAt": _serialize_datetime(row[3]),
+                        "updatedAt": _serialize_datetime(row[4]),
+                        "messages": [],
+                    }
+            except Exception as e:
+                conn.rollback()
+                logger.error(f"Error ensuring chat session in DB: {e}")
+
+    existing = next((s for s in in_memory_store.chat_sessions if s["id"] == resolved_id), None)
+    if existing:
+        existing["updated_at"] = now
+        if existing.get("title") == "New Chat":
+            existing["title"] = resolved_title
+    else:
+        existing = {
+            "id": resolved_id,
+            "user_id": user_id,
+            "title": resolved_title,
+            "created_at": now,
+            "updated_at": now,
+        }
+        in_memory_store.chat_sessions.append(existing)
+
+    return {
+        "id": existing["id"],
+        "userId": existing["user_id"],
+        "title": existing["title"],
+        "createdAt": existing["created_at"],
+        "updatedAt": existing["updated_at"],
+        "messages": [],
+    }
+
+
+def list_chat_sessions(user_id: str = "local-user") -> List[Dict[str, Any]]:
+    with get_db_connection() as conn:
+        if conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT id, user_id, title, created_at, updated_at
+                        FROM chat_sessions
+                        WHERE user_id = %s
+                        ORDER BY updated_at DESC, created_at DESC;
+                        """,
+                        (user_id,),
+                    )
+                    sessions = []
+                    for row in cur.fetchall():
+                        session_id = str(row[0])
+                        cur.execute(
+                            """
+                            SELECT id, user_query_text, retrieved_chunks, ai_response_text, language, created_at
+                            FROM chat_history
+                            WHERE session_id = %s
+                            ORDER BY created_at DESC;
+                            """,
+                            (session_id,),
+                        )
+                        messages = [
+                            {
+                                "id": str(msg[0]),
+                                "userQuery": msg[1],
+                                "retrievedChunks": _deserialize_chunks(msg[2]),
+                                "aiResponse": msg[3],
+                                "language": msg[4] or "si",
+                                "timestamp": _serialize_datetime(msg[5]),
+                                "createdAt": _serialize_datetime(msg[5]),
+                            }
+                            for msg in cur.fetchall()
+                        ]
+                        sessions.append({
+                            "id": session_id,
+                            "userId": row[1],
+                            "title": row[2],
+                            "createdAt": _serialize_datetime(row[3]),
+                            "updatedAt": _serialize_datetime(row[4]),
+                            "messages": messages,
+                        })
+                    return sessions
+            except Exception as e:
+                logger.error(f"Error listing chat sessions from DB: {e}")
+
+    sessions = []
+    for session in sorted(
+        [s for s in in_memory_store.chat_sessions if s.get("user_id") == user_id],
+        key=lambda s: s.get("updated_at", ""),
+        reverse=True,
+    ):
+        messages = [
+            {
+                "id": msg["id"],
+                "userQuery": msg["user_query_text"],
+                "retrievedChunks": msg.get("retrieved_chunks") or [],
+                "aiResponse": msg["ai_response_text"],
+                "language": msg.get("language") or "si",
+                "timestamp": msg["created_at"],
+                "createdAt": msg["created_at"],
+            }
+            for msg in sorted(
+                [m for m in in_memory_store.chat_history if m.get("session_id") == session["id"]],
+                key=lambda m: m.get("created_at", ""),
+                reverse=True,
+            )
+        ]
+        sessions.append({
+            "id": session["id"],
+            "userId": session["user_id"],
+            "title": session["title"],
+            "createdAt": session["created_at"],
+            "updatedAt": session["updated_at"],
+            "messages": messages,
+        })
+    return sessions
+
+
+def update_chat_session_title(
+    session_id: str,
+    title: str,
+    user_id: str = "local-user",
+) -> Optional[Dict[str, Any]]:
+    clean_title = title.strip()
+    if not clean_title:
+        raise ValueError("Session title is required.")
+
+    with get_db_connection() as conn:
+        if conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE chat_sessions
+                        SET title = %s, updated_at = %s
+                        WHERE id = %s AND user_id = %s
+                        RETURNING id, user_id, title, created_at, updated_at;
+                        """,
+                        (clean_title, datetime.utcnow().isoformat() + "Z", session_id, user_id),
+                    )
+                    row = cur.fetchone()
+                    conn.commit()
+                    if not row:
+                        return None
+                    return {
+                        "id": str(row[0]),
+                        "userId": row[1],
+                        "title": row[2],
+                        "createdAt": _serialize_datetime(row[3]),
+                        "updatedAt": _serialize_datetime(row[4]),
+                        "messages": [],
+                    }
+            except Exception as e:
+                conn.rollback()
+                logger.error(f"Error updating chat session title in DB: {e}")
+
+    session = next((s for s in in_memory_store.chat_sessions if s["id"] == session_id and s.get("user_id") == user_id), None)
+    if not session:
+        return None
+    session["title"] = clean_title
+    session["updated_at"] = datetime.utcnow().isoformat() + "Z"
+    return {
+        "id": session["id"],
+        "userId": session["user_id"],
+        "title": session["title"],
+        "createdAt": session["created_at"],
+        "updatedAt": session["updated_at"],
+        "messages": [],
+    }
+
+
+def delete_chat_session(session_id: str, user_id: str = "local-user") -> bool:
+    with get_db_connection() as conn:
+        if conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM chat_sessions WHERE id = %s AND user_id = %s", (session_id, user_id))
+                    deleted = cur.rowcount > 0
+                    conn.commit()
+                    return deleted
+            except Exception as e:
+                conn.rollback()
+                logger.error(f"Error deleting chat session from DB: {e}")
+
+    before = len(in_memory_store.chat_sessions)
+    in_memory_store.chat_sessions = [
+        s for s in in_memory_store.chat_sessions
+        if not (s["id"] == session_id and s.get("user_id") == user_id)
+    ]
+    in_memory_store.chat_history = [
+        h for h in in_memory_store.chat_history
+        if h.get("session_id") != session_id
+    ]
+    return len(in_memory_store.chat_sessions) < before
+
+
+def save_chat_history(
+    user_query_text: str,
+    retrieved_chunks: List[Dict[str, Any]],
+    ai_response_text: str,
+    session_id: Optional[str] = None,
+    user_id: str = "local-user",
+    language: str = "si",
+):
+    chat_id = str(uuid.uuid4())
+    created_at = datetime.utcnow().isoformat() + "Z"
+    chunks_json = json.dumps(retrieved_chunks)
+    session = ensure_chat_session(session_id, user_id=user_id, title=_default_session_title(user_query_text))
+    resolved_session_id = session["id"]
+
+    with get_db_connection() as conn:
+        if conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """INSERT INTO chat_history (id, session_id, user_query_text, retrieved_chunks, ai_response_text, language, created_at)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                        (chat_id, resolved_session_id, user_query_text, chunks_json, ai_response_text, language, created_at),
+                    )
+                    cur.execute(
+                        "UPDATE chat_sessions SET updated_at = %s WHERE id = %s",
+                        (created_at, resolved_session_id),
                     )
                     conn.commit()
             except Exception as e:
@@ -951,8 +1223,10 @@ def save_chat_history(
         else:
             in_memory_store.chat_history.append({
                 "id": chat_id,
+                "session_id": resolved_session_id,
                 "user_query_text": user_query_text,
                 "retrieved_chunks": retrieved_chunks,
                 "ai_response_text": ai_response_text,
+                "language": language,
                 "created_at": created_at,
             })

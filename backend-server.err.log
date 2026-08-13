@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\Hafzan\Desktop\Voice-Rag-bot\backend\main.py", line 7, in <module>
+    from backend.db import init_db_schema, close_db_pool, is_db_connected, seed_initial_students
+  File "C:\Users\Hafzan\Desktop\Voice-Rag-bot\backend\db.py", line 5, in <module>
+    import psycopg2
+ModuleNotFoundError: No module named 'psycopg2'

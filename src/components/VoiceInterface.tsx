@@ -6,12 +6,14 @@ import { AudioVisualizer } from './AudioVisualizer';
 import { DynamicChart, parseChartDataFromResponse } from './DynamicChart';
 
 interface VoiceInterfaceProps {
+  sessionId?: string;
   apiKey?: string;
   voice?: string;
   model?: string;
   provider?: string;
   baseUrl?: string;
   language?: string;
+  conversationHistory?: Array<{ role: string; content: string }>;
   onLanguageChange?: (lang: string) => void;
   onQueryComplete?: (data: {
     userQuery: string;
@@ -24,11 +26,13 @@ type VoiceState = 'idle' | 'listening' | 'transcribing' | 'searching' | 'speakin
 
 export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
   apiKey,
+  sessionId,
   voice = 'nova',
   model = 'gemini-2.0-flash',
   provider = 'gemini',
   baseUrl = '',
   language = 'si',
+  conversationHistory = [],
   onLanguageChange,
   onQueryComplete,
 }) => {
@@ -193,11 +197,13 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: queryText,
+          sessionId,
           apiKey,
           model: model || 'gemini-2.0-flash',
           provider,
           baseUrl,
           language,
+          conversationHistory,
         }),
       });
 
@@ -348,11 +354,16 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
       const formData = new FormData();
       formData.append('audio', audioBlob, 'voice_query.webm');
       if (apiKey) formData.append('apiKey', apiKey);
+      if (sessionId) formData.append('sessionId', sessionId);
+      formData.append('userId', 'local-user');
       if (voice) formData.append('voice', voice);
       if (model) formData.append('model', model);
       if (provider) formData.append('provider', provider);
       if (baseUrl) formData.append('baseUrl', baseUrl);
       if (language) formData.append('language', language);
+      if (conversationHistory.length > 0) {
+        formData.append('conversationHistory', JSON.stringify(conversationHistory));
+      }
 
       const res = await fetch('/api/voice-pipeline', {
         method: 'POST',
