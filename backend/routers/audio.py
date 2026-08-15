@@ -81,7 +81,7 @@ async def unified_voice_pipeline(
     audio: UploadFile = File(...),
     apiKey: Optional[str] = Form(None),
     voice: Optional[str] = Form("nova"),
-    model: Optional[str] = Form("gemini-2.0-flash"),
+    model: Optional[str] = Form("gemini-3.5-flash"),
     provider: Optional[str] = Form(None),
     baseUrl: Optional[str] = Form(None),
     language: Optional[str] = Form("si"),
@@ -118,12 +118,12 @@ async def unified_voice_pipeline(
             custom_api_key=apiKey,
         )
 
-        # 3. LLM Answer Generation (1200 Token Limit -> No Truncation)
+        # 3. LLM Answer Generation (2048 Token Limit -> Complete Response)
         rag_res = generate_voice_rag_answer(
             user_query=user_query_text,
             retrieved_chunks=retrieved_chunks,
             custom_api_key=apiKey,
-            model_name=model or "gemini-2.0-flash",
+            model_name=model or "gemini-3.5-flash",
             target_language=language or "si",
             provider=provider,
             base_url=baseUrl,

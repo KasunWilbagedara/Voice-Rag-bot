@@ -46,7 +46,7 @@ def extract_excel_text(file_bytes: bytes) -> str:
 
         return "\n".join(markdown_sections).strip()
     except Exception as e:
-        logger.warning(f"openpyxl failed, attempting pandas fallback: {e}")
+        logger.warning(f"openpyxl note, attempting pandas fallback: {e}")
         try:
             import pandas as pd
             excel_file = pd.ExcelFile(io.BytesIO(file_bytes))
@@ -125,7 +125,7 @@ def extract_multimodal_vision_text(file_bytes: bytes, mime_type: str, custom_api
                 mime_type=mime_type if mime_type else "image/png",
             )
 
-            models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash"]
+            models_to_try = ["gemini-3.5-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-3.7-flash"]
             last_err = None
             for m_name in models_to_try:
                 try:

@@ -63,16 +63,15 @@ export function parseChartDataFromResponse(responseText: string): {
           labels: parsed.labels,
           datasets: parsed.datasets,
         };
-        // Remove code block from clean text
         cleanText = responseText.replace(match[0], '').trim();
         break;
       }
     } catch (e) {
-      // Not a valid JSON chart block, continue searching
+      // Not a valid JSON chart block, continue
     }
   }
 
-  // Fallback inline JSON match if code block tags were missing
+  // Fallback inline JSON match if code block tags were omitted
   if (!chartData) {
     const inlineJsonRegex = /\{\s*"type"\s*:\s*"chart"[\s\S]*?\}/gi;
     const inlineMatch = inlineJsonRegex.exec(responseText);
@@ -96,16 +95,16 @@ export function parseChartDataFromResponse(responseText: string): {
   return { cleanText, chartData };
 }
 
-// Curated vibrant color palette for modern UI
+// Curated vibrant color palette
 const VIBRANT_COLORS = [
   '#10b981', // Emerald
-  '#6366f1', // Indigo
-  '#06b6d4', // Cyan
   '#f59e0b', // Amber
-  '#ec4899', // Pink
+  '#06b6d4', // Cyan
   '#8b5cf6', // Violet
-  '#14b8a6', // Teal
+  '#f43f5e', // Rose
   '#3b82f6', // Blue
+  '#14b8a6', // Teal
+  '#eab308', // Yellow
 ];
 
 interface DynamicChartProps {
@@ -121,7 +120,7 @@ export const DynamicChart: React.FC<DynamicChartProps> = ({ chartData }) => {
     return null;
   }
 
-  // Transform labels and datasets into Recharts format: [{ name: "Alice", Dataset1: 75000, Dataset2: 80000 }]
+  // Transform labels and datasets into Recharts format: [{ name: "Label", Dataset1: 100, ... }]
   const formattedData = chartData.labels.map((label, idx) => {
     const item: Record<string, any> = { name: label };
     chartData.datasets.forEach((ds) => {
@@ -134,16 +133,16 @@ export const DynamicChart: React.FC<DynamicChartProps> = ({ chartData }) => {
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-gray-900 border border-gray-700 p-3 rounded-lg shadow-xl text-white text-xs">
-          <p className="font-bold text-gray-200 mb-1 border-b border-gray-800 pb-1">{label}</p>
+        <div className="bg-slate-900/95 border border-white/10 p-3 rounded-xl shadow-2xl backdrop-blur-md text-white text-xs">
+          <p className="font-bold text-slate-200 mb-1.5 border-b border-white/10 pb-1">{label}</p>
           {payload.map((entry: any, i: number) => (
-            <div key={i} className="flex items-center gap-2 my-0.5">
+            <div key={i} className="flex items-center gap-2 my-1">
               <span
                 className="w-2.5 h-2.5 rounded-full inline-block"
                 style={{ backgroundColor: entry.color || entry.fill }}
               />
-              <span className="text-gray-400">{entry.name}:</span>
-              <span className="font-semibold text-emerald-400">
+              <span className="text-slate-400">{entry.name}:</span>
+              <span className="font-semibold text-amber-400">
                 {typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}
               </span>
             </div>
@@ -156,37 +155,37 @@ export const DynamicChart: React.FC<DynamicChartProps> = ({ chartData }) => {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10, scale: 0.98 }}
+      initial={{ opacity: 0, y: 8, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 md:p-5 flex flex-col gap-4 shadow-lg my-2 overflow-hidden"
+      className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 md:p-5 flex flex-col gap-4 shadow-xl my-2 overflow-hidden backdrop-blur-md"
     >
       {/* Header & Controls */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
             <Sparkles className="w-4 h-4" />
           </div>
           <div>
             <h4 className="text-sm font-bold text-slate-100 tracking-wide">
-              {chartData.title || 'Data Visualization'}
+              {chartData.title || 'Data Comparison'}
             </h4>
-            <span className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold block">
-              Auto-Generated Enterprise Analytics
+            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold block">
+              Auto-Generated RAG Analytics
             </span>
           </div>
         </div>
 
-        {/* Interactive Chart Type Toggle */}
-        <div className="flex items-center p-0.5 bg-slate-900 border border-slate-800 rounded-lg text-xs self-end sm:self-auto">
+        {/* Chart View Mode Switcher */}
+        <div className="flex items-center p-0.5 bg-black/50 border border-white/10 rounded-xl text-xs self-end sm:self-auto">
           <button
             onClick={() => setActiveChartType('bar')}
-            className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 font-semibold text-[11px] ${
+            className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 font-semibold text-[11px] ${
               activeChartType === 'bar'
-                ? 'bg-emerald-500 text-slate-950 font-bold shadow-sm'
+                ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
-            title="Bar Chart View"
+            title="Bar Chart"
           >
             <BarChart3 className="w-3.5 h-3.5" />
             <span>Bar</span>
@@ -194,12 +193,12 @@ export const DynamicChart: React.FC<DynamicChartProps> = ({ chartData }) => {
 
           <button
             onClick={() => setActiveChartType('pie')}
-            className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 font-semibold text-[11px] ${
+            className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 font-semibold text-[11px] ${
               activeChartType === 'pie'
-                ? 'bg-emerald-500 text-slate-950 font-bold shadow-sm'
+                ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
-            title="Pie / Donut View"
+            title="Pie / Donut Chart"
           >
             <PieIcon className="w-3.5 h-3.5" />
             <span>Pie</span>
@@ -207,12 +206,12 @@ export const DynamicChart: React.FC<DynamicChartProps> = ({ chartData }) => {
 
           <button
             onClick={() => setActiveChartType('line')}
-            className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 font-semibold text-[11px] ${
+            className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 font-semibold text-[11px] ${
               activeChartType === 'line'
-                ? 'bg-emerald-500 text-slate-950 font-bold shadow-sm'
+                ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
-            title="Line Trend View"
+            title="Line Trend Chart"
           >
             <LineIcon className="w-3.5 h-3.5" />
             <span>Line</span>
@@ -225,7 +224,7 @@ export const DynamicChart: React.FC<DynamicChartProps> = ({ chartData }) => {
         <ResponsiveContainer width="100%" height="100%">
           {activeChartType === 'bar' ? (
             <BarChart data={formattedData} margin={{ top: 10, right: 10, left: -15, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
               <XAxis
                 dataKey="name"
                 stroke="#64748b"
@@ -241,13 +240,13 @@ export const DynamicChart: React.FC<DynamicChartProps> = ({ chartData }) => {
                   dataKey={ds.label || 'Value'}
                   fill={VIBRANT_COLORS[idx % VIBRANT_COLORS.length]}
                   radius={[6, 6, 0, 0]}
-                  animationDuration={1000}
+                  animationDuration={800}
                 />
               ))}
             </BarChart>
           ) : activeChartType === 'line' ? (
             <LineChart data={formattedData} margin={{ top: 10, right: 10, left: -15, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
               <XAxis
                 dataKey="name"
                 stroke="#64748b"
@@ -264,9 +263,9 @@ export const DynamicChart: React.FC<DynamicChartProps> = ({ chartData }) => {
                   dataKey={ds.label || 'Value'}
                   stroke={VIBRANT_COLORS[idx % VIBRANT_COLORS.length]}
                   strokeWidth={3}
-                  dot={{ r: 5, fill: VIBRANT_COLORS[idx % VIBRANT_COLORS.length], strokeWidth: 2, stroke: '#020617' }}
+                  dot={{ r: 5, fill: VIBRANT_COLORS[idx % VIBRANT_COLORS.length], strokeWidth: 2, stroke: '#070a13' }}
                   activeDot={{ r: 7, strokeWidth: 0 }}
-                  animationDuration={1000}
+                  animationDuration={800}
                 />
               ))}
             </LineChart>
@@ -286,7 +285,7 @@ export const DynamicChart: React.FC<DynamicChartProps> = ({ chartData }) => {
                 innerRadius={50}
                 outerRadius={85}
                 paddingAngle={4}
-                animationDuration={1000}
+                animationDuration={800}
               >
                 {formattedData.map((_, index) => (
                   <Cell key={`cell-${index}`} fill={VIBRANT_COLORS[index % VIBRANT_COLORS.length]} />

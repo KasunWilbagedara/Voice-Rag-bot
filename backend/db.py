@@ -1,4 +1,7 @@
+import os
 import math
+import json
+import sqlite3
 import logging
 from typing import List, Dict, Any, Optional
 from contextlib import contextmanager
@@ -8,6 +11,8 @@ from psycopg2.extras import RealDictCursor
 from backend.config import DATABASE_URL
 
 logger = logging.getLogger("voicerag.db")
+
+SQLITE_DB_PATH = os.path.join(os.path.dirname(__file__), "customer_datasets.db")
 
 class InMemoryStore:
     def __init__(self):
@@ -19,39 +24,45 @@ class InMemoryStore:
 in_memory_store = InMemoryStore()
 
 _db_pool: Optional[ThreadedConnectionPool] = None
+_db_pool_checked: bool = False
 
-def init_db_pool(minconn: int = 1, maxconn: int = 10) -> Optional[ThreadedConnectionPool]:
-    global _db_pool
+def init_db_pool(minconn: int = 1, maxconn: int = 10, force: bool = False) -> Optional[ThreadedConnectionPool]:
+    global _db_pool, _db_pool_checked
     if _db_pool is not None and not _db_pool.closed:
         return _db_pool
+    if _db_pool_checked and not force:
+        return None
+
+    _db_pool_checked = True
     try:
-        _db_pool = ThreadedConnectionPool(minconn, maxconn, DATABASE_URL, connect_timeout=3)
-        logger.info("Database connection pool initialized successfully.")
+        _db_pool = ThreadedConnectionPool(minconn, maxconn, DATABASE_URL, connect_timeout=1)
+        logger.info("PostgreSQL connection pool initialized successfully.")
         return _db_pool
     except Exception as e:
-        logger.warning(f"Database connection pool initialization failed ({e}). Fallback to in-memory store.")
+        logger.debug(f"PostgreSQL connection offline ({e}). Using persistent SQLite database store.")
         _db_pool = None
         return None
 
 def close_db_pool():
-    global _db_pool
+    global _db_pool, _db_pool_checked
     if _db_pool is not None and not _db_pool.closed:
         _db_pool.closeall()
         logger.info("Database connection pool closed.")
         _db_pool = None
+    _db_pool_checked = False
 
 @contextmanager
 def get_db_connection():
     global _db_pool
     conn = None
-    if _db_pool is None or _db_pool.closed:
+    if _db_pool is None and not _db_pool_checked:
         init_db_pool()
 
     if _db_pool is not None and not _db_pool.closed:
         try:
             conn = _db_pool.getconn()
         except Exception as e:
-            logger.warning(f"Failed to checkout connection from pool ({e}).")
+            logger.debug(f"Failed to checkout connection from pool ({e}).")
             conn = None
 
     try:
@@ -61,7 +72,7 @@ def get_db_connection():
             try:
                 _db_pool.putconn(conn)
             except Exception as e:
-                logger.warning(f"Failed to return connection to pool ({e}).")
+                logger.debug(f"Failed to return connection to pool ({e}).")
 
 def is_db_connected() -> bool:
     with get_db_connection() as conn:
@@ -77,8 +88,48 @@ def cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
         return 0.0
     return dot_product / (norm_a * norm_b)
 
+def init_sqlite_rag_tables():
+    """Ensures persistent SQLite document & chunk storage tables exist in customer_datasets.db."""
+    try:
+        conn = sqlite3.connect(SQLITE_DB_PATH)
+        cur = conn.cursor()
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS rag_documents (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            file_type TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+        """)
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS rag_document_chunks (
+            id TEXT PRIMARY KEY,
+            document_id TEXT NOT NULL,
+            content TEXT NOT NULL,
+            chunk_index INT NOT NULL,
+            embedding TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (document_id) REFERENCES rag_documents(id) ON DELETE CASCADE
+        );
+        """)
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS rag_chat_history (
+            id TEXT PRIMARY KEY,
+            user_query_text TEXT NOT NULL,
+            retrieved_chunks TEXT,
+            ai_response_text TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+        """)
+        conn.commit()
+        conn.close()
+        logger.info("Persistent SQLite RAG tables initialized successfully.")
+    except Exception as e:
+        logger.error(f"Error initializing SQLite RAG tables: {e}")
+
 def init_db_schema():
-    """Ensures vector extension, document tables, and student database table exist."""
+    """Ensures PostgreSQL vector extension, document tables, and student table exist."""
+    init_sqlite_rag_tables()
     with get_db_connection() as conn:
         if not conn:
             return
@@ -134,10 +185,10 @@ def init_db_schema():
                 conn.rollback()
                 logger.debug(f"DB schema statement execution note: {e}")
 
-        logger.info("Database schema initialized successfully.")
+        logger.info("PostgreSQL database schema verified successfully.")
 
 def seed_initial_students():
-    """Pre-populates sample student records into PostgreSQL or InMemoryStore."""
+    """Pre-populates sample student records into PostgreSQL and SQLite."""
     initial_data = [
         {
             "student_id": "STU1042",
@@ -210,7 +261,31 @@ def seed_initial_students():
             except Exception as e:
                 conn.rollback()
                 logger.error(f"Error seeding student records into DB: {e}")
-        else:
-            in_memory_store.students = initial_data
-            logger.info("Sample student records seeded into In-Memory Store.")
 
+    try:
+        conn = sqlite3.connect(SQLITE_DB_PATH)
+        cur = conn.cursor()
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS students (
+            student_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            email TEXT,
+            department TEXT,
+            gpa REAL,
+            enrolled_year INT,
+            status TEXT DEFAULT 'Active'
+        );
+        """)
+        for s in initial_data:
+            cur.execute("""
+            INSERT OR REPLACE INTO students (student_id, name, email, department, gpa, enrolled_year, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?);
+            """, (s["student_id"], s["name"], s["email"], s["department"], s["gpa"], s["enrolled_year"], s["status"]))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error(f"SQLite student seed note: {e}")
+
+    in_memory_store.students = initial_data
+
+init_sqlite_rag_tables()

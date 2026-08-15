@@ -23,19 +23,22 @@ module.exports = {
           emerald: '#10b981',
           violet: '#8b5cf6',
           rose: '#f43f5e',
-          amber: '#f59e0b'
+          amber: '#f59e0b',
+          blue: '#3b82f6'
         },
         dark: {
-          bg: '#000000',
-          card: '#ffffff',
-          border: '#e5e7eb',
-          subtle: '#f3f4f6'
+          bg: '#070a13',
+          card: '#0c101d',
+          cardHover: '#111728',
+          border: 'rgba(255, 255, 255, 0.08)',
+          subtle: '#1e293b'
         }
       },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'ripple': 'ripple 2s infinite',
         'float': 'float 4s ease-in-out infinite',
+        'shimmer': 'shimmer 2s linear infinite',
       },
       keyframes: {
         ripple: {
@@ -44,7 +47,11 @@ module.exports = {
         },
         float: {
           '0%, 100%': { transform: 'translateY(0px)' },
-          '50%': { transform: 'translateY(-8px)' },
+          '50%': { transform: 'translateY(-6px)' },
+        },
+        shimmer: {
+          '0%': { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' }
         }
       }
     },

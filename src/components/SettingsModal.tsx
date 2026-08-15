@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Key, Settings, Volume2, Cpu, Save, Check, Globe, Server } from 'lucide-react';
+import { X, Key, Settings, Volume2, Cpu, Save, Check, Globe, Server, ShieldCheck } from 'lucide-react';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -47,7 +47,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setTimeout(() => {
       setIsSaved(false);
       onClose();
-    }, 800);
+    }, 700);
   };
 
   const handleProviderSelect = (p: string) => {
@@ -67,58 +67,65 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md animate-fade-in p-4">
-      <div className="w-full max-w-xl glass-panel bg-slate-900/90 border border-slate-700/70 rounded-2xl p-6 md:p-8 flex flex-col gap-6 relative shadow-2xl text-gray-100 max-h-[90vh] overflow-y-auto">
+      <div className="w-full max-w-xl glass-panel bg-[#090d18] border border-white/15 rounded-3xl p-6 md:p-7 flex flex-col gap-5 relative shadow-2xl text-slate-100 max-h-[90vh] overflow-y-auto custom-scrollbar">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-gray-800">
-          <div className="flex items-center gap-2">
-            <Settings className="w-5 h-5 text-amber-400" />
-            <h2 className="text-lg font-bold text-gray-100 tracking-wide">LLM Provider & Voice Configuration</h2>
+        <div className="flex items-center justify-between pb-4 border-b border-white/10">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+              <Settings className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-100">LLM Provider & Voice Settings</h2>
+              <p className="text-xs text-slate-400">Configure neural models, voices, and endpoints</p>
+            </div>
           </div>
+
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-white rounded-xl hover:bg-gray-800 transition-colors"
+            className="p-2 text-slate-400 hover:text-white rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* AI Provider Selector */}
         <div className="flex flex-col gap-2">
-          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
             <Globe className="w-3.5 h-3.5 text-amber-400" />
-            Select LLM Provider
+            <span>Select LLM Provider</span>
           </label>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {[
-              { id: 'gemini', label: 'Google Gemini', icon: '✨' },
-              { id: 'openai', label: 'OpenAI', icon: '🧠' },
-              { id: 'groq', label: 'Groq Cloud', icon: '⚡' },
-              { id: 'ollama', label: 'Local / Ollama', icon: '🦙' },
+              { id: 'gemini', label: 'Gemini', icon: '✨', sub: 'Recommended' },
+              { id: 'openai', label: 'OpenAI', icon: '🧠', sub: 'GPT-4o' },
+              { id: 'groq', label: 'Groq Cloud', icon: '⚡', sub: 'Ultra Fast' },
+              { id: 'ollama', label: 'Local Ollama', icon: '🦙', sub: 'On-Device' },
             ].map((p) => (
               <button
                 key={p.id}
                 onClick={() => handleProviderSelect(p.id)}
-                className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-1 border ${
+                className={`py-2.5 px-3 rounded-2xl text-xs font-bold transition-all flex flex-col items-center gap-0.5 border ${
                   provider === p.id
-                    ? 'bg-amber-500 text-black border-amber-400 shadow-lg shadow-amber-500/20'
-                    : 'bg-gray-950 text-gray-400 border-gray-800 hover:border-gray-700 hover:text-white'
+                    ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/20 font-extrabold'
+                    : 'bg-black/40 text-slate-400 border-white/5 hover:border-white/15 hover:text-white'
                 }`}
               >
                 <span className="text-sm">{p.icon}</span>
                 <span>{p.label}</span>
+                <span className={`text-[9px] ${provider === p.id ? 'text-slate-900 font-semibold' : 'text-slate-500'}`}>
+                  {p.sub}
+                </span>
               </button>
             ))}
           </div>
         </div>
 
         {/* API Key Input */}
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Key className="w-3.5 h-3.5 text-amber-400" />
-              API Key ({provider.toUpperCase()})
-            </label>
-          </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+            <Key className="w-3.5 h-3.5 text-amber-400" />
+            <span>{provider.toUpperCase()} API Key</span>
+          </label>
 
           <input
             type="password"
@@ -126,47 +133,49 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             onChange={(e) => setLocalKey(e.target.value)}
             placeholder={
               provider === 'gemini'
-                ? 'AIzaSy...'
+                ? 'AIzaSy... (or set via GEMINI_API_KEY in .env)'
                 : provider === 'groq'
-                ? 'gsk_...'
+                ? 'gsk_... (or GROQ_API_KEY in .env)'
                 : provider === 'ollama'
                 ? 'Optional for local Ollama'
-                : 'sk-proj-...'
+                : 'sk-proj-... (or OPENAI_API_KEY in .env)'
             }
-            className="w-full px-4 py-2.5 rounded-xl bg-gray-950 border border-gray-800 focus:border-amber-500 focus:outline-none text-sm text-gray-100 font-mono transition-colors"
+            className="w-full px-4 py-2.5 rounded-xl bg-black/50 border border-white/10 focus:border-amber-500/60 focus:outline-none text-xs text-slate-100 font-mono transition-colors"
           />
-          <p className="text-[10px] text-gray-500">
-            Keys are kept local to your browser session and never logged.
-          </p>
+          <div className="flex items-center gap-1 text-[10px] text-slate-500">
+            <ShieldCheck className="w-3 h-3 text-emerald-400" />
+            <span>Keys are stored in your secure browser session only.</span>
+          </div>
         </div>
 
         {/* Custom Base URL (Ollama / OpenRouter / Custom Endpoints) */}
-        <div className="flex flex-col gap-2">
-          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
             <Server className="w-3.5 h-3.5 text-amber-400" />
-            Custom API Base URL (Optional)
+            <span>Custom API Base URL (Optional)</span>
           </label>
           <input
             type="text"
             value={localBaseUrl}
             onChange={(e) => setLocalBaseUrl(e.target.value)}
             placeholder="http://localhost:11434/v1 or https://openrouter.ai/api/v1"
-            className="w-full px-4 py-2.5 rounded-xl bg-gray-950 border border-gray-800 focus:border-amber-500 focus:outline-none text-sm text-gray-100 font-mono transition-colors"
+            className="w-full px-4 py-2.5 rounded-xl bg-black/50 border border-white/10 focus:border-amber-500/60 focus:outline-none text-xs text-slate-100 font-mono transition-colors"
           />
         </div>
 
         {/* LLM Model Selector */}
         <div className="flex flex-col gap-2">
-          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
             <Cpu className="w-3.5 h-3.5 text-amber-400" />
-            LLM Model ID
+            <span>Model Selection</span>
           </label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {(provider === 'gemini'
               ? [
-                  { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-                  { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
-                  { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+                  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash (Recommended)' },
+                  { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash' },
+                  { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite' },
+                  { id: 'gemini-flash-lite-latest', label: 'Gemini Flash Lite' },
                 ]
               : provider === 'groq'
               ? [
@@ -175,7 +184,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 ]
               : provider === 'ollama'
               ? [
-                  { id: 'llama3.2', label: 'Ollama Llama 3.2' },
+                  { id: 'llama3.2', label: 'Llama 3.2' },
                   { id: 'deepseek-r1:70b', label: 'DeepSeek R1' },
                 ]
               : [
@@ -188,8 +197,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 onClick={() => setCustomModel(m.id)}
                 className={`py-2 px-3 rounded-xl text-xs font-semibold border text-center transition-all ${
                   customModel === m.id
-                    ? 'bg-amber-500 text-black border-amber-400 font-bold'
-                    : 'bg-gray-950 text-gray-400 border-gray-800 hover:border-gray-700 hover:text-white'
+                    ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold shadow-md shadow-amber-500/20'
+                    : 'bg-black/40 text-slate-400 border-white/5 hover:border-white/15 hover:text-white'
                 }`}
               >
                 {m.label}
@@ -201,33 +210,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             type="text"
             value={customModel}
             onChange={(e) => setCustomModel(e.target.value)}
-            placeholder="Or type custom model name (e.g. deepseek-r1, llama3)..."
-            className="w-full px-4 py-2 mt-1 rounded-xl bg-gray-950 border border-gray-800 focus:border-amber-500 focus:outline-none text-xs text-gray-200 transition-colors"
+            placeholder="Or type custom model name (e.g. deepseek-r1)..."
+            className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 focus:border-amber-500/60 focus:outline-none text-xs text-slate-200 font-mono transition-colors"
           />
         </div>
 
         {/* TTS Voice Selector */}
         <div className="flex flex-col gap-2">
-          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
             <Volume2 className="w-3.5 h-3.5 text-amber-400" />
-            Voice Persona
+            <span>Voice Persona</span>
           </label>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {[
-              { id: 'nova', label: 'Nova (Female)' },
+              { id: 'nova', label: 'Nova (Warm Female)' },
               { id: 'alloy', label: 'Alloy (Neutral)' },
               { id: 'echo', label: 'Echo (Male)' },
               { id: 'fable', label: 'Fable (Narrator)' },
-              { id: 'onyx', label: 'Onyx (Deep)' },
+              { id: 'onyx', label: 'Onyx (Deep Male)' },
               { id: 'shimmer', label: 'Shimmer (Bright)' },
             ].map((v) => (
               <button
                 key={v.id}
                 onClick={() => setVoice(v.id)}
-                className={`py-2 px-2 rounded-xl text-[11px] font-semibold border text-center transition-all ${
+                className={`py-2 px-2.5 rounded-xl text-[11px] font-semibold border text-center transition-all ${
                   voice === v.id
-                    ? 'bg-amber-500 text-black border-amber-400 font-bold'
-                    : 'bg-gray-950 text-gray-400 border-gray-800 hover:border-gray-700 hover:text-white'
+                    ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold shadow-md shadow-amber-500/20'
+                    : 'bg-black/40 text-slate-400 border-white/5 hover:border-white/15 hover:text-white'
                 }`}
               >
                 {v.label}
@@ -239,15 +248,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Save button */}
         <button
           onClick={handleSave}
-          className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/20 mt-2"
+          className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/25 mt-2 active:scale-98"
         >
           {isSaved ? (
             <>
-              <Check className="w-4 h-4 text-black" /> Saved Configuration!
+              <Check className="w-4 h-4 text-slate-950 stroke-[3]" /> Saved Configuration!
             </>
           ) : (
             <>
-              <Save className="w-4 h-4" /> Save Configuration
+              <Save className="w-4 h-4" /> Save Settings
             </>
           )}
         </button>

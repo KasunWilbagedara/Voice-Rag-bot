@@ -27,48 +27,73 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ isActive, mode
       const height = canvas.height;
       const centerY = height / 2;
 
-      // Color scheme based on minimalist monochrome + emerald state
-      let primaryColor = '#e5e7eb'; // Light gray idle
-      let secondaryColor = '#d1d5db';
+      // Color scheme based on active state
+      let topColor = '#38bdf8'; // Sky cyan
+      let bottomColor = '#818cf8'; // Indigo
+      let glowColor = 'rgba(56, 189, 248, 0.3)';
 
       if (mode === 'listening') {
-        primaryColor = '#10b981'; // Emerald listening
-        secondaryColor = '#059669';
+        topColor = '#fbbf24'; // Amber
+        bottomColor = '#f97316'; // Orange
+        glowColor = 'rgba(251, 191, 36, 0.45)';
       } else if (mode === 'transcribing' || mode === 'searching') {
-        primaryColor = '#9ca3af'; // Darker gray thinking
-        secondaryColor = '#6b7280';
+        topColor = '#c084fc'; // Purple
+        bottomColor = '#6366f1'; // Indigo
+        glowColor = 'rgba(192, 132, 252, 0.4)';
       } else if (mode === 'speaking') {
-        primaryColor = '#059669'; // Emerald speaking
-        secondaryColor = '#10b981';
+        topColor = '#34d399'; // Emerald
+        bottomColor = '#059669'; // Dark emerald
+        glowColor = 'rgba(52, 211, 153, 0.45)';
+      } else {
+        // Idle
+        topColor = '#64748b';
+        bottomColor = '#334155';
+        glowColor = 'rgba(100, 116, 139, 0.2)';
       }
 
-      const barCount = 32;
-      const barWidth = (width / barCount) * 0.6;
-      const gap = (width / barCount) * 0.4;
+      // Draw subtle background center baseline
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, centerY);
+      ctx.lineTo(width, centerY);
+      ctx.stroke();
 
-      phase += isActive ? 0.08 : 0.02;
+      const barCount = 42;
+      const barWidth = (width / barCount) * 0.55;
+      const gap = (width / barCount) * 0.45;
+
+      phase += isActive ? (mode === 'speaking' ? 0.09 : 0.06) : 0.015;
+
+      // Canvas shadow for neon glow
+      ctx.shadowBlur = isActive ? 12 : 4;
+      ctx.shadowColor = glowColor;
 
       for (let i = 0; i < barCount; i++) {
         const x = i * (barWidth + gap) + gap / 2;
         
-        let amplitude = 6;
+        // Calculate dynamic wave amplitude
+        let amplitude = 4;
+        const distFromCenter = Math.abs(i - barCount / 2) / (barCount / 2);
+        const centerFactor = 1 - distFromCenter * 0.35; // Center bars are slightly taller
+
         if (isActive) {
           if (mode === 'listening') {
-            amplitude = Math.sin(phase + i * 0.3) * 22 + Math.cos(phase * 1.5 + i * 0.2) * 18 + 25;
+            amplitude = (Math.sin(phase * 1.5 + i * 0.35) * 20 + Math.cos(phase * 2.2 + i * 0.2) * 16 + 26) * centerFactor;
           } else if (mode === 'transcribing' || mode === 'searching') {
-            amplitude = Math.sin(phase * 2 + i * 0.4) * 12 + 15;
+            amplitude = (Math.sin(phase * 2.5 + i * 0.5) * 14 + 18) * centerFactor;
           } else if (mode === 'speaking') {
-            amplitude = Math.sin(phase * 2.5 + i * 0.2) * 28 + Math.cos(phase * 0.8 + i * 0.5) * 15 + 30;
+            amplitude = (Math.sin(phase * 3.0 + i * 0.3) * 26 + Math.cos(phase * 1.2 + i * 0.4) * 18 + 30) * centerFactor;
           }
         } else {
-          amplitude = Math.sin(phase + i * 0.2) * 4 + 6;
+          amplitude = (Math.sin(phase + i * 0.2) * 3 + 5) * centerFactor;
         }
 
-        const barHeight = Math.max(4, amplitude);
+        const barHeight = Math.max(4, Math.min(height - 10, amplitude));
 
         const gradient = ctx.createLinearGradient(0, centerY - barHeight / 2, 0, centerY + barHeight / 2);
-        gradient.addColorStop(0, primaryColor);
-        gradient.addColorStop(1, secondaryColor);
+        gradient.addColorStop(0, topColor);
+        gradient.addColorStop(1, bottomColor);
 
         ctx.fillStyle = gradient;
         ctx.beginPath();
@@ -76,6 +101,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ isActive, mode
         ctx.fill();
       }
 
+      ctx.shadowBlur = 0;
       animationFrameId = requestAnimationFrame(render);
     };
 
@@ -87,13 +113,20 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ isActive, mode
   }, [isActive, mode]);
 
   return (
-    <div className="w-full h-24 flex items-center justify-center relative overflow-hidden rounded bg-gray-50 border border-gray-200 p-2 shadow-inner">
+    <div className="w-full h-24 flex items-center justify-center relative overflow-hidden rounded-2xl bg-black/40 border border-white/10 p-2 shadow-inner backdrop-blur-md">
       <canvas
         ref={canvasRef}
-        width={480}
+        width={560}
         height={96}
         className="w-full h-full object-contain"
       />
+      {/* Subtle ambient corner indicators */}
+      <div className="absolute top-2 left-3 flex items-center gap-1.5">
+        <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-amber-400 animate-pulse' : 'bg-slate-600'}`} />
+        <span className="text-[9px] font-mono tracking-widest text-slate-500 uppercase">
+          {mode === 'listening' ? 'LIVE AUDIO INPUT' : mode === 'speaking' ? 'NEURAL VOICE OUT' : 'SPECTRUM'}
+        </span>
+      </div>
     </div>
   );
 };

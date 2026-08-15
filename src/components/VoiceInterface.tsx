@@ -1,7 +1,20 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, MicOff, Volume2, Loader2, Sparkles, AlertCircle, Zap, Key } from 'lucide-react';
+import {
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+  Loader2,
+  Sparkles,
+  AlertCircle,
+  Zap,
+  Copy,
+  Check,
+  RotateCcw,
+  MessageSquarePlus,
+} from 'lucide-react';
 import { AudioVisualizer } from './AudioVisualizer';
 import { DynamicChart, parseChartDataFromResponse } from './DynamicChart';
 
@@ -25,7 +38,7 @@ type VoiceState = 'idle' | 'listening' | 'transcribing' | 'searching' | 'speakin
 export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
   apiKey,
   voice = 'nova',
-  model = 'gemini-2.0-flash',
+  model = 'gemini-3.5-flash',
   provider = 'gemini',
   baseUrl = '',
   language = 'si',
@@ -37,6 +50,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
   const [currentQuery, setCurrentQuery] = useState('');
   const [currentResponse, setCurrentResponse] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -131,7 +145,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
 
     const targetLangPrefix = language === 'si' ? 'si' : 'en';
 
-    // Try browser speech synthesis ONLY if a high-quality Neural/Natural human voice exists on the OS
+    // Try browser speech synthesis if available
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const availableVoices = window.speechSynthesis.getVoices();
@@ -176,11 +190,10 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
       }
     }
 
-    // Fall back to server MP3 audio stream (Works 100% reliably on all OS/Browsers)
+    // Fall back to server audio stream
     await playServerTTS(cleanSpeechText);
   };
 
-  // Ultra-Fast Real-Time Text RAG Query execution
   const processInstantTextQuery = async (queryText: string) => {
     if (!queryText || !queryText.trim()) return;
 
@@ -214,7 +227,6 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
         });
       }
 
-      // Immediately speak the answer with < 300ms delay!
       speakTextWithBrowserTTS(data.answer);
     } catch (err: any) {
       console.error('Instant RAG Error:', err);
@@ -228,7 +240,6 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
     setLiveTranscript('');
     audioChunksRef.current = [];
 
-    // Check for native browser SpeechRecognition for live real-time VAD
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
@@ -262,7 +273,6 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
           const currentText = (finalTranscript + interim).trim();
           setLiveTranscript(currentText);
 
-          // Reset silence VAD timer (800ms silence auto-detect)
           if (vadTimerRef.current) clearTimeout(vadTimerRef.current);
 
           if (currentText.length > 3) {
@@ -324,7 +334,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
       setState('listening');
     } catch (err: any) {
       console.error('Microphone access error:', err);
-      setErrorMessage('Microphone access denied. Please allow microphone permissions.');
+      setErrorMessage('Microphone access denied. Please allow microphone permissions in your browser.');
       setState('idle');
     }
   };
@@ -428,23 +438,40 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
     }
   };
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const quickPrompts = language === 'si' ? [
+    { label: 'ORD-9021 ඇණවුමේ තත්වය?', query: 'ORD-9021 ඇණවුමේ තත්වය කුමක්ද?' },
+    { label: 'Amara Perera ගේ විස්තර කියන්න', query: 'Amara Perera ගේ පාරිභෝගික විස්තර කියන්න' },
+    { label: 'STU1042 ශිෂ්‍යයාගේ GPA එක කීයද?', query: 'STU1042 ශිෂ්‍යයාගේ GPA සහ දෙපාර්තමේන්තුව කුමක්ද?' },
+  ] : [
+    { label: 'Status of Order ORD-9021?', query: 'What is the status of order ORD-9021?' },
+    { label: 'Customer details for Amara Perera', query: 'Show customer details for Amara Perera' },
+    { label: 'What is the official refund policy?', query: 'What is the official refund policy for subscriptions?' },
+  ];
+
   return (
-    <div className="w-full glass-panel border border-gray-800/80 rounded-3xl p-6 md:p-8 flex flex-col items-center gap-6 relative overflow-hidden shadow-2xl">
+    <div className="w-full glass-panel border border-white/10 rounded-3xl p-5 md:p-7 flex flex-col items-center gap-5 relative overflow-hidden shadow-2xl">
       <audio ref={audioPlayerRef} className="hidden" />
 
-      {/* Header controls & language switcher */}
-      <div className="w-full flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      {/* Top Header & Controls */}
+      <div className="w-full flex flex-wrap items-center justify-between gap-3 border-b border-white/5 pb-4">
+        {/* Status Indicator */}
+        <div className="flex items-center gap-2.5">
           <span className="relative flex h-3 w-3">
             <span
-              className={`animate-ping absolute inline-flex h-full w-full opacity-75 ${
+              className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
                 state === 'listening'
                   ? 'bg-amber-400'
                   : state === 'speaking'
                   ? 'bg-emerald-400'
-                  : state === 'searching'
+                  : state === 'searching' || state === 'transcribing'
                   ? 'bg-violet-400'
-                  : 'bg-gray-600'
+                  : 'bg-slate-500'
               }`}
             />
             <span
@@ -453,168 +480,230 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
                   ? 'bg-amber-500'
                   : state === 'speaking'
                   ? 'bg-emerald-500'
-                  : state === 'searching'
+                  : state === 'searching' || state === 'transcribing'
                   ? 'bg-violet-500'
-                  : 'bg-gray-500'
+                  : 'bg-slate-500'
               }`}
             />
           </span>
-          <span className="text-xs uppercase tracking-wider font-bold text-gray-400">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
             {state === 'idle' && 'Ready for Speech'}
-            {state === 'listening' && 'Listening...'}
-            {state === 'transcribing' && 'Transcribing speech...'}
-            {state === 'searching' && 'Vector RAG & LLM Reasoning...'}
-            {state === 'speaking' && 'Streaming Sinhala voice output...'}
+            {state === 'listening' && 'Listening to Voice...'}
+            {state === 'transcribing' && 'Transcribing Speech...'}
+            {state === 'searching' && 'Reasoning & Grounding RAG...'}
+            {state === 'speaking' && 'Streaming Spoken Audio...'}
           </span>
         </div>
 
-        {/* Mode & Language selector toggle */}
+        {/* Action Toggles */}
         <div className="flex items-center gap-2">
-          {/* Instant Real-Time vs Server HD Mode */}
+          {/* Instant Real-Time toggle */}
           <button
             onClick={() => setUseInstantMode(!useInstantMode)}
-            className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 border ${
+            className={`px-3 py-1.5 rounded-xl text-[11px] font-bold tracking-wide transition-all flex items-center gap-1.5 border ${
               useInstantMode
-                ? 'bg-amber-950/80 text-amber-300 border-amber-800/60'
-                : 'bg-gray-900/80 text-gray-400 border-gray-800 hover:text-white'
+                ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 shadow-sm'
+                : 'bg-black/30 text-slate-400 border-white/5 hover:text-slate-200'
             }`}
-            title="Real-Time Mode enables instant voice answers"
+            title="Real-Time Mode enables instant low-latency voice responses"
           >
-            <Sparkles className={`w-3.5 h-3.5 ${useInstantMode ? 'text-amber-400' : 'text-gray-400'}`} />
-            {useInstantMode ? 'Instant Mode' : 'Studio HD Mode'}
+            <Sparkles className={`w-3.5 h-3.5 ${useInstantMode ? 'text-amber-400' : 'text-slate-500'}`} />
+            <span>{useInstantMode ? 'Instant Voice' : 'HD Server Voice'}</span>
           </button>
 
-          <div className="flex items-center p-0.5 bg-gray-900 border border-gray-800 rounded-xl text-[10px] font-bold uppercase tracking-wider">
+          {/* Language Toggle Pill */}
+          <div className="flex items-center p-0.5 bg-black/40 border border-white/10 rounded-xl text-[11px] font-bold">
             <button
               onClick={() => onLanguageChange && onLanguageChange('si')}
-              className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1 ${
+              className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
                 language === 'si'
-                  ? 'bg-amber-500 text-black font-extrabold'
-                  : 'text-gray-400 hover:text-white'
+                  ? 'bg-amber-500 text-slate-950 font-extrabold shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Sinhala
+              <span>🇱🇰</span>
+              <span>සිංහල</span>
             </button>
             <button
               onClick={() => onLanguageChange && onLanguageChange('en')}
-              className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1 ${
+              className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
                 language === 'en'
-                  ? 'bg-amber-500 text-black font-extrabold'
-                  : 'text-gray-400 hover:text-white'
+                  ? 'bg-amber-500 text-slate-950 font-extrabold shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              English
+              <span>🇬🇧</span>
+              <span>English</span>
             </button>
           </div>
 
+          {/* Hands-Free Toggle */}
           <button
             onClick={() => setIsHandsFree(!isHandsFree)}
-            className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 border ${
+            className={`px-3 py-1.5 rounded-xl text-[11px] font-bold tracking-wide transition-all flex items-center gap-1.5 border ${
               isHandsFree
-                ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60'
-                : 'bg-gray-900/80 text-gray-400 border-gray-800 hover:text-white'
+                ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40 shadow-sm'
+                : 'bg-black/30 text-slate-400 border-white/5 hover:text-slate-200'
             }`}
+            title="Hands-free automatically listens again after speaking"
           >
-            <Zap className={`w-3.5 h-3.5 ${isHandsFree ? 'text-emerald-400' : 'text-gray-400'}`} />
-            {isHandsFree ? 'Hands-Free On' : 'Hands-Free Off'}
+            <Zap className={`w-3.5 h-3.5 ${isHandsFree ? 'text-emerald-400' : 'text-slate-500'}`} />
+            <span>{isHandsFree ? 'Hands-Free ON' : 'Hands-Free'}</span>
           </button>
         </div>
       </div>
 
-      {/* Live Waveform Canvas */}
+      {/* Reactive Neon Soundwave Canvas */}
       <AudioVisualizer isActive={state !== 'idle'} mode={state} />
 
-      {/* Big Mic Button */}
-      <div className="relative my-2">
+      {/* Center Interactive Mic Button with Glowing Rings */}
+      <div className="relative my-1 flex flex-col items-center">
+        {/* Ripple Rings */}
         {state === 'listening' && (
-          <div className="absolute -inset-4 rounded-full border-2 border-amber-500 animate-ping opacity-20" />
+          <>
+            <div className="absolute -inset-6 rounded-full border-2 border-amber-500/40 animate-ping opacity-30 pointer-events-none" />
+            <div className="absolute -inset-3 rounded-full bg-amber-500/20 blur-md pointer-events-none" />
+          </>
         )}
         {state === 'speaking' && (
-          <div className="absolute -inset-4 rounded-full border-2 border-emerald-500 animate-pulse opacity-20" />
+          <>
+            <div className="absolute -inset-6 rounded-full border-2 border-emerald-500/40 animate-pulse opacity-40 pointer-events-none" />
+            <div className="absolute -inset-3 rounded-full bg-emerald-500/20 blur-md pointer-events-none" />
+          </>
+        )}
+        {state === 'searching' && (
+          <div className="absolute -inset-3 rounded-full bg-violet-500/20 blur-md pointer-events-none" />
         )}
 
         <button
           onClick={toggleMic}
           disabled={state === 'transcribing' || state === 'searching'}
-          className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center transition-all transform hover:scale-105 active:scale-95 shadow-xl border ${
+          className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-2xl border ${
             state === 'listening'
-              ? 'bg-amber-500 border-amber-400 text-black'
+              ? 'bg-gradient-to-tr from-amber-500 to-amber-400 border-amber-300 text-slate-950 shadow-amber-500/30'
               : state === 'speaking'
-              ? 'bg-emerald-600 border-emerald-400 text-white'
+              ? 'bg-gradient-to-tr from-emerald-500 to-teal-400 border-emerald-300 text-slate-950 shadow-emerald-500/30'
               : state === 'searching' || state === 'transcribing'
-              ? 'bg-gray-800 border-gray-700 text-gray-400 cursor-wait'
-              : 'bg-gradient-to-tr from-amber-500 to-orange-600 border-amber-400 text-white hover:brightness-110'
+              ? 'bg-slate-900 border-violet-500/40 text-violet-300 cursor-wait shadow-violet-500/20'
+              : 'bg-gradient-to-tr from-amber-500 via-amber-400 to-orange-500 border-amber-300/80 text-slate-950 hover:brightness-110 shadow-amber-500/25'
           }`}
+          title={state === 'listening' ? 'Click to stop listening' : 'Click to start voice query'}
         >
           {state === 'transcribing' || state === 'searching' ? (
-            <Loader2 className="w-10 h-10 animate-spin text-white" />
+            <Loader2 className="w-10 h-10 animate-spin text-amber-300" />
           ) : state === 'listening' ? (
-            <MicOff className="w-10 h-10 animate-pulse text-black" />
+            <MicOff className="w-10 h-10 animate-pulse text-slate-950" />
           ) : state === 'speaking' ? (
-            <Volume2 className="w-10 h-10 animate-bounce text-white" />
+            <Volume2 className="w-10 h-10 animate-bounce text-slate-950" />
           ) : (
-            <Mic className="w-10 h-10 text-white" />
+            <Mic className="w-10 h-10 text-slate-950" />
           )}
         </button>
+
+        {/* Live Speech Recognition Bubble */}
+        {state === 'listening' && liveTranscript && (
+          <div className="mt-4 px-4 py-2 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs font-medium max-w-md text-center animate-fade-in shadow-lg backdrop-blur-md flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
+            <span className="italic">"{liveTranscript}"</span>
+          </div>
+        )}
       </div>
 
-      <p className="text-xs font-medium text-gray-400 text-center">
-        {state === 'idle' && (language === 'si' ? 'කතා කිරීමට මයික්‍රෆෝනය ඔබන්න (Speak in Sinhala or English)' : 'Click microphone to start speaking')}
-        {state === 'listening' && (liveTranscript ? ` Listening: "${liveTranscript}"` : 'Listening... speak now')}
-        {state === 'transcribing' && 'Transcribing speech...'}
-        {state === 'searching' && 'Cross-lingual RAG retrieval & Gemini reasoning...'}
-        {state === 'speaking' && 'Streaming voice output...'}
+      {/* Instructions / Prompt Guidance */}
+      <p className="text-xs font-medium text-slate-400 text-center max-w-md">
+        {state === 'idle' && (
+          language === 'si'
+            ? 'කතා කිරීමට මයික්‍රෆෝනය ඔබන්න හෝ පහත ප්‍රශ්න වලින් එකක් තෝරන්න'
+            : 'Click microphone to speak in Sinhala / English, or tap a quick prompt below'
+        )}
+        {state === 'listening' && (!liveTranscript && 'Listening... speak clearly into your microphone')}
+        {state === 'transcribing' && 'Transcribing your voice...'}
+        {state === 'searching' && 'Cross-database retrieval & neural RAG reasoning...'}
+        {state === 'speaking' && 'Speaking answer... click mic anytime to interrupt'}
       </p>
+
+      {/* Clickable Quick Prompts Starter Chips */}
+      {state === 'idle' && (
+        <div className="w-full flex flex-wrap items-center justify-center gap-2 pt-1">
+          {quickPrompts.map((p, idx) => (
+            <button
+              key={idx}
+              onClick={() => processInstantTextQuery(p.query)}
+              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-amber-500/15 border border-white/10 hover:border-amber-500/40 text-slate-300 hover:text-amber-200 text-xs transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+            >
+              <MessageSquarePlus className="w-3.5 h-3.5 text-amber-400" />
+              <span>{p.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Error notification banner */}
       {errorMessage && (
-        <div className="w-full p-3 rounded-xl bg-red-950/40 border border-red-800/50 flex items-center gap-2 text-red-300 text-xs">
-          <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+        <div className="w-full p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-2.5 text-rose-300 text-xs">
+          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
           <span>{errorMessage}</span>
         </div>
       )}
 
-      {/* Live Speech & Response Preview */}
+      {/* Live AI Spoken Response Card with Controls */}
       {(currentQuery || currentResponse) && (
-        <div className="w-full flex flex-col gap-3 mt-2 pt-4 border-t border-gray-800/80">
+        <div className="w-full flex flex-col gap-3 mt-1 pt-4 border-t border-white/10">
           {currentQuery && (
-            <div className="p-3.5 rounded-2xl bg-gray-900/80 border border-gray-800">
+            <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10">
               <span className="text-[10px] font-bold tracking-wider text-cyan-400 uppercase block mb-1">
-                You Spoke
+                You Spoke (Voice Input)
               </span>
-              <p className="text-sm text-gray-100 font-semibold">{currentQuery}</p>
+              <p className="text-sm text-slate-200 font-semibold">{currentQuery}</p>
             </div>
           )}
 
           {currentResponse && (() => {
             const { cleanText, chartData } = parseChartDataFromResponse(currentResponse);
             return (
-              <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-800/40 flex flex-col gap-2">
-                <div className="flex items-center justify-between border-b border-amber-900/40 pb-2">
-                  <span className="text-[10px] font-bold tracking-wider text-amber-400 uppercase flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" /> AI Spoken Answer
+              <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/25 flex flex-col gap-3">
+                <div className="flex items-center justify-between border-b border-amber-500/15 pb-2.5">
+                  <span className="text-[10px] font-bold tracking-wider text-amber-400 uppercase flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" /> AI Spoken Output
                   </span>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => copyToClipboard(cleanText)}
+                      className="px-2 py-1 rounded-lg bg-black/40 hover:bg-black/60 text-slate-300 text-[11px] font-medium border border-white/10 flex items-center gap-1 transition-all"
+                      title="Copy response text"
+                    >
+                      {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>{copied ? 'Copied' : 'Copy'}</span>
+                    </button>
+
                     {state === 'speaking' ? (
                       <button
                         onClick={stopSpeaking}
-                        className="px-2.5 py-1 rounded-lg bg-gray-900 hover:bg-gray-800 text-amber-300 border border-amber-800/50 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all"
+                        className="px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/40 text-[11px] font-bold flex items-center gap-1 transition-all"
                       >
-                        🛑 Stop Speaking
+                        <VolumeX className="w-3.5 h-3.5" />
+                        <span>Stop</span>
                       </button>
                     ) : (
                       <button
                         onClick={() => speakTextWithBrowserTTS(cleanText)}
-                        className="px-2.5 py-1 rounded-lg bg-gray-900 hover:bg-gray-800 text-amber-300 border border-amber-800/50 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all"
+                        className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 text-[11px] font-bold flex items-center gap-1 transition-all"
                       >
-                        🔊 Replay Voice
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Replay</span>
                       </button>
                     )}
                   </div>
                 </div>
-                <p className="text-sm text-gray-100 font-medium leading-relaxed">{cleanText}</p>
-                {chartData && <DynamicChart chartData={chartData} />}
+
+                <p className="text-sm text-slate-100 font-normal leading-relaxed">{cleanText}</p>
+
+                {chartData && (
+                  <div className="pt-2">
+                    <DynamicChart chartData={chartData} />
+                  </div>
+                )}
               </div>
             );
           })()}

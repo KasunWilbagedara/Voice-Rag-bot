@@ -5,7 +5,6 @@ import {
   Database,
   Table as TableIcon,
   Plus,
-  Upload,
   Play,
   Trash2,
   CheckCircle2,
@@ -14,8 +13,11 @@ import {
   Terminal,
   FileSpreadsheet,
   Server,
-  Layers,
   Download,
+  Search,
+  Sparkles,
+  RefreshCw,
+  ExternalLink,
 } from 'lucide-react';
 
 interface DatabaseItem {
@@ -47,6 +49,7 @@ export const DatabaseManager: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [schemaSearch, setSchemaSearch] = useState<string>('');
 
   // Connect Form State
   const [connectName, setConnectName] = useState('');
@@ -119,6 +122,7 @@ export const DatabaseManager: React.FC = () => {
       setConnectString('');
       fetchDatabases();
       fetchSchemas();
+      setActiveTab('tables');
     } catch (err: any) {
       setErrorMsg(err.message || 'Database connection error');
       setStatusMsg(null);
@@ -147,10 +151,11 @@ export const DatabaseManager: React.FC = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'CSV upload failed');
 
-      setStatusMsg(data.message || 'Dataset uploaded successfully!');
+      setStatusMsg(data.message || `Dataset '${file.name}' ingested into SQL store!`);
       setCsvTableName('');
       fetchDatabases();
       fetchSchemas();
+      setActiveTab('tables');
     } catch (err: any) {
       setErrorMsg(err.message || 'CSV upload failed');
       setStatusMsg(null);
@@ -159,8 +164,9 @@ export const DatabaseManager: React.FC = () => {
     }
   };
 
-  const handleRunSqlQuery = async () => {
-    if (!sandboxQuery.trim()) return;
+  const handleRunSqlQuery = async (overrideQuery?: string) => {
+    const queryToRun = overrideQuery || sandboxQuery;
+    if (!queryToRun.trim()) return;
     setIsExecutingSql(true);
     setErrorMsg(null);
     setSandboxResult(null);
@@ -170,7 +176,7 @@ export const DatabaseManager: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sqlQuery: sandboxQuery,
+          sqlQuery: queryToRun,
           dbId: selectedDbId,
         }),
       });
@@ -199,11 +205,11 @@ export const DatabaseManager: React.FC = () => {
 
   const handleSeedData = async () => {
     try {
-      setStatusMsg('Seeding sample customer & order database records...');
+      setStatusMsg('Seeding sample customer, order, and student database records...');
       const res = await fetch('/api/databases?action=seed', { method: 'POST' });
       const data = await res.json();
       if (res.ok) {
-        setStatusMsg(data.message || 'Sample customer database seeded successfully!');
+        setStatusMsg(data.message || 'Sample database seeded successfully!');
         fetchSchemas();
       } else {
         setErrorMsg(data.error || 'Failed to seed data');
@@ -214,13 +220,13 @@ export const DatabaseManager: React.FC = () => {
   };
 
   const handleResetData = async () => {
-    if (!confirm('Are you sure you want to clear all customer database records?')) return;
+    if (!confirm('Are you sure you want to clear all test database records?')) return;
     try {
-      setStatusMsg('Clearing customer database records...');
+      setStatusMsg('Clearing test database records...');
       const res = await fetch('/api/databases?action=reset', { method: 'POST' });
       const data = await res.json();
       if (res.ok) {
-        setStatusMsg(data.message || 'All customer database records cleared successfully!');
+        setStatusMsg(data.message || 'Test database records cleared successfully!');
         fetchSchemas();
       } else {
         setErrorMsg(data.error || 'Failed to clear data');
@@ -231,172 +237,246 @@ export const DatabaseManager: React.FC = () => {
   };
 
   const currentDbSchemas = schemas[selectedDbId] || [];
+  const filteredSchemas = currentDbSchemas.filter((s) =>
+    s.table_name.toLowerCase().includes(schemaSearch.toLowerCase()) ||
+    s.columns.some((c) => c.column.toLowerCase().includes(schemaSearch.toLowerCase()))
+  );
 
   return (
-    <div className="space-y-6">
+    <div className="w-full glass-panel rounded-3xl p-5 md:p-6 flex flex-col gap-5 border border-white/10 shadow-2xl">
       {/* Header Banner */}
-      <div className="glass-panel p-6 rounded-2xl border border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-4">
         <div>
-          <div className="flex items-center gap-2">
-            <Database className="w-6 h-6 text-amber-400" />
-            <h2 className="text-lg font-bold text-gray-100">Multi-Database Manager</h2>
-            <span className="px-2 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-800/60 text-[10px] font-bold">
-              {databases.length} Active Databases
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+              <Database className="w-4 h-4" />
+            </div>
+            <h2 className="text-base font-bold text-slate-100">Multi-Database Hub</h2>
+            <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[11px] font-bold">
+              {databases.length} Connected
             </span>
           </div>
-          <p className="text-xs text-gray-400 mt-1">
-            Connect multiple databases (PostgreSQL, MySQL, SQLite) or upload CSV datasets to query with AI Text-to-SQL RAG.
+          <p className="text-xs text-slate-400 mt-1">
+            Query SQL databases & uploaded CSV datasets seamlessly with AI Text-to-SQL RAG.
           </p>
         </div>
 
+        {/* Quick Seeding and Refresh actions */}
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={handleSeedData}
-            className="px-2.5 py-1.5 rounded-xl bg-emerald-950/80 hover:bg-emerald-900/80 border border-emerald-800/60 text-emerald-300 text-[11px] font-bold flex items-center gap-1 transition-all"
-            title="Populate test customer & order records"
+            className="px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+            title="Populate test customer, order, and student records"
           >
-            <Plus className="w-3.5 h-3.5 text-emerald-400" />
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
             <span>Seed Test Data</span>
           </button>
           <button
             onClick={handleResetData}
-            className="px-2.5 py-1.5 rounded-xl bg-rose-950/80 hover:bg-rose-900/80 border border-rose-800/60 text-rose-300 text-[11px] font-bold flex items-center gap-1 transition-all"
-            title="Clear test customer records"
+            className="px-2.5 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+            title="Clear test records"
           >
             <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-            <span>Clear Data</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('tables')}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              activeTab === 'tables' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
-            }`}
-          >
-            <TableIcon className="w-4 h-4" />
-            <span>Schemas</span>
+            <span>Clear</span>
           </button>
           <button
-            onClick={() => setActiveTab('connect')}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              activeTab === 'connect' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
-            }`}
+            onClick={() => {
+              fetchDatabases();
+              fetchSchemas();
+            }}
+            className="p-1.5 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 text-slate-300 hover:text-white transition-all"
+            title="Refresh database metadata"
           >
-            <Server className="w-4 h-4" />
-            <span>Connect DB</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('upload')}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              activeTab === 'upload' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
-            }`}
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>Upload CSV</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('sandbox')}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              activeTab === 'sandbox' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
-            }`}
-          >
-            <Terminal className="w-4 h-4" />
-            <span>SQL Sandbox</span>
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-amber-400' : ''}`} />
           </button>
         </div>
       </div>
 
       {/* Notifications */}
       {statusMsg && (
-        <div className="p-4 rounded-xl bg-emerald-950/60 border border-emerald-800/80 text-emerald-300 text-xs flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+        <div className="p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-medium flex items-center gap-2 animate-fade-in">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{statusMsg}</span>
         </div>
       )}
 
       {errorMsg && (
-        <div className="p-4 rounded-xl bg-rose-950/60 border border-rose-800/80 text-rose-300 text-xs flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+        <div className="p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-medium flex items-center gap-2 animate-fade-in">
+          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
           <span>{errorMsg}</span>
         </div>
       )}
 
-      {/* Main Content Area */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Left Side: Databases List */}
-        <div className="space-y-3">
-          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider px-1">Registered Databases</h3>
-          <div className="space-y-2">
-            {databases.map((db) => (
-              <div
-                key={db.id}
-                onClick={() => setSelectedDbId(db.id)}
-                className={`p-4 rounded-xl border transition-all cursor-pointer ${
-                  selectedDbId === db.id
-                    ? 'bg-amber-950/40 border-amber-500/80 shadow-md'
-                    : 'bg-gray-900/60 border-gray-800 hover:border-gray-700'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <Database className={`w-4 h-4 ${selectedDbId === db.id ? 'text-amber-400' : 'text-gray-400'}`} />
-                    <span className="text-sm font-semibold text-gray-200">{db.name}</span>
-                  </div>
-                  {!db.is_builtin && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteDb(db.id);
-                      }}
-                      className="p-1 rounded text-gray-500 hover:text-rose-400 transition-all"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
+      {/* Tab Controls */}
+      <div className="flex items-center gap-1.5 p-1 bg-black/40 border border-white/10 rounded-2xl overflow-x-auto">
+        <button
+          onClick={() => setActiveTab('tables')}
+          className={`flex-1 min-w-[100px] py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+            activeTab === 'tables'
+              ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md shadow-amber-500/20'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <TableIcon className="w-3.5 h-3.5" />
+          <span>Schemas</span>
+        </button>
 
-                <div className="flex items-center gap-3 mt-2 text-[11px] text-gray-400">
-                  <span className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-300 font-mono text-[10px] uppercase">
-                    {db.type}
-                  </span>
-                  <span>{db.table_count} Tables</span>
-                  <span className="text-emerald-400">● Connected</span>
+        <button
+          onClick={() => setActiveTab('sandbox')}
+          className={`flex-1 min-w-[110px] py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+            activeTab === 'sandbox'
+              ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md shadow-amber-500/20'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Terminal className="w-3.5 h-3.5" />
+          <span>SQL Sandbox</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('upload')}
+          className={`flex-1 min-w-[100px] py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+            activeTab === 'upload'
+              ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md shadow-amber-500/20'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <FileSpreadsheet className="w-3.5 h-3.5" />
+          <span>Upload CSV</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('connect')}
+          className={`flex-1 min-w-[110px] py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+            activeTab === 'connect'
+              ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md shadow-amber-500/20'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Server className="w-3.5 h-3.5" />
+          <span>Connect DB</span>
+        </button>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+        {/* Left Side: Registered Databases List (4 cols) */}
+        <div className="md:col-span-4 flex flex-col gap-2.5">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              Active Databases ({databases.length})
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-2 max-h-[380px] overflow-y-auto pr-1 custom-scrollbar">
+            {databases.map((db) => {
+              const isSelected = selectedDbId === db.id;
+              return (
+                <div
+                  key={db.id}
+                  onClick={() => setSelectedDbId(db.id)}
+                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col gap-2 ${
+                    isSelected
+                      ? 'bg-amber-500/15 border-amber-500/60 shadow-lg shadow-amber-500/10'
+                      : 'bg-black/30 border-white/5 hover:border-white/20 hover:bg-black/50'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className={`p-1.5 rounded-lg ${isSelected ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-800 text-slate-400'}`}>
+                        <Database className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="text-xs font-bold text-slate-200 truncate">{db.name}</span>
+                    </div>
+
+                    {!db.is_builtin && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteDb(db.id);
+                        }}
+                        className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/15 transition-all"
+                        title="Delete database connection"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                    <span className="px-1.5 py-0.5 rounded bg-black/50 text-slate-300 uppercase border border-white/5">
+                      {db.type}
+                    </span>
+                    <span className="text-emerald-400 flex items-center gap-1 font-sans font-semibold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      {db.table_count || db.tables?.length || 0} Tables
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
-        {/* Right Side: Tab Details */}
-        <div className="md:col-span-2 space-y-4">
+        {/* Right Side: Tab Details (8 cols) */}
+        <div className="md:col-span-8">
+          {/* Tab 1: Table Schemas Explorer */}
           {activeTab === 'tables' && (
-            <div className="glass-panel p-6 rounded-2xl border border-gray-800 space-y-4">
-              <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+            <div className="bg-black/30 rounded-2xl border border-white/10 p-4 md:p-5 flex flex-col gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
                 <div>
-                  <h3 className="text-sm font-bold text-gray-200">Discovered Table Schemas</h3>
-                  <p className="text-xs text-gray-400">Viewing structure for DB: {selectedDbId}</p>
+                  <h3 className="text-sm font-bold text-slate-200">Discovered Table Schemas</h3>
+                  <p className="text-[11px] text-slate-400 font-mono">DB: {selectedDbId}</p>
                 </div>
-                <span className="text-xs px-2.5 py-1 rounded-lg bg-gray-900 text-amber-400 border border-gray-800 font-mono">
-                  {currentDbSchemas.length} Tables
-                </span>
+
+                {/* Schema Search Filter */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={schemaSearch}
+                    onChange={(e) => setSchemaSearch(e.target.value)}
+                    placeholder="Filter tables & columns..."
+                    className="pl-8 pr-3 py-1.5 rounded-xl bg-black/50 border border-white/10 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/60 transition-colors w-full sm:w-48"
+                  />
+                </div>
               </div>
 
-              {currentDbSchemas.length === 0 ? (
-                <p className="text-xs text-gray-500 italic py-6 text-center">No table schemas discovered yet for this database.</p>
+              {filteredSchemas.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-500 italic">
+                  {currentDbSchemas.length === 0
+                    ? 'No table schemas discovered yet for this database. Click "Seed Test Data" to populate sample data.'
+                    : 'No tables or columns match your search filter.'}
+                </div>
               ) : (
-                <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                  {currentDbSchemas.map((schema) => (
-                    <div key={schema.table_name} className="bg-gray-900/80 rounded-xl border border-gray-800 p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <TableIcon className="w-4 h-4 text-amber-400" />
-                        <h4 className="text-xs font-bold text-gray-200 font-mono">Table: {schema.table_name}</h4>
+                <div className="flex flex-col gap-3 max-h-[360px] overflow-y-auto pr-1 custom-scrollbar">
+                  {filteredSchemas.map((schema) => (
+                    <div
+                      key={schema.table_name}
+                      className="bg-black/40 rounded-xl border border-white/10 p-3.5 flex flex-col gap-2 hover:border-amber-500/30 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <TableIcon className="w-4 h-4 text-amber-400" />
+                          <h4 className="text-xs font-bold text-slate-200 font-mono">
+                            {schema.table_name}
+                          </h4>
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {schema.columns.length} columns
+                        </span>
                       </div>
 
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 mt-1">
                         {schema.columns.map((col) => (
-                          <div key={col.column} className="bg-gray-950 p-2 rounded-lg border border-gray-800/60 flex items-center justify-between text-[11px]">
-                            <span className="text-gray-300 font-medium">{col.column}</span>
-                            <span className="text-amber-400/80 font-mono text-[10px]">{col.type}</span>
+                          <div
+                            key={col.column}
+                            className="bg-slate-950/80 p-2 rounded-lg border border-white/5 flex items-center justify-between text-[11px]"
+                          >
+                            <span className="text-slate-300 font-medium truncate">{col.column}</span>
+                            <span className="text-amber-400/80 font-mono text-[9px] uppercase shrink-0 pl-1">
+                              {col.type}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -407,79 +487,143 @@ export const DatabaseManager: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'connect' && (
-            <form onSubmit={handleConnectDb} className="glass-panel p-6 rounded-2xl border border-gray-800 space-y-4">
-              <h3 className="text-sm font-bold text-gray-200">Register External Database Connection</h3>
-              
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs text-gray-400 block mb-1">Database Display Name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Sales Production PostgreSQL DB"
-                    value={connectName}
-                    onChange={(e) => setConnectName(e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-200 focus:outline-none focus:border-amber-500"
-                    required
-                  />
+          {/* Tab 2: SQL Sandbox */}
+          {activeTab === 'sandbox' && (
+            <div className="bg-black/30 rounded-2xl border border-white/10 p-4 md:p-5 flex flex-col gap-4">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div className="flex items-center gap-2">
+                  <Terminal className="w-4 h-4 text-amber-400" />
+                  <h3 className="text-sm font-bold text-slate-200">Interactive SQL Sandbox</h3>
                 </div>
-
-                <div>
-                  <label className="text-xs text-gray-400 block mb-1">Database Type</label>
-                  <select
-                    value={connectType}
-                    onChange={(e) => setConnectType(e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-200 focus:outline-none focus:border-amber-500"
-                  >
-                    <option value="postgresql">PostgreSQL</option>
-                    <option value="mysql">MySQL</option>
-                    <option value="sqlite">SQLite File Path</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs text-gray-400 block mb-1">Connection String / File Path</label>
-                  <input
-                    type="text"
-                    placeholder={connectType === 'sqlite' ? '/path/to/database.db' : 'postgresql://user:pass@localhost:5432/dbname'}
-                    value={connectString}
-                    onChange={(e) => setConnectString(e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-200 font-mono focus:outline-none focus:border-amber-500"
-                    required
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-black text-xs font-bold hover:opacity-90 transition-all shadow-md"
-                >
-                  Test Connection & Save
-                </button>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono font-bold">
+                  SELECT Only Safe Execution
+                </span>
               </div>
-            </form>
+
+              {/* Sample Queries Quick Run */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] text-slate-400">Quick Templates:</span>
+                {[
+                  { label: 'Customers', query: 'SELECT * FROM customers LIMIT 5;' },
+                  { label: 'Orders Status', query: 'SELECT order_number, customer_name, total_amount, status FROM orders LIMIT 5;' },
+                  { label: 'Students GPA', query: 'SELECT student_id, name, department, gpa FROM students ORDER BY gpa DESC LIMIT 5;' },
+                ].map((t, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      setSandboxQuery(t.query);
+                      handleRunSqlQuery(t.query);
+                    }}
+                    className="px-2 py-1 rounded-lg bg-black/50 hover:bg-amber-500/15 border border-white/10 text-amber-300 text-[10px] font-mono transition-all"
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <textarea
+                  value={sandboxQuery}
+                  onChange={(e) => setSandboxQuery(e.target.value)}
+                  rows={3}
+                  className="w-full bg-black/60 border border-white/10 rounded-xl p-3 text-xs text-amber-300 font-mono focus:outline-none focus:border-amber-500/60 transition-colors"
+                  placeholder="Enter SQL SELECT query..."
+                />
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-500">Querying DB: {selectedDbId}</span>
+                  <button
+                    onClick={() => handleRunSqlQuery()}
+                    disabled={isExecutingSql}
+                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-amber-500/20 active:scale-95 disabled:opacity-50"
+                  >
+                    {isExecutingSql ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-slate-950" />}
+                    <span>Execute SQL</span>
+                  </button>
+                </div>
+              </div>
+
+              {sandboxResult && (
+                <div className="flex flex-col gap-2 pt-3 border-t border-white/10">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span className="font-semibold text-emerald-400">
+                      Returned {sandboxResult.rowCount || sandboxResult.rows?.length || 0} rows
+                    </span>
+                    {sandboxResult.rows && sandboxResult.rows.length > 0 && (
+                      <button
+                        onClick={() => {
+                          const cols = sandboxResult.columns || Object.keys(sandboxResult.rows[0] || {});
+                          const header = cols.join(',');
+                          const rows = sandboxResult.rows.map((r: any) =>
+                            cols.map((c: string) => `"${String(r[c] ?? '').replace(/"/g, '""')}"`).join(',')
+                          );
+                          const csvContent = 'data:text/csv;charset=utf-8,' + [header, ...rows].join('\n');
+                          const encodedUri = encodeURI(csvContent);
+                          const link = document.createElement('a');
+                          link.setAttribute('href', encodedUri);
+                          link.setAttribute('download', `query_results_${Date.now()}.csv`);
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        }}
+                        className="px-2 py-1 rounded-lg bg-black/40 hover:bg-amber-500/15 border border-white/10 text-amber-300 text-[10px] font-bold flex items-center gap-1 transition-all"
+                      >
+                        <Download className="w-3 h-3" />
+                        <span>Export CSV</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {sandboxResult.columns && sandboxResult.columns.length > 0 && (
+                    <div className="overflow-x-auto rounded-xl border border-white/10 max-h-56 custom-scrollbar bg-black/40">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-900 border-b border-white/10 text-slate-400 font-mono text-[10px]">
+                          <tr>
+                            {sandboxResult.columns.map((col: string) => (
+                              <th key={col} className="p-2.5 whitespace-nowrap">{col}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5 text-slate-300 font-mono text-[11px]">
+                          {sandboxResult.rows.map((row: any, i: number) => (
+                            <tr key={i} className="hover:bg-white/5 transition-colors">
+                              {sandboxResult.columns.map((col: string) => (
+                                <td key={col} className="p-2.5 whitespace-nowrap">{String(row[col] ?? '')}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
+          {/* Tab 3: Upload CSV Dataset */}
           {activeTab === 'upload' && (
-            <div className="glass-panel p-6 rounded-2xl border border-gray-800 space-y-4">
-              <h3 className="text-sm font-bold text-gray-200">Upload CSV / JSON Dataset into SQL Store</h3>
-              <p className="text-xs text-gray-400">
-                Upload raw tabular datasets (CSV/JSON). The backend parses rows automatically into queryable SQL tables!
-              </p>
-
+            <div className="bg-black/30 rounded-2xl border border-white/10 p-4 md:p-5 flex flex-col gap-4">
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Optional Target Table Name</label>
+                <h3 className="text-sm font-bold text-slate-200">Upload CSV / JSON Dataset</h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Upload raw tabular datasets. The backend automatically creates queryable SQL tables!
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-slate-400">Optional Custom Target Table Name</label>
                 <input
                   type="text"
                   placeholder="e.g. support_tickets_2026"
                   value={csvTableName}
                   onChange={(e) => setCsvTableName(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-200 focus:outline-none focus:border-amber-500"
+                  className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500/60 font-mono transition-colors"
                 />
               </div>
 
               <div
                 onClick={() => csvInputRef.current?.click()}
-                className="border-2 border-dashed border-gray-700 hover:border-amber-500 bg-gray-900/50 rounded-2xl p-8 text-center cursor-pointer transition-all space-y-3"
+                className="border-2 border-dashed border-white/15 hover:border-amber-500/60 bg-black/40 hover:bg-black/60 rounded-2xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-3 group"
               >
                 {isUploadingCsv ? (
                   <div className="flex flex-col items-center gap-2">
@@ -488,10 +632,12 @@ export const DatabaseManager: React.FC = () => {
                   </div>
                 ) : (
                   <>
-                    <FileSpreadsheet className="w-10 h-10 text-amber-400 mx-auto" />
+                    <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-white/10 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform shadow-lg">
+                      <FileSpreadsheet className="w-6 h-6" />
+                    </div>
                     <div>
-                      <p className="text-xs font-semibold text-gray-200">Click to select CSV or JSON file</p>
-                      <p className="text-[11px] text-gray-500 mt-1">Supports CSV, TSV, JSON tabular files</p>
+                      <p className="text-xs font-semibold text-slate-200">Click or drag CSV/JSON file here</p>
+                      <p className="text-[10px] text-slate-500 mt-0.5">Supports CSV, TSV, and JSON tabular formats</p>
                     </div>
                   </>
                 )}
@@ -506,89 +652,62 @@ export const DatabaseManager: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'sandbox' && (
-            <div className="glass-panel p-6 rounded-2xl border border-gray-800 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-gray-200 flex items-center gap-2">
-                  <Terminal className="w-4 h-4 text-amber-400" />
-                  <span>Read-Only SQL Sandbox</span>
-                </h3>
-                <span className="text-[11px] text-emerald-400 font-mono">SELECT Only</span>
+          {/* Tab 4: Connect External DB */}
+          {activeTab === 'connect' && (
+            <form onSubmit={handleConnectDb} className="bg-black/30 rounded-2xl border border-white/10 p-4 md:p-5 flex flex-col gap-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-200">Register External Database Connection</h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Connect live PostgreSQL, MySQL, or local SQLite database instances.
+                </p>
               </div>
+              
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Database Display Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Production Analytics DB"
+                    value={connectName}
+                    onChange={(e) => setConnectName(e.target.value)}
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500/60 transition-colors"
+                    required
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <textarea
-                  value={sandboxQuery}
-                  onChange={(e) => setSandboxQuery(e.target.value)}
-                  rows={3}
-                  className="w-full bg-gray-950 border border-gray-800 rounded-xl p-3 text-xs text-amber-300 font-mono focus:outline-none focus:border-amber-500"
-                  placeholder="Enter SELECT query..."
-                />
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Database Engine</label>
+                  <select
+                    value={connectType}
+                    onChange={(e) => setConnectType(e.target.value)}
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500/60 transition-colors"
+                  >
+                    <option value="postgresql">PostgreSQL</option>
+                    <option value="mysql">MySQL</option>
+                    <option value="sqlite">SQLite (File Path)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Connection String / File Path</label>
+                  <input
+                    type="text"
+                    placeholder={connectType === 'sqlite' ? '/path/to/database.db' : 'postgresql://user:pass@localhost:5432/dbname'}
+                    value={connectString}
+                    onChange={(e) => setConnectString(e.target.value)}
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-amber-500/60 transition-colors"
+                    required
+                  />
+                </div>
+
                 <button
-                  onClick={handleRunSqlQuery}
-                  disabled={isExecutingSql}
-                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold flex items-center gap-2 transition-all"
+                  type="submit"
+                  className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-all shadow-lg shadow-amber-500/20 active:scale-95"
                 >
-                  {isExecutingSql ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-black" />}
-                  <span>Execute Test Query</span>
+                  Test Connection & Register DB
                 </button>
               </div>
-
-              {sandboxResult && (
-                <div className="space-y-2 pt-2 border-t border-gray-800">
-                  <div className="flex items-center justify-between text-xs text-gray-400">
-                    <span>Retrieved {sandboxResult.rowCount} rows</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-[10px] text-amber-400/80">{sandboxResult.query}</span>
-                      {sandboxResult.rows && sandboxResult.rows.length > 0 && (
-                        <button
-                          onClick={() => {
-                            const cols = sandboxResult.columns || [];
-                            const header = cols.join(',');
-                            const rows = sandboxResult.rows.map((r: any) => cols.map((c: string) => `"${String(r[c] ?? '').replace(/"/g, '""')}"`).join(','));
-                            const csvContent = 'data:text/csv;charset=utf-8,' + [header, ...rows].join('\n');
-                            const encodedUri = encodeURI(csvContent);
-                            const link = document.createElement('a');
-                            link.setAttribute('href', encodedUri);
-                            link.setAttribute('download', `query_results_${Date.now()}.csv`);
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                          }}
-                          className="px-2 py-1 rounded bg-amber-950 text-amber-300 border border-amber-800/80 hover:bg-amber-900 text-[10px] font-bold flex items-center gap-1 transition-all"
-                        >
-                          <Download className="w-3 h-3" />
-                          <span>Export CSV</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {sandboxResult.columns && sandboxResult.columns.length > 0 && (
-                    <div className="overflow-x-auto rounded-xl border border-gray-800 max-h-60 custom-scrollbar">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-gray-900 border-b border-gray-800 text-gray-400 font-mono text-[11px]">
-                          <tr>
-                            {sandboxResult.columns.map((col: string) => (
-                              <th key={col} className="p-2.5">{col}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-800 text-gray-300 font-mono text-[11px]">
-                          {sandboxResult.rows.map((row: any, i: number) => (
-                            <tr key={i} className="hover:bg-gray-900/50">
-                              {sandboxResult.columns.map((col: string) => (
-                                <td key={col} className="p-2.5">{String(row[col] ?? '')}</td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            </form>
           )}
         </div>
       </div>
