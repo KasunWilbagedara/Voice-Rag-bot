@@ -1,5 +1,4 @@
 import io
-import json
 import logging
 from typing import Optional
 

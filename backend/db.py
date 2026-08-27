@@ -2,9 +2,7 @@ import math
 import logging
 from typing import List, Dict, Any, Optional
 from contextlib import contextmanager
-import psycopg2
 from psycopg2.pool import ThreadedConnectionPool
-from psycopg2.extras import RealDictCursor
 from backend.config import DATABASE_URL
 
 logger = logging.getLogger("voicerag.db")
@@ -42,7 +40,6 @@ def close_db_pool():
 
 @contextmanager
 def get_db_connection():
-    global _db_pool
     conn = None
     if _db_pool is None or _db_pool.closed:
         init_db_pool()

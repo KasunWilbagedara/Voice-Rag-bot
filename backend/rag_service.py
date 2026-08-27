@@ -1,9 +1,7 @@
 import uuid
 import re
 import json
-import math
 import logging
-import time
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
 
@@ -14,7 +12,6 @@ from google.genai import types
 from backend.config import get_api_key, is_gemini_key
 from backend.db import (
     get_db_connection,
-    is_db_connected,
     in_memory_store,
     cosine_similarity,
 )
@@ -115,6 +112,75 @@ def translate_query_for_search(
     return query_text
 
 
+<<<<<<< Updated upstream
+=======
+# --- 3. FAST EMBEDDING ENGINE ---
+def get_embedding(text: str, custom_api_key: Optional[str] = None) -> List[float]:
+    global _CACHED_EMBEDDING_MODEL
+    api_key = get_api_key(custom_api_key)
+    cleaned_text = text.replace("\n", " ")
+
+    if is_gemini_key(api_key):
+        client = genai.Client(api_key=api_key)
+        if _CACHED_EMBEDDING_MODEL:
+            try:
+                res = client.models.embed_content(model=_CACHED_EMBEDDING_MODEL, contents=cleaned_text)
+                return res.embedding.values if hasattr(res, "embedding") and res.embedding else res.embeddings[0].values
+            except Exception:
+                pass
+
+        models_to_try = [
+            "gemini-embedding-001",
+            "gemini-embedding-2",
+            "models/gemini-embedding-001",
+            "models/gemini-embedding-2",
+        ]
+        for m in models_to_try:
+            try:
+                res = client.models.embed_content(model=m, contents=cleaned_text)
+                _CACHED_EMBEDDING_MODEL = m
+                return res.embedding.values if hasattr(res, "embedding") and res.embedding else res.embeddings[0].values
+            except Exception:
+                continue
+
+        raise RuntimeError("Gemini embedding failed.")
+    else:
+        client = openai.OpenAI(api_key=api_key)
+        res = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=cleaned_text,
+            encoding_format="float",
+        )
+        return res.data[0].embedding
+
+
+def get_embeddings_batch(texts: List[str], custom_api_key: Optional[str] = None) -> List[List[float]]:
+    api_key = get_api_key(custom_api_key)
+    cleaned_texts = [t.replace("\n", " ") for t in texts]
+
+    if is_gemini_key(api_key):
+        client = genai.Client(api_key=api_key)
+        target_model = _CACHED_EMBEDDING_MODEL or "gemini-embedding-001"
+        embeddings = []
+        for t in cleaned_texts:
+            try:
+                res = client.models.embed_content(model=target_model, contents=t)
+                emb = res.embedding.values if hasattr(res, "embedding") and res.embedding else res.embeddings[0].values
+                embeddings.append(emb)
+            except Exception:
+                embeddings.append(get_embedding(t, custom_api_key))
+        return embeddings
+    else:
+        client = openai.OpenAI(api_key=api_key)
+        res = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=cleaned_texts,
+            encoding_format="float",
+        )
+        return [item.embedding for item in res.data]
+
+
+>>>>>>> Stashed changes
 # --- 4. DOCUMENT INGESTION ---
 def ingest_document(
     title: str,
@@ -216,11 +282,22 @@ def search_vector_database(
     top_k: int = 8,
     query_text: Optional[str] = None,
     custom_api_key: Optional[str] = None,
+    chat_history: Optional[List[Dict[str, Any]]] = None,
 ) -> List[Dict[str, Any]]:
     query_str = query_text or ""
-    lower_query = query_str.lower()
 
-    translated_search_str = translate_query_for_search(query_str, custom_api_key)
+    # If query is short and chat_history exists, augment search query with prior turn context
+    contextual_query = query_str
+    if chat_history and len(query_str.split()) <= 4:
+        for turn in reversed(chat_history[-3:]):
+            prev_q = turn.get("userQuery") or turn.get("user_query_text") or (turn.get("content") if turn.get("role") == "user" else "")
+            if prev_q:
+                contextual_query = f"{prev_q} {query_str}"
+                break
+
+    lower_query = contextual_query.lower()
+
+    translated_search_str = translate_query_for_search(contextual_query, custom_api_key)
     search_embedding = query_embedding
     if translated_search_str and translated_search_str != query_str:
         try:
@@ -319,7 +396,7 @@ def search_vector_database(
                             "similarity": 0.88,
                         })
 
-    bm25_results_1 = bm25_search_in_memory(query_str, top_k=top_k)
+    bm25_results_1 = bm25_search_in_memory(contextual_query, top_k=top_k)
     bm25_results_2 = bm25_search_in_memory(translated_search_str, top_k=top_k)
     bm25_results = bm25_results_1 + [b for b in bm25_results_2 if not any(x["id"] == b["id"] for x in bm25_results_1)]
 
@@ -651,6 +728,7 @@ def generate_voice_rag_answer(
     custom_api_key: Optional[str] = None,
     model_name: str = "gemini-2.0-flash",
     target_language: str = "si",
+<<<<<<< Updated upstream
     conversation_history: Optional[List[Dict[str, str]]] = None,
     provider: Optional[str] = None,
     base_url: Optional[str] = None,
@@ -659,6 +737,10 @@ def generate_voice_rag_answer(
     Synthesizes a response by fusing unstructured vector document RAG chunks, 
     dynamic LLM Text-to-SQL query results, and multi-turn chat history.
     """
+=======
+    chat_history: Optional[List[Dict[str, Any]]] = None,
+) -> str:
+>>>>>>> Stashed changes
     api_key = get_api_key(custom_api_key)
     is_sinhala = target_language == "si"
     db_context_blocks = []
@@ -797,8 +879,24 @@ def generate_voice_rag_answer(
     else:
         doc_context_text = "No document chunks retrieved."
 
+    # Parse and format recent conversation history
+    history_turns: List[str] = []
+    if chat_history:
+        for item in chat_history[-5:]:
+            u_text = item.get("userQuery") or item.get("user_query_text") or (item.get("content") if item.get("role") == "user" else None)
+            a_text = item.get("aiResponse") or item.get("ai_response_text") or (item.get("content") if item.get("role") == "assistant" else None)
+            if u_text:
+                history_turns.append(f"User: {u_text}")
+            if a_text:
+                history_turns.append(f"Assistant: {a_text}")
+    
+    conversation_history_text = "\n".join(history_turns) if history_turns else "No prior history in session."
+
     if is_sinhala:
         language_instruction = (
+            "CRITICAL STRICT KNOWLEDGE RULE:\n"
+            "You MUST ONLY answer based on the STRUCTURED DATABASE RECORDS and CONTEXT DOCUMENTS provided below. Do NOT use outside knowledge.\n"
+            "If the answer cannot be found in the provided data and it is NOT a clarification question, you MUST reply exactly with: 'සපයා ඇති දත්ත වල මෙම තොරතුරු සොයාගත නොහැක.' (I cannot find this information in the provided data).\n\n"
             "CRITICAL SINHALA VOICE & ACCURACY REQUIREMENT:\n"
             "You MUST synthesize a comprehensive, smart, and highly articulate answer in natural, fluent SINHALA (සිංහල).\n"
             "Thoroughly analyze BOTH the STRUCTURED DATABASE RECORDS and CONTEXT DOCUMENTS provided below. Explain customer facts, order statuses, policy answers, or student details clearly in Sinhala.\n\n"
@@ -806,8 +904,9 @@ def generate_voice_rag_answer(
             "1. Deliver a COMPLETE 3 to 6 sentence spoken response. NEVER leave your sentence incomplete or cut off!\n"
             "2. If database customer/order/ticket/student facts are provided below, explicitly state the ID, name, status, and details in natural spoken Sinhala.\n"
             "3. Take into account PREVIOUS CONVERSATION HISTORY for follow-up questions.\n"
-            "4. Do NOT use markdown symbols (*, #, -), no bullet points, and no citations like [1] or [Source 1] in spoken text.\n"
-            "5. COMPARATIVE, STATISTICAL & CHART DATA RULE:\n"
+            "4. CLARIFICATION & SLOT-FILLING RULE: When the user asks to perform an action (e.g. terminate an employee, update salary, delete a record, promote, or look up specific details) but DOES NOT explicitly mention the specific name, ID, or key identifier (e.g. 'terminate him' හෝ 'සේවකයා අයින් කරන්න'), DO NOT attempt to guess or execute. Instead, proactively ask a clarifying question back to the user asking for the missing identifier in natural Sinhala (e.g. 'ඔබට ඉවත් කිරීමට අවශ්‍ය සේවකයාගේ නම හෝ සේවක අංකය (Employee ID) කුමක්ද?').\n"
+            "5. Do NOT use markdown symbols (*, #, -), no bullet points, and no citations like [1] or [Source 1] in spoken text.\n"
+            "6. COMPARATIVE, STATISTICAL & CHART DATA RULE:\n"
             "If the user asks for comparative data, statistics, figures, tabular comparisons, or numerical data, you MUST provide the spoken answer AND append a hidden JSON schema representing the data at the very end of your response inside a markdown code block ```json ... ```.\n"
             "The JSON schema MUST follow this exact structure:\n"
             "```json\n"
@@ -828,14 +927,18 @@ def generate_voice_rag_answer(
         )
     else:
         language_instruction = (
+            "CRITICAL STRICT KNOWLEDGE RULE:\n"
+            "You MUST ONLY answer based on the STRUCTURED DATABASE RECORDS and CONTEXT DOCUMENTS provided below. Do NOT use outside knowledge.\n"
+            "If the answer cannot be found in the provided data and it is NOT a clarification question, you MUST reply exactly with: 'I cannot find this information in the uploaded documents.'\n\n"
             "CRITICAL VOICE & ACCURACY REQUIREMENT:\n"
             "Deliver an intelligent, comprehensive, and highly accurate answer grounded strictly in the STRUCTURED DATABASE RECORDS and CONTEXT DOCUMENTS below.\n\n"
             "RULES FOR RESPONSE:\n"
             "1. Synthesize a COMPLETE 3 to 6 sentence spoken response.\n"
             "2. If customer, order, ticket, or student database records are provided, state key facts (IDs, amounts, statuses, names) clearly.\n"
             "3. Consider PREVIOUS CONVERSATION HISTORY for contextual follow-up questions.\n"
-            "4. Do NOT use markdown symbols (*, #, -), no bullet points, and no citations.\n"
-            "5. COMPARATIVE, STATISTICAL & CHART DATA RULE:\n"
+            "4. CLARIFICATION & SLOT-FILLING RULE: When the user asks to perform an action (e.g. terminate an employee, update salary, delete a record, promote, or look up specific details) but DOES NOT explicitly mention the specific name, ID, or key identifier (e.g., 'terminate him' or 'remove employee'), DO NOT attempt to guess or execute. Instead, proactively ask a clear clarifying question back to the user asking for the missing identifier (e.g., 'Which employee would you like to terminate? Please provide the employee's name or ID.').\n"
+            "5. Do NOT use markdown symbols (*, #, -), no bullet points, and no citations.\n"
+            "6. COMPARATIVE, STATISTICAL & CHART DATA RULE:\n"
             "If comparing numbers or statistical data, append a hidden JSON schema representing the data at the end inside ```json ... ```."
         )
 

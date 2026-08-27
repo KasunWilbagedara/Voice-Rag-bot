@@ -1,3 +1,4 @@
+import type { Config } from 'jest';
 import nextJest from 'next/jest.js';
 
 const createJestConfig = nextJest({
@@ -5,9 +6,8 @@ const createJestConfig = nextJest({
   dir: './',
 });
 
-// Add any custom config to be passed to Jest
-const config = {
-  coverageProvider: 'v8' as const,
+const config: Config = {
+  coverageProvider: 'v8',
   testEnvironment: 'jsdom',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   moduleNameMapper: {

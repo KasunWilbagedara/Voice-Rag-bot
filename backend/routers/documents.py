@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Query
 from pydantic import BaseModel
 
-from backend.db import get_db_connection, is_db_connected, in_memory_store
+from backend.db import get_db_connection, in_memory_store
 from backend.document_parser import parse_document
 from backend.rag_service import ingest_document
 
