@@ -121,6 +121,17 @@ def init_sqlite_rag_tables():
             created_at TEXT NOT NULL
         );
         """)
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS rag_user_memories (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL DEFAULT 'default_user',
+            memory_key TEXT NOT NULL,
+            memory_value TEXT NOT NULL,
+            category TEXT DEFAULT 'general',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        """)
         conn.commit()
         conn.close()
         logger.info("Persistent SQLite RAG tables initialized successfully.")
@@ -161,6 +172,17 @@ def init_db_schema():
                 retrieved_chunks JSONB,
                 ai_response_text TEXT NOT NULL,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS user_memories (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                session_id VARCHAR(100) NOT NULL DEFAULT 'default_user',
+                memory_key VARCHAR(255) NOT NULL,
+                memory_value TEXT NOT NULL,
+                category VARCHAR(50) DEFAULT 'general',
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
             """,
             """
@@ -289,3 +311,186 @@ def seed_initial_students():
     in_memory_store.students = initial_data
 
 init_sqlite_rag_tables()
+
+
+# --- PERSISTENT USER MEMORY & CONTEXT HELPERS ---
+import uuid
+from datetime import datetime
+
+def save_or_update_memory(
+    session_id: str = "default_user",
+    memory_key: str = "",
+    memory_value: str = "",
+    category: str = "general",
+) -> Dict[str, Any]:
+    """Persists a learned fact or user preference to SQLite and PostgreSQL."""
+    if not memory_key or not memory_value:
+        return {}
+
+    clean_key = memory_key.strip()
+    clean_val = memory_value.strip()
+    mem_id = str(uuid.uuid4())
+    now_iso = datetime.utcnow().isoformat() + "Z"
+
+    # 1. SQLite
+    try:
+        conn = sqlite3.connect(SQLITE_DB_PATH)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id FROM rag_user_memories WHERE session_id = ? AND LOWER(memory_key) = LOWER(?);",
+            (session_id, clean_key),
+        )
+        existing = cur.fetchone()
+        if existing:
+            mem_id = existing[0]
+            cur.execute(
+                """UPDATE rag_user_memories 
+                   SET memory_value = ?, category = ?, updated_at = ? 
+                   WHERE id = ?;""",
+                (clean_val, category, now_iso, mem_id),
+            )
+        else:
+            cur.execute(
+                """INSERT INTO rag_user_memories (id, session_id, memory_key, memory_value, category, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?);""",
+                (mem_id, session_id, clean_key, clean_val, category, now_iso, now_iso),
+            )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Error saving memory to SQLite: {e}")
+
+    # 2. PostgreSQL
+    with get_db_connection() as conn:
+        if conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO user_memories (session_id, memory_key, memory_value, category, updated_at)
+                        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP);
+                        """,
+                        (session_id, clean_key, clean_val, category),
+                    )
+                    conn.commit()
+            except Exception as e:
+                conn.rollback()
+                logger.debug(f"PostgreSQL memory save note: {e}")
+
+    return {
+        "id": mem_id,
+        "sessionId": session_id,
+        "key": clean_key,
+        "value": clean_val,
+        "category": category,
+        "updatedAt": now_iso,
+    }
+
+
+def get_user_memories(session_id: str = "default_user") -> List[Dict[str, Any]]:
+    """Retrieves all remembered facts for a session from SQLite."""
+    memories = []
+    try:
+        conn = sqlite3.connect(SQLITE_DB_PATH)
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT id, session_id, memory_key, memory_value, category, created_at, updated_at
+               FROM rag_user_memories
+               WHERE session_id = ?
+               ORDER BY updated_at DESC;""",
+            (session_id,),
+        )
+        rows = cur.fetchall()
+        conn.close()
+        for r in rows:
+            memories.append({
+                "id": r[0],
+                "sessionId": r[1],
+                "key": r[2],
+                "value": r[3],
+                "category": r[4],
+                "createdAt": r[5],
+                "updatedAt": r[6],
+            })
+    except Exception as e:
+        logger.error(f"Error reading SQLite memories: {e}")
+
+    return memories
+
+
+def delete_memory(memory_id: str) -> bool:
+    """Deletes a specific remembered fact by ID."""
+    try:
+        conn = sqlite3.connect(SQLITE_DB_PATH)
+        cur = conn.cursor()
+        cur.execute("DELETE FROM rag_user_memories WHERE id = ?;", (memory_id,))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Error deleting memory: {e}")
+        return False
+
+
+def clear_all_memories(session_id: str = "default_user") -> bool:
+    """Clears all stored memories for a session."""
+    try:
+        conn = sqlite3.connect(SQLITE_DB_PATH)
+        cur = conn.cursor()
+        cur.execute("DELETE FROM rag_user_memories WHERE session_id = ?;", (session_id,))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Error clearing memories: {e}")
+        return False
+
+
+def get_saved_chat_history(limit: int = 30) -> List[Dict[str, Any]]:
+    """Retrieves saved chat conversation history across sessions from SQLite."""
+    history = []
+    try:
+        conn = sqlite3.connect(SQLITE_DB_PATH)
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT id, user_query_text, retrieved_chunks, ai_response_text, created_at
+               FROM rag_chat_history
+               ORDER BY created_at DESC
+               LIMIT ?;""",
+            (limit,),
+        )
+        rows = cur.fetchall()
+        conn.close()
+        for r in rows:
+            chunks = []
+            try:
+                if r[2]:
+                    chunks = json.loads(r[2])
+            except Exception:
+                pass
+
+            history.append({
+                "id": r[0],
+                "userQuery": r[1],
+                "retrievedChunks": chunks,
+                "aiResponse": r[3],
+                "createdAt": r[4],
+            })
+    except Exception as e:
+        logger.error(f"Error fetching saved chat history: {e}")
+
+    return history
+
+
+def clear_saved_chat_history() -> bool:
+    """Clears persistent chat history."""
+    try:
+        conn = sqlite3.connect(SQLITE_DB_PATH)
+        cur = conn.cursor()
+        cur.execute("DELETE FROM rag_chat_history;")
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Error clearing chat history: {e}")
+        return False

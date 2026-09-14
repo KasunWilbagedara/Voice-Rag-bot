@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Mic,
   Database,
@@ -28,6 +28,7 @@ import { DocumentManager } from '@/components/DocumentManager';
 import { DatabaseManager } from '@/components/DatabaseManager';
 import { ContextDrawer } from '@/components/ContextDrawer';
 import { SettingsModal } from '@/components/SettingsModal';
+import { MemoryModal } from '@/components/MemoryModal';
 import { DynamicChart, parseChartDataFromResponse } from '@/components/DynamicChart';
 
 interface ChatMessage {
@@ -59,7 +60,66 @@ export default function Home() {
   const [isContextDrawerOpen, setIsContextDrawerOpen] = useState<boolean>(false);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [isMemoryOpen, setIsMemoryOpen] = useState<boolean>(false);
+  const [memoryCount, setMemoryCount] = useState<number>(0);
+  const sessionId = 'default_user';
+
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+
+  const refreshMemoryCount = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/memory?sessionId=${encodeURIComponent(sessionId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setMemoryCount(data.count ?? (data.memories ? data.memories.length : 0));
+      }
+    } catch (e) {
+      console.error('Error fetching memory count:', e);
+    }
+  }, [sessionId]);
+
+  // Restore chat history and memory count on page load across sessions
+  useEffect(() => {
+    const initHistoryAndMemory = async () => {
+      try {
+        const [histRes, memRes] = await Promise.all([
+          fetch('/api/history?limit=30'),
+          fetch(`/api/memory?sessionId=${encodeURIComponent(sessionId)}`),
+        ]);
+
+        if (histRes.ok) {
+          const histData = await histRes.json();
+          if (histData.history && histData.history.length > 0) {
+            const loaded: ChatMessage[] = histData.history.map((h: any) => ({
+              id: h.id.toString(),
+              userQuery: h.userQuery,
+              aiResponse: h.aiResponse,
+              retrievedChunks: h.retrievedChunks || [],
+              timestamp: h.createdAt
+                ? new Date(h.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : 'Saved',
+              language: 'si',
+              mode: 'voice',
+            }));
+            setChatHistory(loaded);
+            if (loaded[0]) {
+              setActiveContextChunks(loaded[0].retrievedChunks || []);
+              setActiveQueryForContext(loaded[0].userQuery);
+            }
+          }
+        }
+
+        if (memRes.ok) {
+          const memData = await memRes.json();
+          setMemoryCount(memData.count ?? (memData.memories ? memData.memories.length : 0));
+        }
+      } catch (e) {
+        console.error('Initialization error:', e);
+      }
+    };
+
+    initHistoryAndMemory();
+  }, [sessionId]);
 
   const handleQueryCompleted = (data: {
     userQuery: string;
@@ -79,6 +139,7 @@ export default function Home() {
     setChatHistory((prev) => [newMessage, ...prev]);
     setActiveContextChunks(data.retrievedChunks || []);
     setActiveQueryForContext(data.userQuery);
+    refreshMemoryCount();
   };
 
   const handleTextSubmit = async (e: React.FormEvent) => {
@@ -106,6 +167,7 @@ export default function Home() {
           baseUrl,
           language,
           conversationHistory: historyFormatted,
+          sessionId,
         }),
       });
 
@@ -125,6 +187,7 @@ export default function Home() {
       setChatHistory((prev) => [newMessage, ...prev]);
       setActiveContextChunks(data.retrievedChunks || []);
       setActiveQueryForContext(query);
+      refreshMemoryCount();
 
       // Play natural neural audio via TTS for the conversational answer
       const cleanSpoken = (data.voiceSpokenText || data.answer || '')
@@ -200,9 +263,14 @@ export default function Home() {
     document.body.removeChild(link);
   };
 
-  const clearChatHistory = () => {
+  const clearChatHistory = async () => {
     if (chatHistory.length === 0) return;
     if (confirm('Clear all conversation history?')) {
+      try {
+        await fetch('/api/history', { method: 'DELETE' });
+      } catch (e) {
+        console.error('Failed to clear database history:', e);
+      }
       setChatHistory([]);
       setActiveContextChunks([]);
       setActiveQueryForContext('');
@@ -292,6 +360,19 @@ export default function Home() {
             )}
           </button>
 
+          {/* Memory Modal Button */}
+          <button
+            onClick={() => setIsMemoryOpen(true)}
+            className="px-3 py-2 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-sm active:scale-95"
+            title="Inspect and manage persistent long-term memories"
+          >
+            <Brain className="w-4 h-4 text-amber-400" />
+            <span className="hidden sm:inline">Memories</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-extrabold">
+              {memoryCount}
+            </span>
+          </button>
+
           {/* Settings Button */}
           <button
             onClick={() => setIsSettingsOpen(true)}
@@ -316,6 +397,7 @@ export default function Home() {
             provider={provider}
             baseUrl={baseUrl}
             language={language}
+            sessionId={sessionId}
             onLanguageChange={setLanguage}
             onQueryComplete={handleQueryCompleted}
           />
@@ -588,6 +670,14 @@ export default function Home() {
         setProvider={setProvider}
         baseUrl={baseUrl}
         setBaseUrl={setBaseUrl}
+      />
+
+      {/* Persistent Memory Management Modal */}
+      <MemoryModal
+        isOpen={isMemoryOpen}
+        onClose={() => setIsMemoryOpen(false)}
+        sessionId={sessionId}
+        onMemoriesUpdated={setMemoryCount}
       />
     </main>
   );

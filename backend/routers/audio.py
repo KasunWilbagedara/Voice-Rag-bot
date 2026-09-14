@@ -93,6 +93,7 @@ async def unified_voice_pipeline(
     baseUrl: Optional[str] = Form(None),
     language: Optional[str] = Form("si"),
     speed: Optional[float] = Form(1.0),
+    sessionId: Optional[str] = Form("default_user"),
 ):
     """
     Unified low-latency Voice-RAG pipeline:
@@ -149,6 +150,7 @@ async def unified_voice_pipeline(
             target_language=language or "si",
             provider=provider,
             base_url=baseUrl,
+            session_id=sessionId or "default_user",
         )
         rag_duration = round(time.time() - rag_t0, 2)
 

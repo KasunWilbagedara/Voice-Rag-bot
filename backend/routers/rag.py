@@ -23,6 +23,7 @@ class RagQueryRequest(BaseModel):
     baseUrl: Optional[str] = None
     language: Optional[str] = "si"
     conversationHistory: Optional[List[Dict[str, str]]] = None
+    sessionId: Optional[str] = "default_user"
 
 @router.post("")
 def process_rag_query(req: RagQueryRequest):
@@ -46,6 +47,7 @@ def process_rag_query(req: RagQueryRequest):
             conversation_history=req.conversationHistory,
             provider=req.provider,
             base_url=req.baseUrl,
+            session_id=req.sessionId or "default_user",
         )
         answer = rag_res["answer"]
         final_chunks = rag_res["retrievedChunks"]

@@ -28,6 +28,7 @@ interface VoiceInterfaceProps {
   provider?: string;
   baseUrl?: string;
   language?: string;
+  sessionId?: string;
   onLanguageChange?: (lang: string) => void;
   onQueryComplete?: (data: {
     userQuery: string;
@@ -53,6 +54,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
   provider = 'gemini',
   baseUrl = '',
   language = 'si',
+  sessionId = 'default_user',
   onLanguageChange,
   onQueryComplete,
 }) => {
@@ -360,6 +362,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
       if (baseUrl) formData.append('baseUrl', baseUrl);
       if (language) formData.append('language', language);
       formData.append('speed', playbackSpeed.toString());
+      formData.append('sessionId', sessionId || 'default_user');
 
       const res = await fetch('/api/voice-pipeline', {
         method: 'POST',

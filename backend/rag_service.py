@@ -20,6 +20,9 @@ from backend.db import (
     in_memory_store,
     cosine_similarity,
     SQLITE_DB_PATH,
+    get_user_memories,
+    save_or_update_memory,
+    get_saved_chat_history,
 )
 from backend import db_query_service
 
@@ -525,11 +528,62 @@ def generate_voice_rag_answer(
     conversation_history: Optional[List[Dict[str, str]]] = None,
     provider: Optional[str] = None,
     base_url: Optional[str] = None,
+    session_id: Optional[str] = "default_user",
 ) -> Dict[str, Any]:
     api_key = get_api_key(custom_api_key)
     is_sinhala = target_language == "si"
     db_context_blocks = []
     enriched_chunks = list(retrieved_chunks)
+    session = session_id or "default_user"
+
+    # Auto-extract and persist user memory facts from query
+    try:
+        is_question = bool(re.search(r"(\?|remember|recall|මතකද|ද\?|what|who|කවුද|මොකක්ද)", user_query, re.IGNORECASE))
+        if not is_question:
+            name_match = re.search(
+                r"(?:my name is|i am|call me|මගේ නම|මම)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*|[a-zA-Z]+|[\u0D80-\u0DFF]+)",
+                user_query,
+                re.IGNORECASE,
+            )
+            if name_match:
+                cand = name_match.group(1).strip()
+                excluded = [
+                    "asking", "inquiring", "checking", "looking", "here", "a", "the", "user",
+                    "විමසන්නේ", "සහ", "සහ", "හා", "මොකක්ද", "කුමක්ද", "මතකද", "කවුද", "who", "what"
+                ]
+                if cand.lower() not in excluded and len(cand) > 1:
+                    save_or_update_memory(session, "user_name", cand, "identity")
+
+        order_match = re.search(r"\b(ORD-\d{3,8})\b", user_query, re.IGNORECASE)
+        if order_match:
+            save_or_update_memory(session, "last_tracked_order", order_match.group(1).upper(), "entity")
+
+        ticket_match = re.search(r"\b(TCK-\d{3,8})\b", user_query, re.IGNORECASE)
+        if ticket_match:
+            save_or_update_memory(session, "last_tracked_ticket", ticket_match.group(1).upper(), "entity")
+
+        student_match = re.search(r"\b(STU\d{3,6})\b", user_query, re.IGNORECASE)
+        if student_match:
+            save_or_update_memory(session, "last_tracked_student", student_match.group(1).upper(), "entity")
+
+        rem_match = re.search(
+            r"(?:remember that|please remember|keep in mind|save this|මතක තබාගන්න|මතක තියාගන්න)\s+(.+)",
+            user_query,
+            re.IGNORECASE,
+        )
+        if rem_match:
+            note_content = rem_match.group(1).strip()
+            save_or_update_memory(session, f"custom_note_{int(time.time()) % 10000}", note_content, "pinned_fact")
+    except Exception as mem_err:
+        logger.debug(f"Memory auto-extraction note: {mem_err}")
+
+    # Fetch stored memories for this session
+    user_memories = get_user_memories(session)
+    if user_memories:
+        mem_lines = [f"- {m['key']}: {m['value']} (Category: {m['category']})" for m in user_memories]
+        memory_str = "\n".join(mem_lines)
+    else:
+        memory_str = "No stored memories for this user session yet."
 
     # 1. Direct Student Database Lookup
     student_record = db_query_service.query_student_by_id_or_name(user_query)
@@ -563,7 +617,7 @@ def generate_voice_rag_answer(
             schemas = db_query_service.db_manager.get_database_schema(db_id)
             for schema in schemas:
                 table_name = schema["table_name"]
-                if table_name in ["documents", "document_chunks", "chat_history", "rag_documents", "rag_document_chunks"]:
+                if table_name in ["documents", "document_chunks", "chat_history", "rag_documents", "rag_document_chunks", "rag_user_memories"]:
                     continue
 
                 col_names = [c["column"] for c in schema["columns"]]
@@ -605,6 +659,15 @@ def generate_voice_rag_answer(
         recent_history = conversation_history[-6:]
         history_lines = [f"{msg.get('role', 'user').upper()}: {msg.get('content', '')}" for msg in recent_history]
         history_str = "\n".join(history_lines)
+    else:
+        # Fallback to persistent saved chat history from SQLite
+        past_turns = get_saved_chat_history(4)
+        if past_turns:
+            history_lines = []
+            for t in reversed(past_turns):
+                history_lines.append(f"USER: {t.get('userQuery', '')}")
+                history_lines.append(f"ASSISTANT: {t.get('aiResponse', '')}")
+            history_str = "\n".join(history_lines)
 
     if retrieved_chunks:
         doc_context_text = "\n\n".join([
@@ -618,28 +681,31 @@ def generate_voice_rag_answer(
         language_instruction = (
             "CRITICAL SINHALA ACCURACY & COMPLETENESS REQUIREMENT:\n"
             "Synthesize a complete, thorough, and highly accurate answer in natural, fluent SINHALA (සිංහල).\n"
-            "Strictly use the STRUCTURED DATABASE RECORDS and CONTEXT DOCUMENTS provided below.\n\n"
+            "Strictly use the STRUCTURED DATABASE RECORDS, REMEMBERED USER MEMORIES, and CONTEXT DOCUMENTS provided below.\n\n"
             "RULES FOR SINHALA RESPONSE:\n"
             "1. Start with 1-2 clear, direct, natural conversational sentences that directly answer the core question (this will be spoken aloud to the user).\n"
-            "2. Then provide detailed explanations, key points, numbers, statuses, and breakdowns for visual display.\n"
-            "3. If comparing numbers or statistical data, append a hidden JSON chart schema at the very end inside ```json ... ``` code block.\n"
-            "4. Do NOT output internal evaluation notes, verification steps, or meta commentary."
+            "2. Seamlessly use the PERSISTENT USER MEMORIES and PREVIOUS CONVERSATION HISTORY when the user asks memory recall questions (e.g. 'Do you remember who I am?', 'What order did I ask about earlier?', 'කලින් මම ඇහුවේ මොකක් ගැනද?') or to personalize their experience.\n"
+            "3. Then provide detailed explanations, key points, numbers, statuses, and breakdowns for visual display.\n"
+            "4. If comparing numbers or statistical data, append a hidden JSON chart schema at the very end inside ```json ... ``` code block.\n"
+            "5. Do NOT output internal evaluation notes, verification steps, or meta commentary."
         )
     else:
         language_instruction = (
             "CRITICAL ACCURACY & COMPLETENESS REQUIREMENT:\n"
-            "Deliver a complete, comprehensive, and 100% accurate answer grounded strictly in the STRUCTURED DATABASE RECORDS and CONTEXT DOCUMENTS below.\n\n"
+            "Deliver a complete, comprehensive, and 100% accurate answer grounded strictly in the STRUCTURED DATABASE RECORDS, REMEMBERED USER MEMORIES, and CONTEXT DOCUMENTS below.\n\n"
             "RULES FOR RESPONSE:\n"
             "1. Start with 1-2 clear, direct, natural conversational sentences that directly answer the core question (this will be spoken aloud to the user).\n"
-            "2. Then explain all requested topics, points, facts, and metrics in full detail for visual display.\n"
-            "3. State key facts directly (Order IDs, amounts, statuses, customer names, GPA, policies, root causes).\n"
-            "4. If comparing numbers or statistics, append a hidden JSON chart schema at the very end inside ```json ... ``` code block.\n"
-            "5. Do NOT output internal evaluation notes, verification steps, or meta commentary."
+            "2. Seamlessly use the PERSISTENT USER MEMORIES and PREVIOUS CONVERSATION HISTORY when the user asks memory recall questions (e.g. 'Do you remember who I am?', 'What order did I ask about earlier?', 'What did I ask before?') or to personalize their experience.\n"
+            "3. Then explain all requested topics, points, facts, and metrics in full detail for visual display.\n"
+            "4. State key facts directly (Order IDs, amounts, statuses, customer names, GPA, policies, root causes).\n"
+            "5. If comparing numbers or statistics, append a hidden JSON chart schema at the very end inside ```json ... ``` code block.\n"
+            "6. Do NOT output internal evaluation notes, verification steps, or meta commentary."
         )
 
     system_prompt = (
         f"You are an exceptionally smart, articulate, and accurate AI Voice & Knowledge Assistant powering an enterprise Multi-DB & Multi-Doc Voice-RAG system.\n\n"
         f"{language_instruction}\n\n"
+        f"PERSISTENT USER MEMORIES & REMEMBERED FACTS:\n{memory_str}\n\n"
         f"PREVIOUS CONVERSATION HISTORY:\n{history_str}\n\n"
         f"CONNECTED STRUCTURED DATABASE RECORDS:\n{db_context_str}\n\n"
         f"UNSTRUCTURED CONTEXT DOCUMENTS:\n{doc_context_text}"
