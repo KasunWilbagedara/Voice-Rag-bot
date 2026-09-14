@@ -30,12 +30,11 @@ _CACHED_EMBEDDING_MODEL: Optional[str] = "models/gemini-embedding-001"
 _EMBEDDING_CACHE: Dict[str, List[float]] = {}
 
 PREFERRED_GEMINI_MODELS = [
-    "gemini-3.5-flash",
-    "gemini-3.6-flash",
     "gemini-3.5-flash-lite",
     "gemini-flash-lite-latest",
+    "gemini-3.5-flash",
+    "gemini-3.6-flash",
     "gemini-3.7-flash",
-    "gemini-flash-latest",
 ]
 
 
@@ -621,8 +620,8 @@ def generate_voice_rag_answer(
             "Synthesize a complete, thorough, and highly accurate answer in natural, fluent SINHALA (සිංහල).\n"
             "Strictly use the STRUCTURED DATABASE RECORDS and CONTEXT DOCUMENTS provided below.\n\n"
             "RULES FOR SINHALA RESPONSE:\n"
-            "1. Answer the question COMPLETELY and thoroughly. Never leave sentences unfinished or cut off.\n"
-            "2. State key facts, points, names, numbers, statuses, and explanations clearly and comprehensively.\n"
+            "1. Start with 1-2 clear, direct, natural conversational sentences that directly answer the core question (this will be spoken aloud to the user).\n"
+            "2. Then provide detailed explanations, key points, numbers, statuses, and breakdowns for visual display.\n"
             "3. If comparing numbers or statistical data, append a hidden JSON chart schema at the very end inside ```json ... ``` code block.\n"
             "4. Do NOT output internal evaluation notes, verification steps, or meta commentary."
         )
@@ -631,10 +630,11 @@ def generate_voice_rag_answer(
             "CRITICAL ACCURACY & COMPLETENESS REQUIREMENT:\n"
             "Deliver a complete, comprehensive, and 100% accurate answer grounded strictly in the STRUCTURED DATABASE RECORDS and CONTEXT DOCUMENTS below.\n\n"
             "RULES FOR RESPONSE:\n"
-            "1. Answer the question COMPLETELY and thoroughly. Explain all requested topics, challenges, points, and facts in full detail. Never leave sentences unfinished or cut off.\n"
-            "2. State key facts directly (Order IDs, amounts, statuses, customer names, GPA, policies, root causes).\n"
-            "3. If comparing numbers or statistics, append a hidden JSON chart schema at the very end inside ```json ... ``` code block.\n"
-            "4. Do NOT output internal evaluation notes, verification steps, or meta commentary."
+            "1. Start with 1-2 clear, direct, natural conversational sentences that directly answer the core question (this will be spoken aloud to the user).\n"
+            "2. Then explain all requested topics, points, facts, and metrics in full detail for visual display.\n"
+            "3. State key facts directly (Order IDs, amounts, statuses, customer names, GPA, policies, root causes).\n"
+            "4. If comparing numbers or statistics, append a hidden JSON chart schema at the very end inside ```json ... ``` code block.\n"
+            "5. Do NOT output internal evaluation notes, verification steps, or meta commentary."
         )
 
     system_prompt = (
@@ -652,7 +652,14 @@ def generate_voice_rag_answer(
         client = genai.Client(api_key=api_key)
         full_prompt = f"{system_prompt}\n\nUSER QUESTION: {user_query}"
 
-        models_to_try = ["gemini-3.5-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"]
+        # Try user-selected model first, then ultra-fast fallback models
+        models_to_try = []
+        if model_name:
+            models_to_try.append(model_name)
+        for m in ["gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-3.5-flash", "gemini-3.6-flash"]:
+            if m not in models_to_try:
+                models_to_try.append(m)
+
         last_err = None
         for m_name in models_to_try:
             try:
@@ -661,8 +668,7 @@ def generate_voice_rag_answer(
                     contents=full_prompt,
                     config=types.GenerateContentConfig(
                         temperature=0.2,
-                        max_output_tokens=2048,
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        max_output_tokens=1536,
                     ),
                 )
                 if res and res.text and res.text.strip():

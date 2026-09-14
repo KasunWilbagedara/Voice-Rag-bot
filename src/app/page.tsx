@@ -42,8 +42,8 @@ interface ChatMessage {
 
 export default function Home() {
   const [apiKey, setApiKey] = useState<string>('');
-  const [voice, setVoice] = useState<string>('nova');
-  const [model, setModel] = useState<string>('gemini-3.5-flash');
+  const [voice, setVoice] = useState<string>('thilini');
+  const [model, setModel] = useState<string>('gemini-3.5-flash-lite');
   const [provider, setProvider] = useState<string>('gemini');
   const [baseUrl, setBaseUrl] = useState<string>('');
   const [language, setLanguage] = useState<string>('si'); // Default Sinhala 'si'
@@ -126,11 +126,18 @@ export default function Home() {
       setActiveContextChunks(data.retrievedChunks || []);
       setActiveQueryForContext(query);
 
-      // Play audio via TTS in Sinhala or English
+      // Play natural neural audio via TTS for the conversational answer
+      const cleanSpoken = (data.voiceSpokenText || data.answer || '')
+        .replace(/```[\s\S]*?```/g, '')
+        .replace(/\[[^\]]*\]/g, '')
+        .replace(/[*#\`_~]/g, '')
+        .trim();
+      const firstSentence = cleanSpoken.split(/(?<=[.!?෴])\s+/).slice(0, 2).join(' ') || cleanSpoken.slice(0, 160);
+
       const ttsRes = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: data.answer, voice, apiKey, language }),
+        body: JSON.stringify({ text: firstSentence, voice, apiKey, language, speed: 1.0 }),
       });
 
       if (ttsRes.ok) {
@@ -148,10 +155,17 @@ export default function Home() {
 
   const replayMessageAudio = async (text: string) => {
     try {
+      const cleanSpoken = text
+        .replace(/```[\s\S]*?```/g, '')
+        .replace(/\[[^\]]*\]/g, '')
+        .replace(/[*#\`_~]/g, '')
+        .trim();
+      const firstSentence = cleanSpoken.split(/(?<=[.!?෴])\s+/).slice(0, 2).join(' ') || cleanSpoken.slice(0, 160);
+
       const ttsRes = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, voice, apiKey, language }),
+        body: JSON.stringify({ text: firstSentence, voice, apiKey, language }),
       });
       if (ttsRes.ok) {
         const audioBlob = await ttsRes.blob();
@@ -297,6 +311,7 @@ export default function Home() {
           <VoiceInterface
             apiKey={apiKey}
             voice={voice}
+            onVoiceChange={setVoice}
             model={model}
             provider={provider}
             baseUrl={baseUrl}

@@ -25,7 +25,7 @@ export async function transcribeAudio(
 
   if (isGeminiKey(apiKey)) {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const modelsToTry = ['gemini-flash-latest', 'gemini-3.6-flash', 'gemini-3.5-flash'];
+    const modelsToTry = ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.5-flash', 'gemini-3.6-flash'];
 
     const promptText = language === 'si'
       ? 'Transcribe this audio recording exactly into Sinhala script or English text. Output ONLY the transcribed text without additional conversational filler.'
@@ -72,7 +72,20 @@ export async function transcribeAudio(
   }
 }
 
-export type TTSVoice = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+export type TTSVoice =
+  | 'thilini'
+  | 'sameera'
+  | 'ava'
+  | 'andrew'
+  | 'emma'
+  | 'brian'
+  | 'alloy'
+  | 'echo'
+  | 'fable'
+  | 'onyx'
+  | 'nova'
+  | 'shimmer'
+  | string;
 
 /**
  * Advanced pre-processor for Text-to-Speech synthesis.

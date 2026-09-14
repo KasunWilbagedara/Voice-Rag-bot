@@ -53,7 +53,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const handleProviderSelect = (p: string) => {
     setProvider(p);
     if (p === 'gemini') {
-      setCustomModel('gemini-2.0-flash');
+      setCustomModel('gemini-3.5-flash-lite');
     } else if (p === 'openai') {
       setCustomModel('gpt-4o-mini');
     } else if (p === 'groq') {
@@ -172,9 +172,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {(provider === 'gemini'
               ? [
-                  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash (Recommended)' },
+                  { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite (Fastest ⚡)' },
+                  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash (Balanced)' },
                   { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash' },
-                  { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite' },
                   { id: 'gemini-flash-lite-latest', label: 'Gemini Flash Lite' },
                 ]
               : provider === 'groq'
@@ -219,16 +219,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         <div className="flex flex-col gap-2">
           <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
             <Volume2 className="w-3.5 h-3.5 text-amber-400" />
-            <span>Voice Persona</span>
+            <span>Voice Persona (Neural AI Voices)</span>
           </label>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {[
-              { id: 'nova', label: 'Nova (Warm Female)' },
-              { id: 'alloy', label: 'Alloy (Neutral)' },
-              { id: 'echo', label: 'Echo (Male)' },
-              { id: 'fable', label: 'Fable (Narrator)' },
-              { id: 'onyx', label: 'Onyx (Deep Male)' },
-              { id: 'shimmer', label: 'Shimmer (Bright)' },
+              { id: 'thilini', label: '🇱🇰 Thilini (Natural Female)' },
+              { id: 'sameera', label: '🇱🇰 Sameera (Natural Male)' },
+              { id: 'ava', label: '🇬🇧 Ava (Studio Female)' },
+              { id: 'andrew', label: '🇬🇧 Andrew (Studio Male)' },
+              { id: 'emma', label: '🇬🇧 Emma (Expressive)' },
+              { id: 'brian', label: '🇬🇧 Brian (Crisp Male)' },
             ].map((v) => (
               <button
                 key={v.id}
