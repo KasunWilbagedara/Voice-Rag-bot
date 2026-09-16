@@ -30,6 +30,7 @@ import { ContextDrawer } from '@/components/ContextDrawer';
 import { SettingsModal } from '@/components/SettingsModal';
 import { MemoryModal } from '@/components/MemoryModal';
 import { DynamicChart, parseChartDataFromResponse } from '@/components/DynamicChart';
+import { FormattedResponse } from '@/components/FormattedResponse';
 
 interface ChatMessage {
   id: string;
@@ -544,9 +545,9 @@ export default function Home() {
                             </div>
                           </div>
 
-                          <p className="text-xs md:text-sm text-slate-200 font-normal leading-relaxed whitespace-pre-wrap">
-                            {cleanText}
-                          </p>
+                          <div className="text-xs md:text-sm text-slate-200 font-normal break-words">
+                            <FormattedResponse text={cleanText} />
+                          </div>
 
                           {/* Dynamic Recharts Chart if response contains chart data */}
                           {chartData && (
