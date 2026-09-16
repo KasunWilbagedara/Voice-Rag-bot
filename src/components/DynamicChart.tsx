@@ -97,14 +97,14 @@ export function parseChartDataFromResponse(responseText: string): {
 
 // Curated vibrant color palette
 const VIBRANT_COLORS = [
+  '#f59e0b', // Studio Amber
+  '#fbbf24', // Warm Gold
   '#10b981', // Emerald
-  '#3b82f6', // Electric Blue
-  '#06b6d4', // Cyan
+  '#d97706', // Bronze Amber
   '#8b5cf6', // Violet
   '#f43f5e', // Rose
-  '#6366f1', // Indigo
   '#14b8a6', // Teal
-  '#38bdf8', // Sky Blue
+  '#f97316', // Orange
 ];
 
 interface DynamicChartProps {
@@ -142,7 +142,7 @@ export const DynamicChart: React.FC<DynamicChartProps> = ({ chartData }) => {
                 style={{ backgroundColor: entry.color || entry.fill }}
               />
               <span className="text-slate-400">{entry.name}:</span>
-              <span className="font-semibold text-cyan-400">
+              <span className="font-semibold text-amber-400">
                 {typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}
               </span>
             </div>
@@ -163,7 +163,7 @@ export const DynamicChart: React.FC<DynamicChartProps> = ({ chartData }) => {
       {/* Header & Controls */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-cyan-400">
+          <div className="w-7 h-7 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
             <Sparkles className="w-4 h-4" />
           </div>
           <div>
@@ -182,7 +182,7 @@ export const DynamicChart: React.FC<DynamicChartProps> = ({ chartData }) => {
             onClick={() => setActiveChartType('bar')}
             className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 font-semibold text-[11px] ${
               activeChartType === 'bar'
-                ? 'bg-blue-600 text-white font-bold shadow-sm'
+                ? 'bg-gradient-to-b from-amber-400 to-amber-500 text-black font-extrabold shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
             title="Bar Chart"
@@ -195,7 +195,7 @@ export const DynamicChart: React.FC<DynamicChartProps> = ({ chartData }) => {
             onClick={() => setActiveChartType('pie')}
             className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 font-semibold text-[11px] ${
               activeChartType === 'pie'
-                ? 'bg-blue-600 text-white font-bold shadow-sm'
+                ? 'bg-gradient-to-b from-amber-400 to-amber-500 text-black font-extrabold shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
             title="Pie / Donut Chart"
@@ -208,7 +208,7 @@ export const DynamicChart: React.FC<DynamicChartProps> = ({ chartData }) => {
             onClick={() => setActiveChartType('line')}
             className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 font-semibold text-[11px] ${
               activeChartType === 'line'
-                ? 'bg-blue-600 text-white font-bold shadow-sm'
+                ? 'bg-gradient-to-b from-amber-400 to-amber-500 text-black font-extrabold shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
             title="Line Trend Chart"

@@ -10,13 +10,28 @@ function renderInline(text: string, keyPrefix: string) {
   return parts.map((part, index) => {
     const key = `${keyPrefix}-${index}`;
     if (part.startsWith('`') && part.endsWith('`')) {
-      return <code key={key} className="rounded bg-black/40 px-1.5 py-0.5 text-[0.9em] text-amber-200">{part.slice(1, -1)}</code>;
+      return (
+        <code
+          key={key}
+          className="rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[0.88em] text-amber-300 border border-amber-500/25 font-mono shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]"
+        >
+          {part.slice(1, -1)}
+        </code>
+      );
     }
     if ((part.startsWith('**') && part.endsWith('**')) || (part.startsWith('__') && part.endsWith('__'))) {
-      return <strong key={key} className="font-bold text-slate-50">{part.slice(2, -2)}</strong>;
+      return (
+        <strong key={key} className="font-bold text-zinc-50">
+          {part.slice(2, -2)}
+        </strong>
+      );
     }
     if (part.startsWith('*') && part.endsWith('*')) {
-      return <em key={key}>{part.slice(1, -1)}</em>;
+      return (
+        <em key={key} className="text-zinc-300">
+          {part.slice(1, -1)}
+        </em>
+      );
     }
     return <React.Fragment key={key}>{part.replace(/\*+/g, '')}</React.Fragment>;
   });
@@ -31,7 +46,7 @@ export function FormattedResponse({ text }: FormattedResponseProps) {
   const flushParagraph = () => {
     if (paragraph.length > 0) {
       blocks.push(
-        <p key={`paragraph-${blocks.length}`} className="leading-7">
+        <p key={`paragraph-${blocks.length}`} className="leading-7 text-zinc-200">
           {renderInline(paragraph.join(' '), `paragraph-${blocks.length}`)}
         </p>,
       );
@@ -46,7 +61,7 @@ export function FormattedResponse({ text }: FormattedResponseProps) {
     blocks.push(
       <ListTag
         key={`list-${blocks.length}`}
-        className={`${isNumbered ? 'list-decimal' : 'list-disc'} space-y-1.5 pl-5 leading-7 marker:text-cyan-400`}
+        className={`${isNumbered ? 'list-decimal' : 'list-disc'} space-y-1.5 pl-5 leading-7 marker:text-amber-400 font-medium text-zinc-200`}
       >
         {listItems.map((item, index) => (
           <li key={`item-${index}`}>{renderInline(item.text, `item-${index}`)}</li>
@@ -69,7 +84,11 @@ export function FormattedResponse({ text }: FormattedResponseProps) {
       flushParagraph();
       flushList();
       blocks.push(
-        <h4 key={`heading-${index}`} className="pt-2 text-sm font-bold text-amber-200 first:pt-0">
+        <h4
+          key={`heading-${index}`}
+          className="pt-2 text-sm font-bold text-amber-300 first:pt-0 tracking-wide flex items-center gap-1.5"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_#f59e0b]" />
           {renderInline(heading[1], `heading-${index}`)}
         </h4>,
       );

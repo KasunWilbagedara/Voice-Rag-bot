@@ -10,29 +10,63 @@ module.exports = {
     extend: {
       colors: {
         brand: {
-          50: '#f0f4ff',
-          100: '#e0e9ff',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          900: '#1e3a8a',
+          50: '#fffbeb',
+          100: '#fef3c7',
+          200: '#fde68a',
+          300: '#fcd34d',
+          400: '#fbbf24',
+          500: '#f59e0b',
+          600: '#d97706',
+          700: '#b45309',
+          800: '#92400e',
+          900: '#78350f',
+        },
+        studio: {
+          amber: '#f59e0b',
+          gold: '#fbbf24',
+          emerald: '#10b981',
+          teal: '#14b8a6',
+          violet: '#8b5cf6',
+          rose: '#f43f5e',
+          bronze: '#d97706',
+        },
+        titanium: {
+          50: '#fafafa',
+          100: '#f4f4f5',
+          200: '#e4e4e7',
+          300: '#d4d4d8',
+          400: '#a1a1aa',
+          500: '#71717a',
+          600: '#52525b',
+          700: '#3f3f46',
+          800: '#27272a',
+          850: '#1c1c20',
+          900: '#141417',
+          950: '#09090b',
         },
         voice: {
-          cyan: '#06b6d4',
+          cyan: '#fbbf24',
           emerald: '#10b981',
           violet: '#8b5cf6',
           rose: '#f43f5e',
-          sky: '#38bdf8',
-          blue: '#3b82f6'
+          sky: '#f59e0b',
+          blue: '#d97706',
+          amber: '#f59e0b',
         },
         dark: {
-          bg: '#070a13',
-          card: '#0c101d',
-          cardHover: '#111728',
-          border: 'rgba(255, 255, 255, 0.08)',
-          subtle: '#1e293b'
-        }
+          bg: '#08080a',
+          card: '#111114',
+          cardHover: '#18181c',
+          border: 'rgba(255, 255, 255, 0.09)',
+          subtle: '#222227',
+        },
+      },
+      boxShadow: {
+        'realistic-elevated': '0 20px 40px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08), inset 0 1px 0 0 rgba(255, 255, 255, 0.12)',
+        'realistic-inset': 'inset 0 2px 4px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(0, 0, 0, 0.4)',
+        'realistic-btn': '0 4px 12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.18)',
+        'amber-glow': '0 0 25px -4px rgba(245, 158, 11, 0.4)',
+        'emerald-glow': '0 0 25px -4px rgba(16, 185, 129, 0.4)',
       },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
@@ -51,9 +85,9 @@ module.exports = {
         },
         shimmer: {
           '0%': { backgroundPosition: '-200% 0' },
-          '100%': { backgroundPosition: '200% 0' }
-        }
-      }
+          '100%': { backgroundPosition: '200% 0' },
+        },
+      },
     },
   },
   plugins: [],

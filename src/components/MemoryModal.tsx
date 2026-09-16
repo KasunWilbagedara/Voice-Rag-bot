@@ -154,7 +154,7 @@ export const MemoryModal: React.FC<MemoryModalProps> = ({
     switch (category.toLowerCase()) {
       case 'identity':
         return (
-          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/30">
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
             <User className="w-3 h-3" /> Identity
           </span>
         );
@@ -167,7 +167,7 @@ export const MemoryModal: React.FC<MemoryModalProps> = ({
       case 'pinned_fact':
       case 'preference':
         return (
-          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-cyan-300 border border-blue-500/30">
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
             <Bookmark className="w-3 h-3" /> Preference
           </span>
         );
@@ -184,19 +184,19 @@ export const MemoryModal: React.FC<MemoryModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl bg-[#0d1222] border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="relative w-full max-w-2xl bg-[#08080a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center shadow-inner">
-              <Brain className="w-5 h-5 text-cyan-400" />
+            <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shadow-inner">
+              <Brain className="w-5 h-5 text-amber-400" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-extrabold text-slate-100 text-base tracking-tight">
                   Persistent Long-Term Memory
                 </h3>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-cyan-300 border border-blue-500/30 font-bold">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
                   {memories.length} Remembered
                 </span>
               </div>
@@ -213,7 +213,7 @@ export const MemoryModal: React.FC<MemoryModalProps> = ({
               className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white transition-all text-xs flex items-center gap-1"
               title="Refresh memories"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-cyan-400' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-amber-400' : ''}`} />
             </button>
             <button
               onClick={onClose}
@@ -245,7 +245,7 @@ export const MemoryModal: React.FC<MemoryModalProps> = ({
           <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                 Explicitly Teach or Pin a Fact
               </span>
               <span className="text-[11px] text-slate-400">
@@ -260,7 +260,7 @@ export const MemoryModal: React.FC<MemoryModalProps> = ({
                   placeholder="Key (e.g. user_name, project)"
                   value={newKey}
                   onChange={(e) => setNewKey(e.target.value)}
-                  className="px-3 py-2 text-xs bg-black/40 border border-white/10 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50"
+                  className="px-3 py-2 text-xs bg-black/40 border border-white/10 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/60"
                   required
                 />
                 <input
@@ -268,7 +268,7 @@ export const MemoryModal: React.FC<MemoryModalProps> = ({
                   placeholder="Value (e.g. Kasun, SLT Core Fiber)"
                   value={newValue}
                   onChange={(e) => setNewValue(e.target.value)}
-                  className="sm:col-span-2 px-3 py-2 text-xs bg-black/40 border border-white/10 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50"
+                  className="sm:col-span-2 px-3 py-2 text-xs bg-black/40 border border-white/10 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/60"
                   required
                 />
               </div>
@@ -279,7 +279,7 @@ export const MemoryModal: React.FC<MemoryModalProps> = ({
                   <select
                     value={newCategory}
                     onChange={(e) => setNewCategory(e.target.value)}
-                    className="text-xs bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500/50"
+                    className="text-xs bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-amber-500/60"
                   >
                     <option value="identity">Identity (Name, Role)</option>
                     <option value="entity">Tracked Entity (Order, Ticket)</option>
@@ -291,7 +291,7 @@ export const MemoryModal: React.FC<MemoryModalProps> = ({
                 <button
                   type="submit"
                   disabled={isSaving || !newKey.trim() || !newValue.trim()}
-                  className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 via-indigo-500 to-cyan-400 text-white font-bold text-xs flex items-center gap-1.5 hover:opacity-90 active:scale-95 transition-all shadow-md shadow-blue-500/20 disabled:opacity-50"
+                  className="px-4 py-1.5 rounded-lg realistic-button-amber text-black font-extrabold text-xs flex items-center gap-1.5 transition-all shadow-md shadow-amber-500/20 disabled:opacity-50"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>{isSaving ? 'Saving...' : 'Remember Fact'}</span>
@@ -335,7 +335,7 @@ export const MemoryModal: React.FC<MemoryModalProps> = ({
                   >
                     <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-xs font-bold text-cyan-300">
+                        <span className="font-mono text-xs font-bold text-amber-300">
                           {item.key}
                         </span>
                         {getCategoryBadge(item.category)}

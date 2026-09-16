@@ -85,7 +85,7 @@ export const ContextDrawer: React.FC<ContextDrawerProps> = ({
         {/* User query reference */}
         {userQuery && (
           <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider block">
+            <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
               Evaluated Query
             </span>
             <p className="text-xs font-semibold text-slate-200">"{userQuery}"</p>
@@ -98,7 +98,7 @@ export const ContextDrawer: React.FC<ContextDrawerProps> = ({
             onClick={() => setFilterType('all')}
             className={`flex-1 py-1.5 px-2 rounded-lg font-bold transition-all ${
               filterType === 'all'
-                ? 'bg-violet-500 text-white shadow-sm'
+                ? 'bg-gradient-to-b from-amber-400 to-amber-500 text-black font-extrabold shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -108,7 +108,7 @@ export const ContextDrawer: React.FC<ContextDrawerProps> = ({
             onClick={() => setFilterType('db')}
             className={`flex-1 py-1.5 px-2 rounded-lg font-bold transition-all ${
               filterType === 'db'
-                ? 'bg-blue-600 text-white shadow-sm'
+                ? 'bg-gradient-to-b from-amber-400 to-amber-500 text-black font-extrabold shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -118,7 +118,7 @@ export const ContextDrawer: React.FC<ContextDrawerProps> = ({
             onClick={() => setFilterType('doc')}
             className={`flex-1 py-1.5 px-2 rounded-lg font-bold transition-all ${
               filterType === 'doc'
-                ? 'bg-cyan-500 text-slate-950 shadow-sm'
+                ? 'bg-gradient-to-b from-amber-400 to-amber-500 text-black font-extrabold shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -143,13 +143,13 @@ export const ContextDrawer: React.FC<ContextDrawerProps> = ({
                   key={chunkKey}
                   className={`p-4 rounded-2xl border transition-all flex flex-col gap-2.5 ${
                     isDb
-                      ? 'bg-blue-500/5 border-blue-500/25 hover:border-blue-500/50'
-                      : 'bg-black/30 border-white/10 hover:border-violet-500/40'
+                      ? 'bg-amber-500/5 border-amber-500/25 hover:border-amber-500/50'
+                      : 'bg-black/30 border-white/10 hover:border-amber-500/40'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className={`flex items-center gap-1.5 text-xs font-bold truncate ${isDb ? 'text-blue-300' : 'text-cyan-300'}`}>
-                      {isDb ? <Database className="w-3.5 h-3.5 text-cyan-400 shrink-0" /> : <FileText className="w-3.5 h-3.5 text-cyan-400 shrink-0" />}
+                    <span className={`flex items-center gap-1.5 text-xs font-bold truncate ${isDb ? 'text-amber-300' : 'text-amber-200'}`}>
+                      {isDb ? <Database className="w-3.5 h-3.5 text-amber-400 shrink-0" /> : <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
                       <span className="truncate">{chunk.documentTitle}</span>
                       {!isDb && <span className="text-slate-500 font-normal">#{chunk.chunkIndex + 1}</span>}
                     </span>
@@ -158,10 +158,10 @@ export const ContextDrawer: React.FC<ContextDrawerProps> = ({
                       <span
                         className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
                           isDb
-                            ? 'bg-blue-500/20 text-cyan-300 border border-blue-500/40'
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                             : similarityPct >= 80
                             ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                            : 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                         }`}
                       >
                         {isDb ? 'SQL Match' : `${similarityPct}% Sim`}

@@ -285,61 +285,59 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-[#070a13] text-slate-100 flex flex-col font-sans selection:bg-blue-500 selection:text-white">
-      {/* Top Navbar */}
+    <main className="min-h-screen bg-[#08080a] text-zinc-100 flex flex-col font-sans selection:bg-amber-500 selection:text-black">
+      {/* Top Hardware Console Navbar */}
       <header className="sticky top-0 z-40 w-full glass-panel border-b border-white/10 px-4 md:px-8 py-3.5 flex items-center justify-between shadow-2xl backdrop-blur-xl">
         {/* Brand & Status */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/20 border border-blue-400/40">
-            <Brain className="w-5 h-5 text-white stroke-[2.5]" />
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-b from-amber-400 via-amber-500 to-amber-600 flex items-center justify-center shadow-[0_4px_16px_rgba(245,158,11,0.35),inset_0_1px_1px_rgba(255,255,255,0.4)] border border-amber-300/40">
+            <Brain className="w-5 h-5 text-black stroke-[2.5]" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-sm md:text-base font-extrabold text-slate-100 tracking-tight">
+              <h1 className="text-sm md:text-base font-extrabold text-zinc-100 tracking-tight">
                 Voice-RAG Bot
               </h1>
-              <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-blue-500/15 text-cyan-300 border border-blue-500/30 font-bold flex items-center gap-1">
+              <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#141418] text-amber-300 border border-amber-500/30 font-bold font-mono flex items-center gap-1 shadow-inner">
                 <span>🇱🇰</span>
                 <span>Sinhala (සිංහල) & Multi-DB RAG</span>
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1.5 font-medium">
+            <p className="text-[11px] text-zinc-400 mt-0.5 flex items-center gap-1.5 font-medium">
               <span className="text-emerald-400 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_#10b981]" />
                 Active
               </span>
-              <span className="text-slate-600">•</span>
-              <span className="text-slate-300 font-mono text-[10px] uppercase">
+              <span className="text-zinc-600">•</span>
+              <span className="text-zinc-300 font-mono text-[10px] uppercase">
                 {provider}: {model}
               </span>
-              <span className="text-slate-600">•</span>
-              <span className="text-cyan-400/90 font-mono text-[10px]">pgvector / SQL RAG</span>
+              <span className="text-zinc-600">•</span>
+              <span className="text-amber-400/90 font-mono text-[10px]">pgvector / SQL RAG</span>
             </p>
           </div>
         </div>
 
-        {/* Right Header Navigation & Actions */}
+        {/* Right Header Navigation & Hardware Actions */}
         <div className="flex items-center gap-2">
           {/* Language Switcher */}
-          <div className="hidden sm:flex items-center p-0.5 bg-black/40 border border-white/10 rounded-xl text-xs font-bold">
+          <div className="hidden sm:flex items-center p-0.5 realistic-switch-track rounded-xl text-xs font-bold">
             <button
               onClick={() => setLanguage('si')}
-              className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
-                language === 'si'
-                  ? 'bg-blue-600 text-white font-extrabold shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
+              className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 ${language === 'si'
+                  ? 'bg-gradient-to-b from-amber-400 to-amber-500 text-black font-extrabold shadow-[0_2px_8px_rgba(245,158,11,0.4)]'
+                  : 'text-zinc-400 hover:text-zinc-200'
+                }`}
             >
               <span>🇱🇰</span>
               <span>සිංහල</span>
             </button>
             <button
               onClick={() => setLanguage('en')}
-              className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
-                language === 'en'
-                  ? 'bg-blue-600 text-white font-extrabold shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
+              className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 ${language === 'en'
+                  ? 'bg-gradient-to-b from-amber-400 to-amber-500 text-black font-extrabold shadow-[0_2px_8px_rgba(245,158,11,0.4)]'
+                  : 'text-zinc-400 hover:text-zinc-200'
+                }`}
             >
               <span>🇬🇧</span>
               <span>English</span>
@@ -349,13 +347,13 @@ export default function Home() {
           {/* Context Sources Button */}
           <button
             onClick={() => setIsContextDrawerOpen(true)}
-            className="px-3 py-2 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-sm active:scale-95"
+            className="px-3 py-2 rounded-xl bg-[#141418] hover:bg-[#1a1a22] border border-white/10 text-zinc-300 hover:text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-sm active:scale-95"
             title="Inspect retrieved RAG context sources"
           >
-            <Layers className="w-4 h-4 text-violet-400" />
+            <Layers className="w-4 h-4 text-amber-400" />
             <span className="hidden sm:inline">Context Sources</span>
             {activeContextChunks.length > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/40 text-[10px] font-extrabold">
+              <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-extrabold font-mono">
                 {activeContextChunks.length}
               </span>
             )}
@@ -364,12 +362,12 @@ export default function Home() {
           {/* Memory Modal Button */}
           <button
             onClick={() => setIsMemoryOpen(true)}
-            className="px-3 py-2 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-sm active:scale-95"
+            className="px-3 py-2 rounded-xl bg-[#141418] hover:bg-[#1a1a22] border border-white/10 text-zinc-300 hover:text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-sm active:scale-95"
             title="Inspect and manage persistent long-term memories"
           >
-            <Brain className="w-4 h-4 text-cyan-400" />
+            <Brain className="w-4 h-4 text-amber-400" />
             <span className="hidden sm:inline">Memories</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-blue-500/20 text-cyan-300 border border-blue-500/40 text-[10px] font-extrabold">
+            <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-extrabold font-mono">
               {memoryCount}
             </span>
           </button>
@@ -377,10 +375,10 @@ export default function Home() {
           {/* Settings Button */}
           <button
             onClick={() => setIsSettingsOpen(true)}
-            className="p-2 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 text-slate-300 hover:text-white transition-all shadow-sm active:scale-95"
+            className="p-2 rounded-xl bg-[#141418] hover:bg-[#1a1a22] border border-white/10 text-zinc-300 hover:text-white transition-all shadow-sm active:scale-95"
             title="Configure LLM & Voice Persona"
           >
-            <Settings className="w-4 h-4 text-cyan-400" />
+            <Settings className="w-4 h-4 text-amber-400" />
           </button>
         </div>
       </header>
@@ -406,10 +404,10 @@ export default function Home() {
           {/* Text Input Fallback Bar */}
           <form
             onSubmit={handleTextSubmit}
-            className="glass-panel p-2 rounded-2xl flex items-center gap-2 border border-white/10 focus-within:border-blue-500/60 transition-all shadow-xl"
+            className="glass-panel p-2 rounded-2xl flex items-center gap-2 border border-white/10 focus-within:border-amber-500/60 transition-all shadow-xl"
           >
-            <div className="pl-3 text-slate-500">
-              <Terminal className="w-4 h-4 text-cyan-400" />
+            <div className="pl-3 text-zinc-500">
+              <Terminal className="w-4 h-4 text-amber-400" />
             </div>
             <input
               type="text"
@@ -420,12 +418,12 @@ export default function Home() {
                   ? 'සිංහලෙන් හෝ ඉංග්‍රීසියෙන් ප්‍රශ්නයක් ලියන්න... (Orders, DB or docs)'
                   : 'Type a query or DB ask in English or Sinhala...'
               }
-              className="flex-1 bg-transparent px-2 py-2 text-xs md:text-sm text-slate-100 placeholder-slate-500 focus:outline-none font-medium"
+              className="flex-1 bg-transparent px-2 py-2 text-xs md:text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none font-medium"
             />
             <button
               type="submit"
               disabled={isSubmittingText || !textInput.trim()}
-              className="p-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-bold transition-all shadow-md shadow-blue-500/20 active:scale-95"
+              className="realistic-button-amber p-2.5 rounded-xl disabled:opacity-40 text-black font-bold transition-all shadow-md active:scale-95"
               title="Submit query"
             >
               <Send className="w-4 h-4 stroke-[2.5]" />
@@ -437,14 +435,14 @@ export default function Home() {
             {/* Feed Header */}
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div className="flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-cyan-400" />
-                <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                <MessageSquare className="w-4 h-4 text-amber-400" />
+                <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-wider">
                   Conversation Feed & Multimodal Insights
                 </h3>
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-mono text-slate-400">
+                <span className="text-[11px] font-mono text-zinc-400">
                   {chatHistory.length} {chatHistory.length === 1 ? 'turn' : 'turns'}
                 </span>
 
@@ -452,7 +450,7 @@ export default function Home() {
                   <>
                     <button
                       onClick={exportChatTranscript}
-                      className="px-2 py-1 rounded-lg bg-black/40 hover:bg-blue-500/15 border border-white/10 text-cyan-300 text-[10px] font-bold flex items-center gap-1 transition-all"
+                      className="px-2 py-1 rounded-lg bg-black/40 hover:bg-amber-500/15 border border-white/10 text-amber-300 text-[10px] font-bold flex items-center gap-1 transition-all"
                       title="Export chat transcript to CSV"
                     >
                       <Download className="w-3 h-3" />
@@ -461,7 +459,7 @@ export default function Home() {
 
                     <button
                       onClick={clearChatHistory}
-                      className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/15 transition-all"
+                      className="p-1 rounded-lg text-zinc-500 hover:text-rose-400 hover:bg-rose-500/15 transition-all"
                       title="Clear chat feed"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -473,13 +471,13 @@ export default function Home() {
 
             {/* Message List */}
             {chatHistory.length === 0 ? (
-              <div className="py-12 text-center flex flex-col items-center justify-center gap-3 border border-white/5 bg-black/20 rounded-2xl p-6">
-                <div className="w-10 h-10 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-cyan-400">
+              <div className="py-12 text-center flex flex-col items-center justify-center gap-3 border border-white/5 bg-black/20 rounded-2xl p-6 shadow-inner">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
                   <Sparkles className="w-5 h-5" />
                 </div>
                 <div className="text-center">
-                  <p className="text-xs font-bold text-slate-300">No conversation turns yet</p>
-                  <p className="text-[11px] text-slate-500 mt-1 max-w-sm">
+                  <p className="text-xs font-bold text-zinc-300">No conversation turns yet</p>
+                  <p className="text-[11px] text-zinc-500 mt-1 max-w-sm">
                     Press the microphone button or select a quick query to interact in Sinhala or English with real-time multi-DB RAG!
                   </p>
                 </div>
@@ -493,43 +491,43 @@ export default function Home() {
                   return (
                     <div
                       key={msg.id}
-                      className="p-4 rounded-2xl bg-black/40 border border-white/10 flex flex-col gap-3.5 hover:border-blue-500/30 transition-all shadow-md"
+                      className="p-4 rounded-2xl bg-[#0f0f13] border border-white/10 flex flex-col gap-3.5 hover:border-amber-500/30 transition-all shadow-md"
                     >
                       {/* User Query Bubble */}
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-xl bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                          <div className="w-7 h-7 rounded-xl bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
                             {msg.mode === 'text' ? <Terminal className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
                           </div>
                           <div>
-                            <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider block">
+                            <span className="text-[10px] font-bold font-mono text-amber-400 uppercase tracking-wider block">
                               User ({msg.language === 'si' ? '🇱🇰 Sinhala' : '🇬🇧 English'})
                             </span>
-                            <p className="text-xs md:text-sm font-semibold text-slate-100 leading-snug mt-0.5">
+                            <p className="text-xs md:text-sm font-semibold text-zinc-100 leading-snug mt-0.5">
                               {msg.userQuery}
                             </p>
                           </div>
                         </div>
-                        <span className="text-[10px] text-slate-500 shrink-0 font-mono">
+                        <span className="text-[10px] text-zinc-500 shrink-0 font-mono">
                           {msg.timestamp}
                         </span>
                       </div>
 
                       {/* AI Response Bubble */}
-                      <div className="flex items-start gap-2.5 pl-2 border-l-2 border-blue-500/60">
-                        <div className="w-7 h-7 rounded-xl bg-blue-500/15 text-cyan-300 border border-blue-500/30 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                      <div className="flex items-start gap-2.5 pl-2 border-l-2 border-amber-500/60">
+                        <div className="w-7 h-7 rounded-xl bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
                           <Bot className="w-3.5 h-3.5" />
                         </div>
                         <div className="flex-1 min-w-0 flex flex-col gap-2">
                           <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider">
+                            <span className="text-[10px] font-bold font-mono text-amber-400 uppercase tracking-wider">
                               AI Voice RAG Answer
                             </span>
 
                             <div className="flex items-center gap-1.5">
                               <button
                                 onClick={() => copyMessage(msg.id, cleanText)}
-                                className="p-1 text-slate-400 hover:text-white rounded hover:bg-white/5 transition-colors"
+                                className="p-1 text-zinc-400 hover:text-white rounded hover:bg-white/5 transition-colors"
                                 title="Copy answer"
                               >
                                 {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -537,7 +535,7 @@ export default function Home() {
 
                               <button
                                 onClick={() => replayMessageAudio(cleanText)}
-                                className="p-1 text-slate-400 hover:text-cyan-300 rounded hover:bg-white/5 transition-colors"
+                                className="p-1 text-zinc-400 hover:text-amber-300 rounded hover:bg-white/5 transition-colors"
                                 title="Replay voice audio"
                               >
                                 <Volume2 className="w-3.5 h-3.5" />
@@ -545,7 +543,7 @@ export default function Home() {
                             </div>
                           </div>
 
-                          <div className="text-xs md:text-sm text-slate-200 font-normal break-words">
+                          <div className="text-xs md:text-sm text-zinc-200 font-normal break-words">
                             <FormattedResponse text={cleanText} />
                           </div>
 
@@ -561,14 +559,14 @@ export default function Home() {
                       {/* Grounded Chunks / Context Footer */}
                       {msg.retrievedChunks && msg.retrievedChunks.length > 0 && (
                         <div className="flex items-center justify-between pt-2.5 border-t border-white/5 text-xs">
-                          <span className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                            <Sparkles className="w-3.5 h-3.5 text-violet-400" />
+                          <span className="text-[11px] text-zinc-400 flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                             <span>Grounded in {msg.retrievedChunks.length} sources (DB SQL & Docs)</span>
                           </span>
 
                           <button
                             onClick={() => openContextForMessage(msg)}
-                            className="text-[11px] text-cyan-400 hover:text-cyan-300 font-bold hover:underline flex items-center gap-1 transition-colors"
+                            className="text-[11px] text-amber-400 hover:text-amber-300 font-bold hover:underline flex items-center gap-1 transition-colors"
                           >
                             <span>Inspect Evidence</span>
                             <ArrowRight className="w-3 h-3" />
@@ -585,26 +583,24 @@ export default function Home() {
 
         {/* Right Column: Multi-Database & Knowledge Base Workspace (6 Cols) */}
         <div className="lg:col-span-6 flex flex-col gap-6">
-          {/* Tab Switcher */}
-          <div className="glass-panel p-1.5 rounded-2xl flex items-center gap-2 border border-white/10 shadow-xl">
+          {/* Studio Hardware Tab Switcher */}
+          <div className="realistic-switch-track p-1.5 rounded-2xl flex items-center gap-2 border border-white/10 shadow-2xl">
             <button
               onClick={() => setActiveRightTab('databases')}
-              className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                activeRightTab === 'databases'
-                  ? 'bg-blue-600 text-white font-extrabold shadow-md shadow-blue-500/20'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
-              }`}
+              className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${activeRightTab === 'databases'
+                  ? 'bg-gradient-to-b from-amber-400 to-amber-500 text-black font-extrabold shadow-[0_4px_14px_rgba(245,158,11,0.35),inset_0_1px_0_rgba(255,255,255,0.4)]'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                }`}
             >
               <Database className="w-4 h-4" />
               <span>Multi-Database Hub</span>
             </button>
             <button
               onClick={() => setActiveRightTab('documents')}
-              className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                activeRightTab === 'documents'
-                  ? 'bg-blue-600 text-white font-extrabold shadow-md shadow-blue-500/20'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
-              }`}
+              className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${activeRightTab === 'documents'
+                  ? 'bg-gradient-to-b from-amber-400 to-amber-500 text-black font-extrabold shadow-[0_4px_14px_rgba(245,158,11,0.35),inset_0_1px_0_rgba(255,255,255,0.4)]'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                }`}
             >
               <FileText className="w-4 h-4" />
               <span>Document Knowledge</span>
@@ -618,14 +614,14 @@ export default function Home() {
             <DocumentManager apiKey={apiKey} />
           )}
 
-          {/* Sample Customer Support Queries Card */}
-          <div className="glass-panel rounded-3xl p-5 md:p-6 flex flex-col gap-3.5 border border-blue-500/20 shadow-2xl">
+          {/* Sample Customer Support Queries Card (Hardware Macro Keys) */}
+          <div className="glass-panel rounded-3xl p-5 md:p-6 flex flex-col gap-3.5 border border-amber-500/20 shadow-2xl">
             <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-200 uppercase tracking-wider">
-                <Globe className="w-4 h-4 text-cyan-400" />
+              <div className="flex items-center gap-2 text-xs font-bold text-zinc-200 uppercase tracking-wider">
+                <Globe className="w-4 h-4 text-amber-400" />
                 <span>Sample Cross-Lingual Customer Queries</span>
               </div>
-              <span className="text-[10px] text-slate-500 font-mono">1-Click Try</span>
+              <span className="text-[10px] text-zinc-500 font-mono">1-Click Try</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -638,10 +634,10 @@ export default function Home() {
                 <button
                   key={idx}
                   onClick={() => setTextInput(q.query)}
-                  className="p-3 rounded-2xl bg-black/30 hover:bg-blue-500/15 border border-white/5 hover:border-blue-500/30 text-left text-xs text-slate-300 hover:text-cyan-200 transition-all flex items-center justify-between group shadow-sm active:scale-98"
+                  className="p-3 rounded-2xl bg-[#121216] hover:bg-[#181820] border border-white/5 hover:border-amber-500/30 text-left text-xs text-zinc-300 hover:text-amber-200 transition-all flex items-center justify-between group shadow-[0_2px_8px_rgba(0,0,0,0.4)] active:scale-98"
                 >
                   <span className="truncate pr-2 font-medium">{q.label}</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-400 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                  <ArrowRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-amber-400 shrink-0 transition-transform group-hover:translate-x-0.5" />
                 </button>
               ))}
             </div>
