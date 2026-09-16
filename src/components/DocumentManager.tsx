@@ -147,7 +147,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ apiKey, onDocu
     if (lower.endsWith('.docx') || lower.endsWith('.doc')) return <FileText className="w-4 h-4 text-blue-400" />;
     if (lower.endsWith('.xlsx') || lower.endsWith('.xls') || lower.endsWith('.csv')) return <FileSpreadsheet className="w-4 h-4 text-emerald-400" />;
     if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp')) return <FileImage className="w-4 h-4 text-violet-400" />;
-    return <FileCode className="w-4 h-4 text-amber-400" />;
+    return <FileCode className="w-4 h-4 text-cyan-400" />;
   };
 
   return (
@@ -155,7 +155,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ apiKey, onDocu
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+          <div className="w-8 h-8 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-cyan-400">
             <Database className="w-4 h-4" />
           </div>
           <div>
@@ -171,10 +171,10 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ apiKey, onDocu
             className={`text-[10px] px-2.5 py-1 rounded-full font-bold tracking-wider uppercase border flex items-center gap-1.5 ${
               dbActive
                 ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                : 'bg-blue-500/15 text-cyan-300 border-blue-500/30'
             }`}
           >
-            <span className={`w-1.5 h-1.5 rounded-full ${dbActive ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+            <span className={`w-1.5 h-1.5 rounded-full ${dbActive ? 'bg-emerald-400 animate-pulse' : 'bg-cyan-400'}`} />
             <span>{dbActive ? 'pgvector Active' : 'Memory Store'}</span>
           </span>
 
@@ -203,8 +203,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ apiKey, onDocu
         }}
         className={`border-2 border-dashed transition-all duration-200 rounded-2xl p-7 flex flex-col items-center justify-center gap-3 cursor-pointer group ${
           isDragging
-            ? 'border-amber-500 bg-amber-500/15 scale-[0.99]'
-            : 'border-white/15 hover:border-amber-500/60 bg-black/30 hover:bg-black/50'
+            ? 'border-blue-500 bg-blue-500/15 scale-[0.99]'
+            : 'border-white/15 hover:border-blue-500/60 bg-black/30 hover:bg-black/50'
         }`}
       >
         <input
@@ -215,11 +215,11 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ apiKey, onDocu
           className="hidden"
         />
 
-        <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-white/10 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform shadow-lg">
+        <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-white/10 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform shadow-lg">
           {isUploading || isSeeding ? (
-            <Loader2 className="w-6 h-6 animate-spin text-amber-400" />
+            <Loader2 className="w-6 h-6 animate-spin text-cyan-400" />
           ) : (
-            <Upload className="w-6 h-6 text-amber-400" />
+            <Upload className="w-6 h-6 text-cyan-400" />
           )}
         </div>
 
@@ -237,12 +237,12 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ apiKey, onDocu
       <button
         onClick={handleSeedDocument}
         disabled={isSeeding || isUploading}
-        className="w-full py-2.5 px-4 rounded-xl bg-black/40 hover:bg-amber-500/15 border border-white/10 hover:border-amber-500/30 text-amber-300 text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm active:scale-95 disabled:opacity-50"
+        className="w-full py-2.5 px-4 rounded-xl bg-black/40 hover:bg-blue-500/15 border border-white/10 hover:border-blue-500/30 text-cyan-300 text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm active:scale-95 disabled:opacity-50"
       >
         {isSeeding ? (
-          <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+          <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
         ) : (
-          <Sparkles className="w-4 h-4 text-amber-400" />
+          <Sparkles className="w-4 h-4 text-cyan-400" />
         )}
         <span>Pre-load Sample Support Knowledge Base</span>
       </button>
@@ -277,7 +277,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ apiKey, onDocu
                 value={docSearch}
                 onChange={(e) => setDocSearch(e.target.value)}
                 placeholder="Search docs..."
-                className="pl-7 pr-3 py-1 rounded-lg bg-black/40 border border-white/10 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/60 w-36 transition-colors"
+                className="pl-7 pr-3 py-1 rounded-lg bg-black/40 border border-white/10 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/60 w-36 transition-colors"
               />
             </div>
           )}
@@ -306,7 +306,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ apiKey, onDocu
                   <div className="min-w-0">
                     <p className="text-xs font-semibold text-slate-200 truncate">{doc.title}</p>
                     <p className="text-[10px] text-slate-400 mt-0.5 font-mono">
-                      <span className="text-amber-400/80 font-bold">{doc.chunk_count || 0} chunks</span>
+                      <span className="text-cyan-400/80 font-bold">{doc.chunk_count || 0} chunks</span>
                       {' • '}
                       <span>{new Date(doc.created_at).toLocaleDateString()}</span>
                     </p>

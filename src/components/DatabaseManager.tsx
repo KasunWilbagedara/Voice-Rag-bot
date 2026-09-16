@@ -248,11 +248,11 @@ export const DatabaseManager: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <div className="w-8 h-8 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-cyan-400">
               <Database className="w-4 h-4" />
             </div>
             <h2 className="text-base font-bold text-slate-100">Multi-Database Hub</h2>
-            <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[11px] font-bold">
+            <span className="px-2.5 py-0.5 rounded-full bg-blue-500/15 text-cyan-300 border border-blue-500/30 text-[11px] font-bold">
               {databases.length} Connected
             </span>
           </div>
@@ -287,7 +287,7 @@ export const DatabaseManager: React.FC = () => {
             className="p-1.5 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 text-slate-300 hover:text-white transition-all"
             title="Refresh database metadata"
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-amber-400' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-cyan-400' : ''}`} />
           </button>
         </div>
       </div>
@@ -313,7 +313,7 @@ export const DatabaseManager: React.FC = () => {
           onClick={() => setActiveTab('tables')}
           className={`flex-1 min-w-[100px] py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
             activeTab === 'tables'
-              ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md shadow-amber-500/20'
+              ? 'bg-blue-600 text-white font-extrabold shadow-md shadow-blue-500/20'
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
@@ -325,7 +325,7 @@ export const DatabaseManager: React.FC = () => {
           onClick={() => setActiveTab('sandbox')}
           className={`flex-1 min-w-[110px] py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
             activeTab === 'sandbox'
-              ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md shadow-amber-500/20'
+              ? 'bg-blue-600 text-white font-extrabold shadow-md shadow-blue-500/20'
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
@@ -337,7 +337,7 @@ export const DatabaseManager: React.FC = () => {
           onClick={() => setActiveTab('upload')}
           className={`flex-1 min-w-[100px] py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
             activeTab === 'upload'
-              ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md shadow-amber-500/20'
+              ? 'bg-blue-600 text-white font-extrabold shadow-md shadow-blue-500/20'
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
@@ -349,7 +349,7 @@ export const DatabaseManager: React.FC = () => {
           onClick={() => setActiveTab('connect')}
           className={`flex-1 min-w-[110px] py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
             activeTab === 'connect'
-              ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md shadow-amber-500/20'
+              ? 'bg-blue-600 text-white font-extrabold shadow-md shadow-blue-500/20'
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
@@ -377,13 +377,13 @@ export const DatabaseManager: React.FC = () => {
                   onClick={() => setSelectedDbId(db.id)}
                   className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col gap-2 ${
                     isSelected
-                      ? 'bg-amber-500/15 border-amber-500/60 shadow-lg shadow-amber-500/10'
+                      ? 'bg-blue-500/15 border-blue-500/60 shadow-lg shadow-blue-500/10'
                       : 'bg-black/30 border-white/5 hover:border-white/20 hover:bg-black/50'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className={`p-1.5 rounded-lg ${isSelected ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-800 text-slate-400'}`}>
+                      <div className={`p-1.5 rounded-lg ${isSelected ? 'bg-blue-500/20 text-cyan-400' : 'bg-slate-800 text-slate-400'}`}>
                         <Database className="w-3.5 h-3.5" />
                       </div>
                       <span className="text-xs font-bold text-slate-200 truncate">{db.name}</span>
@@ -437,7 +437,7 @@ export const DatabaseManager: React.FC = () => {
                     value={schemaSearch}
                     onChange={(e) => setSchemaSearch(e.target.value)}
                     placeholder="Filter tables & columns..."
-                    className="pl-8 pr-3 py-1.5 rounded-xl bg-black/50 border border-white/10 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/60 transition-colors w-full sm:w-48"
+                    className="pl-8 pr-3 py-1.5 rounded-xl bg-black/50 border border-white/10 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/60 transition-colors w-full sm:w-48"
                   />
                 </div>
               </div>
@@ -453,11 +453,11 @@ export const DatabaseManager: React.FC = () => {
                   {filteredSchemas.map((schema) => (
                     <div
                       key={schema.table_name}
-                      className="bg-black/40 rounded-xl border border-white/10 p-3.5 flex flex-col gap-2 hover:border-amber-500/30 transition-colors"
+                      className="bg-black/40 rounded-xl border border-white/10 p-3.5 flex flex-col gap-2 hover:border-blue-500/30 transition-colors"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <TableIcon className="w-4 h-4 text-amber-400" />
+                          <TableIcon className="w-4 h-4 text-cyan-400" />
                           <h4 className="text-xs font-bold text-slate-200 font-mono">
                             {schema.table_name}
                           </h4>
@@ -474,7 +474,7 @@ export const DatabaseManager: React.FC = () => {
                             className="bg-slate-950/80 p-2 rounded-lg border border-white/5 flex items-center justify-between text-[11px]"
                           >
                             <span className="text-slate-300 font-medium truncate">{col.column}</span>
-                            <span className="text-amber-400/80 font-mono text-[9px] uppercase shrink-0 pl-1">
+                            <span className="text-cyan-400/80 font-mono text-[9px] uppercase shrink-0 pl-1">
                               {col.type}
                             </span>
                           </div>
@@ -492,7 +492,7 @@ export const DatabaseManager: React.FC = () => {
             <div className="bg-black/30 rounded-2xl border border-white/10 p-4 md:p-5 flex flex-col gap-4">
               <div className="flex items-center justify-between border-b border-white/10 pb-3">
                 <div className="flex items-center gap-2">
-                  <Terminal className="w-4 h-4 text-amber-400" />
+                  <Terminal className="w-4 h-4 text-cyan-400" />
                   <h3 className="text-sm font-bold text-slate-200">Interactive SQL Sandbox</h3>
                 </div>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono font-bold">
@@ -514,7 +514,7 @@ export const DatabaseManager: React.FC = () => {
                       setSandboxQuery(t.query);
                       handleRunSqlQuery(t.query);
                     }}
-                    className="px-2 py-1 rounded-lg bg-black/50 hover:bg-amber-500/15 border border-white/10 text-amber-300 text-[10px] font-mono transition-all"
+                    className="px-2 py-1 rounded-lg bg-black/50 hover:bg-blue-500/15 border border-white/10 text-cyan-300 text-[10px] font-mono transition-all"
                   >
                     {t.label}
                   </button>
@@ -526,7 +526,7 @@ export const DatabaseManager: React.FC = () => {
                   value={sandboxQuery}
                   onChange={(e) => setSandboxQuery(e.target.value)}
                   rows={3}
-                  className="w-full bg-black/60 border border-white/10 rounded-xl p-3 text-xs text-amber-300 font-mono focus:outline-none focus:border-amber-500/60 transition-colors"
+                  className="w-full bg-black/60 border border-white/10 rounded-xl p-3 text-xs text-cyan-300 font-mono focus:outline-none focus:border-blue-500/60 transition-colors"
                   placeholder="Enter SQL SELECT query..."
                 />
                 <div className="flex items-center justify-between">
@@ -534,9 +534,9 @@ export const DatabaseManager: React.FC = () => {
                   <button
                     onClick={() => handleRunSqlQuery()}
                     disabled={isExecutingSql}
-                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-amber-500/20 active:scale-95 disabled:opacity-50"
+                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-blue-500/20 active:scale-95 disabled:opacity-50"
                   >
-                    {isExecutingSql ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-slate-950" />}
+                    {isExecutingSql ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-white" />}
                     <span>Execute SQL</span>
                   </button>
                 </div>
@@ -565,7 +565,7 @@ export const DatabaseManager: React.FC = () => {
                           link.click();
                           document.body.removeChild(link);
                         }}
-                        className="px-2 py-1 rounded-lg bg-black/40 hover:bg-amber-500/15 border border-white/10 text-amber-300 text-[10px] font-bold flex items-center gap-1 transition-all"
+                        className="px-2 py-1 rounded-lg bg-black/40 hover:bg-blue-500/15 border border-white/10 text-cyan-300 text-[10px] font-bold flex items-center gap-1 transition-all"
                       >
                         <Download className="w-3 h-3" />
                         <span>Export CSV</span>
@@ -617,22 +617,22 @@ export const DatabaseManager: React.FC = () => {
                   placeholder="e.g. support_tickets_2026"
                   value={csvTableName}
                   onChange={(e) => setCsvTableName(e.target.value)}
-                  className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500/60 font-mono transition-colors"
+                  className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500/60 font-mono transition-colors"
                 />
               </div>
 
               <div
                 onClick={() => csvInputRef.current?.click()}
-                className="border-2 border-dashed border-white/15 hover:border-amber-500/60 bg-black/40 hover:bg-black/60 rounded-2xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-3 group"
+                className="border-2 border-dashed border-white/15 hover:border-blue-500/60 bg-black/40 hover:bg-black/60 rounded-2xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-3 group"
               >
                 {isUploadingCsv ? (
                   <div className="flex flex-col items-center gap-2">
-                    <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
-                    <span className="text-xs text-amber-300 font-medium">Processing CSV dataset into SQL tables...</span>
+                    <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+                    <span className="text-xs text-cyan-300 font-medium">Processing CSV dataset into SQL tables...</span>
                   </div>
                 ) : (
                   <>
-                    <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-white/10 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform shadow-lg">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-white/10 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform shadow-lg">
                       <FileSpreadsheet className="w-6 h-6" />
                     </div>
                     <div>
@@ -670,7 +670,7 @@ export const DatabaseManager: React.FC = () => {
                     placeholder="e.g. Production Analytics DB"
                     value={connectName}
                     onChange={(e) => setConnectName(e.target.value)}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500/60 transition-colors"
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500/60 transition-colors"
                     required
                   />
                 </div>
@@ -680,7 +680,7 @@ export const DatabaseManager: React.FC = () => {
                   <select
                     value={connectType}
                     onChange={(e) => setConnectType(e.target.value)}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500/60 transition-colors"
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500/60 transition-colors"
                   >
                     <option value="postgresql">PostgreSQL</option>
                     <option value="mysql">MySQL</option>
@@ -695,14 +695,14 @@ export const DatabaseManager: React.FC = () => {
                     placeholder={connectType === 'sqlite' ? '/path/to/database.db' : 'postgresql://user:pass@localhost:5432/dbname'}
                     value={connectString}
                     onChange={(e) => setConnectString(e.target.value)}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-amber-500/60 transition-colors"
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500/60 transition-colors"
                     required
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-all shadow-lg shadow-amber-500/20 active:scale-95"
+                  className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-lg shadow-blue-500/20 active:scale-95"
                 >
                   Test Connection & Register DB
                 </button>

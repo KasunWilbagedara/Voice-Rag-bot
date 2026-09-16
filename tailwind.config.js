@@ -23,7 +23,7 @@ module.exports = {
           emerald: '#10b981',
           violet: '#8b5cf6',
           rose: '#f43f5e',
-          amber: '#f59e0b',
+          sky: '#38bdf8',
           blue: '#3b82f6'
         },
         dark: {
