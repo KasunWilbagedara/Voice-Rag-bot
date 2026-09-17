@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    --page-bg: #070a13;
+    --page-bg: #071827;
     --card-bg: #0c101d;
     --panel-bg: #101827;
     --panel-surface: rgba(12, 16, 29, 0.78);
@@ -30,7 +30,7 @@
   }
 
   html.light {
-    --page-bg: #f1f5f9;
+    --page-bg: #edf6ff;
     --card-bg: #ffffff;
     --panel-bg: #f8fafc;
     --panel-surface: rgba(255, 255, 255, 0.9);
@@ -52,7 +52,7 @@
   }
 
   html.dark {
-    --page-bg: #070a13;
+    --page-bg: #071827;
     --card-bg: #0c101d;
     --panel-bg: #101827;
     --panel-surface: rgba(12, 16, 29, 0.78);
@@ -81,21 +81,15 @@
   body {
     @apply antialiased min-h-screen overflow-x-hidden;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-    background-color: var(--page-bg);
+    background: linear-gradient(135deg, #00224D 0%, #00224D 55%, #5D0E41 75%, #A0153E 88%, #FF204E 100%);
     color: var(--text-primary);
-    background-image:
-      radial-gradient(circle at 15% 15%, rgba(255, 32, 78, 0.10) 0px, transparent 45%),
-      radial-gradient(circle at 85% 15%, rgba(0, 34, 77, 0.35) 0px, transparent 50%),
-      radial-gradient(circle at 50% 85%, rgba(93, 14, 65, 0.20) 0px, transparent 55%);
     background-attachment: fixed;
     transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   html.light body {
-    background-image:
-      radial-gradient(circle at 15% 15%, rgba(0, 34, 77, 0.04) 0px, transparent 45%),
-      radial-gradient(circle at 85% 15%, rgba(37, 99, 235, 0.05) 0px, transparent 50%),
-      radial-gradient(circle at 50% 85%, rgba(0, 34, 77, 0.04) 0px, transparent 55%);
+    background: linear-gradient(135deg, #00224D 0%, #00224D 55%, #5D0E41 75%, #A0153E 88%, #FF204E 100%);
+    background-attachment: fixed;
   }
 }
 

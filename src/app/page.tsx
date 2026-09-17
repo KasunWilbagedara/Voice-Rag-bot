@@ -295,7 +295,11 @@ export default function Home() {
   return (
     <main
       className="min-h-screen flex flex-col font-sans transition-colors duration-200 selection:bg-[#FF204E] selection:text-white"
-      style={{ backgroundColor: 'var(--page-bg)', color: 'var(--text-primary)' }}
+      style={{
+        background: 'linear-gradient(135deg, #00224D 0%, #00224D 55%, #5D0E41 75%, #A0153E 88%, #FF204E 100%)',
+        backgroundAttachment: 'fixed',
+        color: 'var(--text-primary)',
+      }}
     >
       {/* Top Navbar */}
       <header className="sticky top-0 z-40 w-full glass-panel border-b border-white/10 px-4 md:px-8 py-3.5 flex items-center justify-between shadow-2xl backdrop-blur-xl">
