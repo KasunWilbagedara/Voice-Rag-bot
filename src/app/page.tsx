@@ -296,7 +296,7 @@ export default function Home() {
     <main
       className="min-h-screen flex flex-col font-sans transition-colors duration-200 selection:bg-[#FF204E] selection:text-white"
       style={{
-        background: 'linear-gradient(135deg, #00224D 0%, #5D0E41 35%, #A0153E 70%, #FF204E 100%)',
+        background: 'linear-gradient(135deg, #00224D 0%, #00224D 45%, #5D0E41 60%, #A0153E 80%, #FF204E 100%)',
         backgroundAttachment: 'fixed',
         color: 'var(--text-primary)',
       }}
