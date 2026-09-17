@@ -81,14 +81,14 @@
   body {
     @apply antialiased min-h-screen overflow-x-hidden;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-    background: linear-gradient(135deg, #00224D 0%, #00224D 55%, #5D0E41 75%, #A0153E 88%, #FF204E 100%);
+    background: linear-gradient(135deg, #00224D 0%, #5D0E41 35%, #A0153E 70%, #FF204E 100%);
     color: var(--text-primary);
     background-attachment: fixed;
     transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   html.light body {
-    background: linear-gradient(135deg, #00224D 0%, #00224D 55%, #5D0E41 75%, #A0153E 88%, #FF204E 100%);
+    background: linear-gradient(135deg, #00224D 0%, #5D0E41 35%, #A0153E 70%, #FF204E 100%);
     background-attachment: fixed;
   }
 }
