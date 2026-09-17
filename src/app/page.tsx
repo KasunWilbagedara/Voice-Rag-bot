@@ -285,20 +285,20 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-[#070a13] text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
+    <main className="min-h-screen bg-[#070a13] text-slate-100 flex flex-col font-sans selection:bg-[#FF204E] selection:text-white">
       {/* Top Navbar */}
       <header className="sticky top-0 z-40 w-full glass-panel border-b border-white/10 px-4 md:px-8 py-3.5 flex items-center justify-between shadow-2xl backdrop-blur-xl">
         {/* Brand & Status */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20 border border-amber-400/40">
-            <Brain className="w-5 h-5 text-slate-950 stroke-[2.5]" />
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#FF204E] to-[#5D0E41] flex items-center justify-center shadow-lg border border-[#FF204E]/40 neon-glow-red">
+            <Brain className="w-5 h-5 text-white stroke-[2.5]" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-sm md:text-base font-extrabold text-slate-100 tracking-tight">
                 Voice-RAG Bot
               </h1>
-              <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold flex items-center gap-1">
+              <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#FF204E]/15 text-[#FF6383] border border-[#FF204E]/30 font-bold flex items-center gap-1">
                 <span>🇱🇰</span>
                 <span>Sinhala (සිංහල) & Multi-DB RAG</span>
               </span>
@@ -313,7 +313,7 @@ export default function Home() {
                 {provider}: {model}
               </span>
               <span className="text-slate-600">•</span>
-              <span className="text-amber-400/90 font-mono text-[10px]">pgvector / SQL RAG</span>
+              <span className="text-[#FF204E]/90 font-mono text-[10px]">pgvector / SQL RAG</span>
             </p>
           </div>
         </div>
@@ -326,7 +326,7 @@ export default function Home() {
               onClick={() => setLanguage('si')}
               className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
                 language === 'si'
-                  ? 'bg-amber-500 text-slate-950 font-extrabold shadow-sm'
+                  ? 'btn-gradient-red-sm text-white font-extrabold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -337,7 +337,7 @@ export default function Home() {
               onClick={() => setLanguage('en')}
               className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
                 language === 'en'
-                  ? 'bg-amber-500 text-slate-950 font-extrabold shadow-sm'
+                  ? 'btn-gradient-red-sm text-white font-extrabold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -367,9 +367,9 @@ export default function Home() {
             className="px-3 py-2 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-sm active:scale-95"
             title="Inspect and manage persistent long-term memories"
           >
-            <Brain className="w-4 h-4 text-amber-400" />
+            <Brain className="w-4 h-4 text-[#FF204E]" />
             <span className="hidden sm:inline">Memories</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-extrabold">
+            <span className="px-1.5 py-0.2 rounded-full bg-[#FF204E]/20 text-[#FF6383] border border-[#FF204E]/40 text-[10px] font-extrabold">
               {memoryCount}
             </span>
           </button>
@@ -380,7 +380,7 @@ export default function Home() {
             className="p-2 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 text-slate-300 hover:text-white transition-all shadow-sm active:scale-95"
             title="Configure LLM & Voice Persona"
           >
-            <Settings className="w-4 h-4 text-amber-400" />
+            <Settings className="w-4 h-4 text-[#FF204E]" />
           </button>
         </div>
       </header>
@@ -406,10 +406,10 @@ export default function Home() {
           {/* Text Input Fallback Bar */}
           <form
             onSubmit={handleTextSubmit}
-            className="glass-panel p-2 rounded-2xl flex items-center gap-2 border border-white/10 focus-within:border-amber-500/60 transition-all shadow-xl"
+            className="glass-panel p-2 rounded-2xl flex items-center gap-2 border border-white/10 focus-within:border-[#FF204E]/60 transition-all shadow-xl"
           >
             <div className="pl-3 text-slate-500">
-              <Terminal className="w-4 h-4 text-amber-400" />
+              <Terminal className="w-4 h-4 text-[#FF204E]" />
             </div>
             <input
               type="text"
@@ -425,7 +425,7 @@ export default function Home() {
             <button
               type="submit"
               disabled={isSubmittingText || !textInput.trim()}
-              className="p-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 font-bold transition-all shadow-md shadow-amber-500/20 active:scale-95"
+              className="btn-gradient-red p-2.5 rounded-xl disabled:opacity-40 text-white font-bold active:scale-95"
               title="Submit query"
             >
               <Send className="w-4 h-4 stroke-[2.5]" />
@@ -437,7 +437,7 @@ export default function Home() {
             {/* Feed Header */}
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div className="flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-amber-400" />
+                <MessageSquare className="w-4 h-4 text-[#FF204E]" />
                 <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
                   Conversation Feed & Multimodal Insights
                 </h3>
@@ -452,7 +452,7 @@ export default function Home() {
                   <>
                     <button
                       onClick={exportChatTranscript}
-                      className="px-2 py-1 rounded-lg bg-black/40 hover:bg-amber-500/15 border border-white/10 text-amber-300 text-[10px] font-bold flex items-center gap-1 transition-all"
+                      className="px-2 py-1 rounded-lg bg-black/40 hover:bg-[#FF204E]/15 border border-white/10 text-[#FF6383] text-[10px] font-bold flex items-center gap-1 transition-all"
                       title="Export chat transcript to CSV"
                     >
                       <Download className="w-3 h-3" />
@@ -474,7 +474,7 @@ export default function Home() {
             {/* Message List */}
             {chatHistory.length === 0 ? (
               <div className="py-12 text-center flex flex-col items-center justify-center gap-3 border border-white/5 bg-black/20 rounded-2xl p-6">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                <div className="w-10 h-10 rounded-2xl bg-[#FF204E]/10 border border-[#FF204E]/20 flex items-center justify-center text-[#FF204E]">
                   <Sparkles className="w-5 h-5" />
                 </div>
                 <div className="text-center">
@@ -493,7 +493,7 @@ export default function Home() {
                   return (
                     <div
                       key={msg.id}
-                      className="p-4 rounded-2xl bg-black/40 border border-white/10 flex flex-col gap-3.5 hover:border-amber-500/30 transition-all shadow-md"
+                      className="p-4 rounded-2xl bg-black/40 border border-white/10 flex flex-col gap-3.5 hover:border-[#FF204E]/30 transition-all shadow-md"
                     >
                       {/* User Query Bubble */}
                       <div className="flex items-start justify-between gap-3">
@@ -516,13 +516,13 @@ export default function Home() {
                       </div>
 
                       {/* AI Response Bubble */}
-                      <div className="flex items-start gap-2.5 pl-2 border-l-2 border-amber-500/60">
-                        <div className="w-7 h-7 rounded-xl bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                      <div className="flex items-start gap-2.5 pl-2 border-l-2 border-[#FF204E]/60">
+                        <div className="w-7 h-7 rounded-xl bg-[#FF204E]/15 text-[#FF6383] border border-[#FF204E]/30 flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
                           <Bot className="w-3.5 h-3.5" />
                         </div>
                         <div className="flex-1 min-w-0 flex flex-col gap-2">
                           <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">
+                            <span className="text-[10px] font-bold text-[#FF204E] uppercase tracking-wider">
                               AI Voice RAG Answer
                             </span>
 
@@ -537,7 +537,7 @@ export default function Home() {
 
                               <button
                                 onClick={() => replayMessageAudio(cleanText)}
-                                className="p-1 text-slate-400 hover:text-amber-300 rounded hover:bg-white/5 transition-colors"
+                                className="p-1 text-slate-400 hover:text-[#FF6383] rounded hover:bg-white/5 transition-colors"
                                 title="Replay voice audio"
                               >
                                 <Volume2 className="w-3.5 h-3.5" />
@@ -568,7 +568,7 @@ export default function Home() {
 
                           <button
                             onClick={() => openContextForMessage(msg)}
-                            className="text-[11px] text-amber-400 hover:text-amber-300 font-bold hover:underline flex items-center gap-1 transition-colors"
+                            className="text-[11px] text-[#FF204E] hover:text-[#FF6383] font-bold hover:underline flex items-center gap-1 transition-colors"
                           >
                             <span>Inspect Evidence</span>
                             <ArrowRight className="w-3 h-3" />
@@ -591,7 +591,7 @@ export default function Home() {
               onClick={() => setActiveRightTab('databases')}
               className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
                 activeRightTab === 'databases'
-                  ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md shadow-amber-500/20'
+                  ? 'btn-gradient-red-sm text-white font-extrabold'
                   : 'text-slate-400 hover:text-white hover:bg-white/5'
               }`}
             >
@@ -602,7 +602,7 @@ export default function Home() {
               onClick={() => setActiveRightTab('documents')}
               className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
                 activeRightTab === 'documents'
-                  ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md shadow-amber-500/20'
+                  ? 'btn-gradient-red-sm text-white font-extrabold'
                   : 'text-slate-400 hover:text-white hover:bg-white/5'
               }`}
             >
@@ -619,10 +619,10 @@ export default function Home() {
           )}
 
           {/* Sample Customer Support Queries Card */}
-          <div className="glass-panel rounded-3xl p-5 md:p-6 flex flex-col gap-3.5 border border-amber-500/20 shadow-2xl">
+          <div className="glass-panel rounded-3xl p-5 md:p-6 flex flex-col gap-3.5 border border-[#FF204E]/20 shadow-2xl">
             <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
               <div className="flex items-center gap-2 text-xs font-bold text-slate-200 uppercase tracking-wider">
-                <Globe className="w-4 h-4 text-amber-400" />
+                <Globe className="w-4 h-4 text-[#FF204E]" />
                 <span>Sample Cross-Lingual Customer Queries</span>
               </div>
               <span className="text-[10px] text-slate-500 font-mono">1-Click Try</span>
@@ -638,10 +638,10 @@ export default function Home() {
                 <button
                   key={idx}
                   onClick={() => setTextInput(q.query)}
-                  className="p-3 rounded-2xl bg-black/30 hover:bg-amber-500/15 border border-white/5 hover:border-amber-500/30 text-left text-xs text-slate-300 hover:text-amber-200 transition-all flex items-center justify-between group shadow-sm active:scale-98"
+                  className="p-3 rounded-2xl bg-black/30 hover:bg-[#FF204E]/15 border border-white/5 hover:border-[#FF204E]/30 text-left text-xs text-slate-300 hover:text-[#FF90A7] transition-all flex items-center justify-between group shadow-sm active:scale-98"
                 >
                   <span className="truncate pr-2 font-medium">{q.label}</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                  <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-[#FF204E] shrink-0 transition-transform group-hover:translate-x-0.5" />
                 </button>
               ))}
             </div>
