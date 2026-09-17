@@ -71,7 +71,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-white/10">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <div className="w-8 h-8 rounded-xl bg-[#FF204E]/15 border border-[#FF204E]/30 flex items-center justify-center text-[#FF204E]">
               <Settings className="w-4 h-4" />
             </div>
             <div>
@@ -91,7 +91,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* AI Provider Selector */}
         <div className="flex flex-col gap-2">
           <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-            <Globe className="w-3.5 h-3.5 text-amber-400" />
+            <Globe className="w-3.5 h-3.5 text-[#FF204E]" />
             <span>Select LLM Provider</span>
           </label>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -106,7 +106,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 onClick={() => handleProviderSelect(p.id)}
                 className={`py-2.5 px-3 rounded-2xl text-xs font-bold transition-all flex flex-col items-center gap-0.5 border ${
                   provider === p.id
-                    ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/20 font-extrabold'
+                    ? 'bg-[#FF204E] text-slate-950 border-[#FF204E] shadow-lg shadow-[#FF204E]/20 font-extrabold'
                     : 'bg-black/40 text-slate-400 border-white/5 hover:border-white/15 hover:text-white'
                 }`}
               >
@@ -123,7 +123,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* API Key Input */}
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-            <Key className="w-3.5 h-3.5 text-amber-400" />
+            <Key className="w-3.5 h-3.5 text-[#FF204E]" />
             <span>{provider.toUpperCase()} API Key</span>
           </label>
 
@@ -140,7 +140,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 ? 'Optional for local Ollama'
                 : 'sk-proj-... (or OPENAI_API_KEY in .env)'
             }
-            className="w-full px-4 py-2.5 rounded-xl bg-black/50 border border-white/10 focus:border-amber-500/60 focus:outline-none text-xs text-slate-100 font-mono transition-colors"
+            className="w-full px-4 py-2.5 rounded-xl bg-black/50 border border-white/10 focus:border-[#FF204E]/60 focus:outline-none text-xs text-slate-100 font-mono transition-colors"
           />
           <div className="flex items-center gap-1 text-[10px] text-slate-500">
             <ShieldCheck className="w-3 h-3 text-emerald-400" />
@@ -151,7 +151,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Custom Base URL (Ollama / OpenRouter / Custom Endpoints) */}
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-            <Server className="w-3.5 h-3.5 text-amber-400" />
+            <Server className="w-3.5 h-3.5 text-[#FF204E]" />
             <span>Custom API Base URL (Optional)</span>
           </label>
           <input
@@ -159,14 +159,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             value={localBaseUrl}
             onChange={(e) => setLocalBaseUrl(e.target.value)}
             placeholder="http://localhost:11434/v1 or https://openrouter.ai/api/v1"
-            className="w-full px-4 py-2.5 rounded-xl bg-black/50 border border-white/10 focus:border-amber-500/60 focus:outline-none text-xs text-slate-100 font-mono transition-colors"
+            className="w-full px-4 py-2.5 rounded-xl bg-black/50 border border-white/10 focus:border-[#FF204E]/60 focus:outline-none text-xs text-slate-100 font-mono transition-colors"
           />
         </div>
 
         {/* LLM Model Selector */}
         <div className="flex flex-col gap-2">
           <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-            <Cpu className="w-3.5 h-3.5 text-amber-400" />
+            <Cpu className="w-3.5 h-3.5 text-[#FF204E]" />
             <span>Model Selection</span>
           </label>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -197,7 +197,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 onClick={() => setCustomModel(m.id)}
                 className={`py-2 px-3 rounded-xl text-xs font-semibold border text-center transition-all ${
                   customModel === m.id
-                    ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold shadow-md shadow-amber-500/20'
+                    ? 'bg-[#FF204E] text-slate-950 border-[#FF204E] font-bold shadow-md shadow-[#FF204E]/20'
                     : 'bg-black/40 text-slate-400 border-white/5 hover:border-white/15 hover:text-white'
                 }`}
               >
@@ -211,14 +211,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             value={customModel}
             onChange={(e) => setCustomModel(e.target.value)}
             placeholder="Or type custom model name (e.g. deepseek-r1)..."
-            className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 focus:border-amber-500/60 focus:outline-none text-xs text-slate-200 font-mono transition-colors"
+            className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 focus:border-[#FF204E]/60 focus:outline-none text-xs text-slate-200 font-mono transition-colors"
           />
         </div>
 
         {/* TTS Voice Selector */}
         <div className="flex flex-col gap-2">
           <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-            <Volume2 className="w-3.5 h-3.5 text-amber-400" />
+            <Volume2 className="w-3.5 h-3.5 text-[#FF204E]" />
             <span>Voice Persona (Neural AI Voices)</span>
           </label>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -235,7 +235,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 onClick={() => setVoice(v.id)}
                 className={`py-2 px-2.5 rounded-xl text-[11px] font-semibold border text-center transition-all ${
                   voice === v.id
-                    ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold shadow-md shadow-amber-500/20'
+                    ? 'bg-[#FF204E] text-slate-950 border-[#FF204E] font-bold shadow-md shadow-[#FF204E]/20'
                     : 'bg-black/40 text-slate-400 border-white/5 hover:border-white/15 hover:text-white'
                 }`}
               >
@@ -248,7 +248,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Save button */}
         <button
           onClick={handleSave}
-          className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/25 mt-2 active:scale-98"
+          className="w-full py-3 rounded-2xl bg-[#FF204E] hover:bg-[#A0153E] text-slate-950 font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#FF204E]/25 mt-2 active:scale-98"
         >
           {isSaved ? (
             <>
