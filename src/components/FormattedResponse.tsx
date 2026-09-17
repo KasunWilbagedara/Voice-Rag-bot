@@ -47,7 +47,6 @@ export function FormattedResponse({ text }: FormattedResponseProps) {
       <ListTag
         key={`list-${blocks.length}`}
         className={`${isNumbered ? 'list-decimal' : 'list-disc'} space-y-1.5 pl-5 leading-7 marker:text-[#FF204E]`}
-        style={{ listStyleColor: '#FF204E' }}
       >
         {listItems.map((item, index) => (
           <li key={`item-${index}`}>{renderInline(item.text, `item-${index}`)}</li>

@@ -4,6 +4,25 @@
 
 @layer base {
   :root {
+    --bg: #070a13;
+    --bg-elevated: #0c101d;
+    --bg-subtle: #101827;
+    --bg-panel: rgba(12, 16, 29, 0.78);
+    --card: #ffffff;
+    --surface: #f1f5f9;
+    --foreground: #f8fafc;
+    --foreground-strong: #0f172a;
+    --muted: #64748b;
+    --muted-strong: #334155;
+    --border: rgba(255, 255, 255, 0.08);
+    --shadow: 0 12px 36px 0 rgba(0, 0, 0, 0.45);
+    --accent: #ff204e;
+    --accent-hover: #a0153e;
+    --accent-soft: rgba(255, 32, 78, 0.14);
+    --success-bg: rgba(16, 185, 129, 0.12);
+    --success-text: #10b981;
+    --code-bg: rgba(15, 23, 42, 0.9);
+    --schema-tag: #2563eb;
     --bg-dark: #070a13;
     --card-dark: #0c101d;
     --panel-border: rgba(255, 255, 255, 0.08);
@@ -13,15 +32,53 @@
     --neon-navy: #00224d;
   }
 
+  html.light {
+    --bg: #f8fafc;
+    --bg-elevated: #ffffff;
+    --bg-subtle: #f1f5f9;
+    --bg-panel: rgba(255, 255, 255, 0.92);
+    --card: #ffffff;
+    --surface: #f1f5f9;
+    --foreground: #0f172a;
+    --foreground-strong: #020817;
+    --muted: #64748b;
+    --muted-strong: #334155;
+    --border: #e2e8f0;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    --accent: #e11d48;
+    --accent-hover: #be123c;
+    --accent-soft: rgba(225, 29, 72, 0.12);
+    --success-bg: #ecfdf5;
+    --success-text: #059669;
+    --code-bg: #f8fafc;
+    --schema-tag: #2563eb;
+    --panel-border: rgba(15, 23, 42, 0.08);
+  }
+
+  html,
   body {
-    @apply bg-[#070a13] text-slate-100 antialiased selection:bg-[#FF204E] selection:text-white min-h-screen overflow-x-hidden;
+    min-height: 100%;
+  }
+
+  body {
+    @apply antialiased selection:bg-[#FF204E] selection:text-white min-h-screen overflow-x-hidden;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-    background-color: #070a13;
-    background-image: 
+    background-color: var(--bg);
+    color: var(--foreground);
+    background-image:
       radial-gradient(circle at 15% 15%, rgba(255, 32, 78, 0.10) 0px, transparent 45%),
       radial-gradient(circle at 85% 15%, rgba(0, 34, 77, 0.35) 0px, transparent 50%),
       radial-gradient(circle at 50% 85%, rgba(93, 14, 65, 0.20) 0px, transparent 55%);
     background-attachment: fixed;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  html.light body {
+    @apply text-slate-900;
+    background-image:
+      radial-gradient(circle at 15% 15%, rgba(225, 29, 72, 0.08) 0px, transparent 45%),
+      radial-gradient(circle at 85% 15%, rgba(37, 99, 235, 0.08) 0px, transparent 50%),
+      radial-gradient(circle at 50% 85%, rgba(37, 99, 235, 0.06) 0px, transparent 55%);
   }
 }
 
@@ -44,50 +101,114 @@
 
 /* Premium Dark Glassmorphism Panels */
 .glass-panel {
-  background: rgba(12, 16, 29, 0.78);
+  background: var(--bg-panel);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 12px 36px 0 rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
 }
 
 .glass-panel-interactive {
-  background: rgba(12, 16, 29, 0.78);
+  background: var(--bg-panel);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 12px 36px 0 rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .glass-panel-interactive:hover {
-  border-color: rgba(255, 32, 78, 0.35);
-  box-shadow: 0 16px 40px 0 rgba(0, 0, 0, 0.55), 0 0 20px -3px rgba(255, 32, 78, 0.2);
+  border-color: rgba(225, 29, 72, 0.35);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08), 0 0 20px -3px rgba(225, 29, 72, 0.18);
 }
 
 .glass-panel-glow {
-  background: rgba(17, 23, 41, 0.88);
+  background: var(--bg-elevated);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 32, 78, 0.4);
-  box-shadow: 0 0 30px -4px rgba(255, 32, 78, 0.28);
+  border: 1px solid rgba(225, 29, 72, 0.28);
+  box-shadow: 0 0 18px -4px rgba(225, 29, 72, 0.16);
 }
 
 .glass-panel-emerald {
-  background: rgba(12, 26, 24, 0.85);
+  background: rgba(236, 253, 245, 0.9);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(16, 185, 129, 0.4);
-  box-shadow: 0 0 30px -4px rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(5, 150, 105, 0.25);
+  box-shadow: 0 0 18px -4px rgba(5, 150, 105, 0.12);
 }
 
 .glass-input {
-  background: rgba(7, 10, 19, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
   transition: all 0.2s ease-in-out;
 }
 .glass-input:focus {
-  border-color: rgba(255, 32, 78, 0.6);
-  box-shadow: 0 0 0 3px rgba(255, 32, 78, 0.18);
+  border-color: rgba(225, 29, 72, 0.6);
+  box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.15);
+}
+
+html.light .btn-gradient-red,
+html.light .btn-gradient-red-sm {
+  background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
+  box-shadow: 0 4px 18px -4px rgba(225, 29, 72, 0.35);
+}
+
+html.light .neon-glow-red {
+  box-shadow: 0 0 18px rgba(225, 29, 72, 0.22), 0 0 28px rgba(190, 18, 60, 0.12);
+}
+
+html.light .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+html.light .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #e11d48;
+}
+
+html.light [class*='bg-black/40'],
+html.light [class*='bg-black/30'],
+html.light [class*='bg-black/20'],
+html.light [class*='bg-black/50'],
+html.light [class*='bg-black/60'] {
+  background-color: var(--bg-subtle) !important;
+}
+
+html.light [class*='text-slate-100'],
+html.light [class*='text-slate-200'],
+html.light [class*='text-slate-300'] {
+  color: var(--foreground) !important;
+}
+
+html.light [class*='text-slate-400'],
+html.light [class*='text-slate-500'],
+html.light [class*='text-slate-600'] {
+  color: var(--muted) !important;
+}
+
+html.light [class*='border-white/10'],
+html.light [class*='border-white/5'],
+html.light [class*='border-white/15'] {
+  border-color: var(--border) !important;
+}
+
+html.light [class*='bg-[#FF204E]'] {
+  background-color: var(--accent) !important;
+}
+
+html.light [class*='text-[#FF204E]'] {
+  color: var(--accent) !important;
+}
+
+html.light [class*='bg-[#FF204E]/15'] {
+  background-color: rgba(225, 29, 72, 0.12) !important;
+}
+
+html.light [class*='bg-[#FF204E]/10'] {
+  background-color: rgba(225, 29, 72, 0.10) !important;
+}
+
+html.light [class*='text-[#FF6383]'] {
+  color: #e11d48 !important;
 }
 
 /* Glow effects */

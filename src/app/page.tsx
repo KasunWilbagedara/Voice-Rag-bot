@@ -22,6 +22,8 @@ import {
   User,
   ArrowRight,
   Terminal,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { VoiceInterface } from '@/components/VoiceInterface';
 import { DocumentManager } from '@/components/DocumentManager';
@@ -63,7 +65,13 @@ export default function Home() {
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isMemoryOpen, setIsMemoryOpen] = useState<boolean>(false);
   const [memoryCount, setMemoryCount] = useState<number>(0);
+  const [isLightMode, setIsLightMode] = useState<boolean>(false);
   const sessionId = 'default_user';
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('light', isLightMode);
+    document.documentElement.classList.toggle('dark', !isLightMode);
+  }, [isLightMode]);
 
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
 
@@ -285,7 +293,7 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-[#070a13] text-slate-100 flex flex-col font-sans selection:bg-[#FF204E] selection:text-white">
+    <main className={`min-h-screen flex flex-col font-sans transition-colors duration-200 ${isLightMode ? 'bg-slate-50 text-slate-900' : 'bg-[#070a13] text-slate-100'} selection:bg-[#FF204E] selection:text-white`}>
       {/* Top Navbar */}
       <header className="sticky top-0 z-40 w-full glass-panel border-b border-white/10 px-4 md:px-8 py-3.5 flex items-center justify-between shadow-2xl backdrop-blur-xl">
         {/* Brand & Status */}
@@ -372,6 +380,15 @@ export default function Home() {
             <span className="px-1.5 py-0.2 rounded-full bg-[#FF204E]/20 text-[#FF6383] border border-[#FF204E]/40 text-[10px] font-extrabold">
               {memoryCount}
             </span>
+          </button>
+
+          <button
+            onClick={() => setIsLightMode((prev) => !prev)}
+            className="p-2 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 text-slate-300 hover:text-white transition-all shadow-sm active:scale-95"
+            title={isLightMode ? 'Switch to dark mode' : 'Switch to light mode'}
+            aria-label={isLightMode ? 'Switch to dark mode' : 'Switch to light mode'}
+          >
+            {isLightMode ? <Moon className="w-4 h-4 text-[#FF204E]" /> : <Sun className="w-4 h-4 text-[#FF204E]" />}
           </button>
 
           {/* Settings Button */}
