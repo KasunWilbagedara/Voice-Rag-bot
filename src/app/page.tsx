@@ -293,7 +293,10 @@ export default function Home() {
   };
 
   return (
-    <main className={`min-h-screen flex flex-col font-sans transition-colors duration-200 ${isLightMode ? 'bg-slate-50 text-slate-900' : 'bg-[#070a13] text-slate-100'} selection:bg-[#FF204E] selection:text-white`}>
+    <main
+      className="min-h-screen flex flex-col font-sans transition-colors duration-200 selection:bg-[#FF204E] selection:text-white"
+      style={{ backgroundColor: 'var(--page-bg)', color: 'var(--text-primary)' }}
+    >
       {/* Top Navbar */}
       <header className="sticky top-0 z-40 w-full glass-panel border-b border-white/10 px-4 md:px-8 py-3.5 flex items-center justify-between shadow-2xl backdrop-blur-xl">
         {/* Brand & Status */}
