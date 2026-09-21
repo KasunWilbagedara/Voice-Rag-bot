@@ -25,6 +25,7 @@ from backend.db import (
     get_saved_chat_history,
 )
 from backend import db_query_service
+from backend import tools
 
 logger = logging.getLogger("voicerag.rag_service")
 
@@ -552,19 +553,19 @@ def generate_voice_rag_answer(
                     "විමසන්නේ", "සහ", "සහ", "හා", "මොකක්ද", "කුමක්ද", "මතකද", "කවුද", "who", "what"
                 ]
                 if cand.lower() not in excluded and len(cand) > 1:
-                    save_or_update_memory(session, "user_name", cand, "identity")
+                    tools.call_tool("save_session_memory", session_id=session, key="user_name", value=cand, category="identity")
 
         order_match = re.search(r"\b(ORD-\d{3,8})\b", user_query, re.IGNORECASE)
         if order_match:
-            save_or_update_memory(session, "last_tracked_order", order_match.group(1).upper(), "entity")
+            tools.call_tool("save_session_memory", session_id=session, key="last_tracked_order", value=order_match.group(1).upper(), category="entity")
 
         ticket_match = re.search(r"\b(TCK-\d{3,8})\b", user_query, re.IGNORECASE)
         if ticket_match:
-            save_or_update_memory(session, "last_tracked_ticket", ticket_match.group(1).upper(), "entity")
+            tools.call_tool("save_session_memory", session_id=session, key="last_tracked_ticket", value=ticket_match.group(1).upper(), category="entity")
 
         student_match = re.search(r"\b(STU\d{3,6})\b", user_query, re.IGNORECASE)
         if student_match:
-            save_or_update_memory(session, "last_tracked_student", student_match.group(1).upper(), "entity")
+            tools.call_tool("save_session_memory", session_id=session, key="last_tracked_student", value=student_match.group(1).upper(), category="entity")
 
         rem_match = re.search(
             r"(?:remember that|please remember|keep in mind|save this|මතක තබාගන්න|මතක තියාගන්න)\s+(.+)",
@@ -573,20 +574,168 @@ def generate_voice_rag_answer(
         )
         if rem_match:
             note_content = rem_match.group(1).strip()
-            save_or_update_memory(session, f"custom_note_{int(time.time()) % 10000}", note_content, "pinned_fact")
+            tools.call_tool("save_session_memory", session_id=session, key=f"custom_note_{int(time.time()) % 10000}", value=note_content, category="pinned_fact")
     except Exception as mem_err:
         logger.debug(f"Memory auto-extraction note: {mem_err}")
 
-    # Fetch stored memories for this session
-    user_memories = get_user_memories(session)
+    # Fetch stored memories for this session using central tool
+    user_memories = tools.call_tool("get_session_memories", session_id=session)
     if user_memories:
         mem_lines = [f"- {m['key']}: {m['value']} (Category: {m['category']})" for m in user_memories]
         memory_str = "\n".join(mem_lines)
     else:
         memory_str = "No stored memories for this user session yet."
 
-    # 1. Direct Student Database Lookup
-    student_record = db_query_service.query_student_by_id_or_name(user_query)
+    # 1. Real Order & Ticket Tracking Tools
+    order_match = re.search(r"\b(ORD-\d{3,8})\b", user_query, re.IGNORECASE)
+    if order_match:
+        target_ord = order_match.group(1).upper()
+        ord_res = tools.call_tool("track_customer_order", order_id=target_ord)
+        if ord_res.get("status") == "found" and ord_res.get("order"):
+            o = ord_res["order"]
+            db_context_blocks.append(
+                f"CUSTOMER ORDER TRACKING TOOL RECORD:\n"
+                f"- Order ID: {o.get('order_id')}\n"
+                f"- Customer ID: {o.get('customer_id')}\n"
+                f"- Product: {o.get('product_name')}\n"
+                f"- Amount: LKR {o.get('amount')}\n"
+                f"- Status: {o.get('status')}\n"
+                f"- Order Date: {o.get('order_date')}\n"
+            )
+            enriched_chunks.append({
+                "id": f"tool_order_{target_ord}",
+                "documentId": "tool_order_tracking",
+                "documentTitle": f"Tool: Order Tracking ({target_ord})",
+                "content": f"Order {target_ord} | Product: {o.get('product_name')} | Status: {o.get('status')} | Amount: LKR {o.get('amount')} | Date: {o.get('order_date')}",
+                "chunkIndex": 0,
+                "similarity": 1.0,
+                "type": "tool_result"
+            })
+
+    ticket_match = re.search(r"\b(TCK-\d{3,8})\b", user_query, re.IGNORECASE)
+    if ticket_match:
+        target_tck = ticket_match.group(1).upper()
+        tck_res = tools.call_tool("track_support_ticket", ticket_id=target_tck)
+        if tck_res.get("status") == "found" and tck_res.get("ticket"):
+            t = tck_res["ticket"]
+            db_context_blocks.append(
+                f"CUSTOMER SUPPORT TICKET TOOL RECORD:\n"
+                f"- Ticket ID: {t.get('ticket_id')}\n"
+                f"- Customer Name: {t.get('customer_name')}\n"
+                f"- Category: {t.get('issue_category')}\n"
+                f"- Description: {t.get('description')}\n"
+                f"- Status: {t.get('resolution_status')}\n"
+                f"- Priority: {t.get('priority')}\n"
+            )
+            enriched_chunks.append({
+                "id": f"tool_ticket_{target_tck}",
+                "documentId": "tool_ticket_tracking",
+                "documentTitle": f"Tool: Support Ticket ({target_tck})",
+                "content": f"Ticket {target_tck} | Category: {t.get('issue_category')} | Status: {t.get('resolution_status')} | Priority: {t.get('priority')}\nDescription: {t.get('description')}",
+                "chunkIndex": 0,
+                "similarity": 1.0,
+                "type": "tool_result"
+            })
+
+    # 2. Real-Time Live Weather Tool
+    if re.search(r"\b(weather|temperature|forecast|rain|climate|කාලගුණය|උෂ්ණත්වය|වැස්ස)\b", user_query, re.IGNORECASE):
+        # Extract city or default to Colombo
+        city_cand = "Colombo"
+        city_match = re.search(r"\b(?:in|at|for|of)\s+([A-Za-z]+)\b", user_query, re.IGNORECASE)
+        if city_match and city_match.group(1).lower() not in ["the", "today", "now", "here", "celsius"]:
+            city_cand = city_match.group(1)
+        w_res = tools.call_tool("get_live_weather", city=city_cand)
+        if w_res.get("status") == "success":
+            db_context_blocks.append(
+                f"LIVE REAL-TIME WEATHER TOOL REPORT:\n"
+                f"- City: {w_res.get('city')}, {w_res.get('country')}\n"
+                f"- Current Temperature: {w_res.get('temperature_celsius')} °C\n"
+                f"- Condition: {w_res.get('condition')}\n"
+                f"- Wind Speed: {w_res.get('windspeed_kmh')} km/h\n"
+                f"- Observed Time: {w_res.get('observation_time')}\n"
+            )
+            enriched_chunks.append({
+                "id": f"tool_weather_{city_cand.lower()}",
+                "documentId": "tool_weather",
+                "documentTitle": f"Live Weather: {w_res.get('city')}",
+                "content": f"Weather in {w_res.get('city')}: {w_res.get('temperature_celsius')}°C, {w_res.get('condition')}, Wind: {w_res.get('windspeed_kmh')} km/h",
+                "chunkIndex": 0,
+                "similarity": 1.0,
+                "type": "tool_result"
+            })
+
+    # 3. Real-Time DateTime Tool
+    if re.search(r"\b(what time|what date|current date|today's date|current time|what day|දැන් වෙලාව|දිනය|අද වෙලාව)\b", user_query, re.IGNORECASE):
+        dt_res = tools.call_tool("get_current_datetime")
+        if dt_res.get("status") == "success":
+            db_context_blocks.append(
+                f"SYSTEM REAL-TIME DATETIME TOOL:\n"
+                f"- Current Date: {dt_res.get('readable_date')}\n"
+                f"- Current Time: {dt_res.get('readable_time')}\n"
+                f"- Day: {dt_res.get('day_of_week')}\n"
+                f"- Timezone: {dt_res.get('timezone')}\n"
+            )
+            enriched_chunks.append({
+                "id": "tool_datetime",
+                "documentId": "tool_datetime",
+                "documentTitle": "Tool: System Time & Date",
+                "content": f"Current Time: {dt_res.get('readable_time')} | Date: {dt_res.get('readable_date')} ({dt_res.get('day_of_week')})",
+                "chunkIndex": 0,
+                "similarity": 1.0,
+                "type": "tool_result"
+            })
+
+    # 4. Safe Math Calculator Tool
+    math_match = re.search(r"\b(\d+(?:\.\d+)?\s*[\+\-\*\/]\s*\d+(?:\.\d+)?(?:\s*[\+\-\*\/]\s*\d+(?:\.\d+)?)*)\b", user_query)
+    if math_match:
+        expr = math_match.group(1)
+        math_res = tools.call_tool("calculate_expression", expression=expr)
+        if math_res.get("status") == "success":
+            db_context_blocks.append(
+                f"MATHEMATICAL CALCULATOR TOOL RESULT:\n"
+                f"- Expression: {expr}\n"
+                f"- Precise Computed Result: {math_res.get('result')}\n"
+            )
+            enriched_chunks.append({
+                "id": "tool_math",
+                "documentId": "tool_calculator",
+                "documentTitle": "Tool: Accurate Math Calculator",
+                "content": f"Expression: {expr} = {math_res.get('result')}",
+                "chunkIndex": 0,
+                "similarity": 1.0,
+                "type": "tool_result"
+            })
+
+    # 5. Live Web Search Tool Fallback (for general knowledge / public entities)
+    has_high_similarity_doc = any(c.get("similarity", 0) > 0.68 for c in retrieved_chunks)
+    if not has_high_similarity_doc and len(user_query.split()) >= 2:
+        is_search_intent = bool(re.search(r"\b(who is|what is|tell me about|history of|company|news|කවුද|මොකක්ද)\b", user_query, re.IGNORECASE))
+        if is_search_intent:
+            try:
+                search_q = re.sub(r"\b(who is|what is|tell me about|please tell|can you tell|කවුද|මොකක්ද)\b", "", user_query, flags=re.IGNORECASE).strip()
+                if search_q:
+                    w_search = tools.call_tool("web_search", query=search_q)
+                    if w_search.get("status") == "success" and w_search.get("summary"):
+                        db_context_blocks.append(
+                            f"LIVE WEB SEARCH TOOL RESULT ({w_search.get('source')}):\n"
+                            f"- Query: {w_search.get('query')}\n"
+                            f"- Title: {w_search.get('title')}\n"
+                            f"- Summary: {w_search.get('summary')}\n"
+                        )
+                        enriched_chunks.append({
+                            "id": "tool_web_search",
+                            "documentId": "tool_web_search",
+                            "documentTitle": f"Web Search: {w_search.get('title')}",
+                            "content": f"Source: {w_search.get('source')}\nSummary: {w_search.get('summary')}",
+                            "chunkIndex": 0,
+                            "similarity": 0.95,
+                            "type": "web_search"
+                        })
+            except Exception as w_err:
+                logger.debug(f"Web search tool fallback note: {w_err}")
+
+    # 6. Direct Student Database Lookup using central tool
+    student_record = tools.call_tool("lookup_student", search_term=user_query)
     if student_record:
         db_context_blocks.append(
             f"STRUCTURED STUDENT DATABASE RECORD:\n"
@@ -607,14 +756,14 @@ def generate_voice_rag_answer(
             "type": "database_record"
         })
 
-    # 2. Heuristic Entity Scan & Text-to-SQL
+    # 7. Heuristic Entity Scan & Text-to-SQL using central tools
     try:
         query_words = [w.strip(",.'\"!?") for w in user_query.split() if len(w.strip(",.'\"!?")) >= 3]
-        all_dbs = db_query_service.db_manager.list_databases()
+        all_dbs = tools.call_tool("list_databases")
 
         for db in all_dbs:
             db_id = db["id"]
-            schemas = db_query_service.db_manager.get_database_schema(db_id)
+            schemas = tools.call_tool("get_database_schema", db_id=db_id)
             for schema in schemas:
                 table_name = schema["table_name"]
                 if table_name in ["documents", "document_chunks", "chat_history", "rag_documents", "rag_document_chunks", "rag_user_memories"]:
@@ -631,7 +780,7 @@ def generate_voice_rag_answer(
                 if clauses:
                     sql_stmt = f"SELECT * FROM {table_name} WHERE {' OR '.join(clauses)} LIMIT 6;"
                     try:
-                        sql_res = db_query_service.db_manager.execute_safe_sql(sql_stmt, db_id=db_id)
+                        sql_res = tools.call_tool("execute_sql", sql_query=sql_stmt, db_id=db_id)
                         if sql_res and sql_res.get("rows") and len(sql_res["rows"]) > 0:
                             rows_data = sql_res["rows"]
                             block_text = f"DATABASE '{db['name']}' -> TABLE '{table_name}':\n" + json.dumps(rows_data[:5], indent=2)
