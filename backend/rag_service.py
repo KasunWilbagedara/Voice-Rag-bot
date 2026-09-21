@@ -578,13 +578,33 @@ def generate_voice_rag_answer(
     except Exception as mem_err:
         logger.debug(f"Memory auto-extraction note: {mem_err}")
 
-    # Fetch stored memories for this session using central tool
+    # Fetch stored memories for this session and filter by relevance to avoid unrelated regurgitation
     user_memories = tools.call_tool("get_session_memories", session_id=session)
+    is_asking_order = bool(re.search(r"order|ඇණවුම|tracking|status|ලැබෙන්නේ|බඩු|භාණ්ඩ|ord-\d+", user_query, re.IGNORECASE))
+    is_asking_ticket = bool(re.search(r"ticket|ටිකට්|complaint|පැමිණිල්ල|issue|tck-\d+", user_query, re.IGNORECASE))
+    is_asking_student = bool(re.search(r"student|ශිෂ්‍ය|marks|ලකුණු|grade|ප්‍රතිඵල", user_query, re.IGNORECASE))
+    is_asking_identity = bool(re.search(r"who am i|my name|මම කවුද|මගේ නම|මගේ විස්තර|remember|මතක", user_query, re.IGNORECASE))
+
+    relevant_memories = []
     if user_memories:
-        mem_lines = [f"- {m['key']}: {m['value']} (Category: {m['category']})" for m in user_memories]
+        for m in user_memories:
+            k = m.get("key", "")
+            # Only include order/ticket/student entity memories if the user query is asking about them
+            if k == "last_tracked_order" and not is_asking_order:
+                continue
+            if k == "last_tracked_ticket" and not is_asking_ticket:
+                continue
+            if k == "last_tracked_student" and not is_asking_student:
+                continue
+            if k == "user_name" and not (is_asking_identity or "hello" in user_query.lower() or "ආයුබෝවන්" in user_query):
+                continue
+            relevant_memories.append(m)
+
+    if relevant_memories:
+        mem_lines = [f"- {m['key']}: {m['value']}" for m in relevant_memories]
         memory_str = "\n".join(mem_lines)
     else:
-        memory_str = "No stored memories for this user session yet."
+        memory_str = "No specific session memories relevant to this question."
 
     # 1. Real Order & Ticket Tracking Tools
     order_match = re.search(r"\b(ORD-\d{3,8})\b", user_query, re.IGNORECASE)
@@ -828,27 +848,43 @@ def generate_voice_rag_answer(
 
     if is_sinhala:
         language_instruction = (
-            "CRITICAL SINHALA ACCURACY & COMPLETENESS REQUIREMENT:\n"
-            "Synthesize a complete, thorough, and highly accurate answer in natural, fluent SINHALA (සිංහල).\n"
-            "Strictly use the STRUCTURED DATABASE RECORDS, REMEMBERED USER MEMORIES, and CONTEXT DOCUMENTS provided below.\n\n"
-            "RULES FOR SINHALA RESPONSE:\n"
-            "1. Start with 1-2 clear, direct, natural conversational sentences that directly answer the core question (this will be spoken aloud to the user).\n"
-            "2. Seamlessly use the PERSISTENT USER MEMORIES and PREVIOUS CONVERSATION HISTORY when the user asks memory recall questions (e.g. 'Do you remember who I am?', 'What order did I ask about earlier?', 'කලින් මම ඇහුවේ මොකක් ගැනද?') or to personalize their experience.\n"
-            "3. Then provide detailed explanations, key points, numbers, statuses, and breakdowns for visual display.\n"
-            "4. If comparing numbers or statistical data, append a hidden JSON chart schema at the very end inside ```json ... ``` code block.\n"
-            "5. Do NOT output internal evaluation notes, verification steps, or meta commentary."
+            "CONVERSATIONAL TONE & ACCURACY RULES (SINHALA / සිංහල):\n"
+            "Speak naturally, warmly, and politely like a helpful human assistant. Avoid sounding robotic or like a computer terminal.\n\n"
+            "CRITICAL RULES:\n"
+            "1. NATURAL & DIRECT START: Answer the user's specific question directly in the very first sentence. "
+            "DO NOT mention unrelated user memory items (such as past tracked orders or tickets) unless the user explicitly asks about them (e.g. 'මගේ ඇණවුම මොකක්ද?', 'මම කවුද?').\n"
+            "2. NO ROBOTIC FILLER: Never say robotic phrases such as 'ඔබගේ මතක සටහන්වල ඇති පරිදි' (as in your memory notes), 'දත්ත සමුදායේ සඳහන් වන පරිදි' (as in database), or 'අපගේ වාර්තා අනුව'. Speak directly and pleasantly.\n"
+            "3. ELEGANT STRUCTURE: After 1-2 conversational introductory sentences, present key details, figures, and categories using clean markdown bullet points or a clean markdown table.\n"
+            "4. CHART SCHEMA FORMAT: If comparing numbers or statistics across categories, append a single JSON block at the very end formatted EXACTLY as:\n"
+            "```json\n"
+            "{\n"
+            '  "chartType": "bar",\n'
+            '  "title": "Short Descriptive Title",\n'
+            '  "labels": ["Category A", "Category B"],\n'
+            '  "datasets": [{"label": "Metric Name", "data": [100, 200]}]\n'
+            "}\n"
+            "```\n"
+            "5. NO INTERNAL THOUGHTS: Never output internal reasoning, planning steps, or meta-commentary."
         )
     else:
         language_instruction = (
-            "CRITICAL ACCURACY & COMPLETENESS REQUIREMENT:\n"
-            "Deliver a complete, comprehensive, and 100% accurate answer grounded strictly in the STRUCTURED DATABASE RECORDS, REMEMBERED USER MEMORIES, and CONTEXT DOCUMENTS below.\n\n"
-            "RULES FOR RESPONSE:\n"
-            "1. Start with 1-2 clear, direct, natural conversational sentences that directly answer the core question (this will be spoken aloud to the user).\n"
-            "2. Seamlessly use the PERSISTENT USER MEMORIES and PREVIOUS CONVERSATION HISTORY when the user asks memory recall questions (e.g. 'Do you remember who I am?', 'What order did I ask about earlier?', 'What did I ask before?') or to personalize their experience.\n"
-            "3. Then explain all requested topics, points, facts, and metrics in full detail for visual display.\n"
-            "4. State key facts directly (Order IDs, amounts, statuses, customer names, GPA, policies, root causes).\n"
-            "5. If comparing numbers or statistics, append a hidden JSON chart schema at the very end inside ```json ... ``` code block.\n"
-            "6. Do NOT output internal evaluation notes, verification steps, or meta commentary."
+            "CONVERSATIONAL TONE & ACCURACY RULES (ENGLISH):\n"
+            "Speak naturally, warmly, and helpfully like an articulate human expert. Avoid sounding robotic or mechanical.\n\n"
+            "CRITICAL RULES:\n"
+            "1. NATURAL & DIRECT START: Answer the user's core question directly in the very first sentence. "
+            "DO NOT bring up unrelated past orders, past tickets, or stored user memories unless the user explicitly asks for them (e.g. 'What was my order?', 'Who am I?').\n"
+            "2. NO ROBOTIC FILLER: Never say robotic phrases like 'As recorded in your memory notes' or 'According to our database records'. Speak directly and engagingly.\n"
+            "3. ELEGANT STRUCTURE: Following the conversational summary, present key details, numbers, and points using clean markdown bullet points or clean markdown tables.\n"
+            "4. CHART SCHEMA FORMAT: If comparing numerical data across categories, append a single JSON block at the very end formatted EXACTLY as:\n"
+            "```json\n"
+            "{\n"
+            '  "chartType": "bar",\n'
+            '  "title": "Short Descriptive Title",\n'
+            '  "labels": ["Category A", "Category B"],\n'
+            '  "datasets": [{"label": "Metric Name", "data": [100, 200]}]\n'
+            "}\n"
+            "```\n"
+            "5. NO INTERNAL THOUGHTS: Never output internal reasoning, planning steps, or meta-commentary."
         )
 
     system_prompt = (
@@ -930,6 +966,21 @@ def generate_voice_rag_answer(
                 continue
             clean_lines.append(line)
         generated_text = "\n".join(clean_lines).strip()
+
+        # Strip any unprompted robotic memory regurgitation preamble
+        if not is_asking_order and not is_asking_ticket and not is_asking_identity:
+            generated_text = re.sub(
+                r"^(?:ඔව්\s+[^,]+,\s*)?ඔබගේ\s+මතක\s+සටහන්වල\s+ඇති\s+පරිදි\s+[^,\n]+(?:වන\s+අතර|වේ),?\s*",
+                "",
+                generated_text,
+                flags=re.IGNORECASE,
+            ).strip()
+            generated_text = re.sub(
+                r"^(?:yes\s+[^,]+,\s*)?as\s+recorded\s+in\s+your\s+(?:memory\s+notes|stored\s+records)\s+[^,\n]+(?:and|,)\s*",
+                "",
+                generated_text,
+                flags=re.IGNORECASE,
+            ).strip()
 
     return {
         "answer": generated_text,

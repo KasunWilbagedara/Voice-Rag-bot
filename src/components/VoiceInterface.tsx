@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { AudioVisualizer } from './AudioVisualizer';
 import { DynamicChart, parseChartDataFromResponse } from './DynamicChart';
+import { FormattedResponse } from './FormattedResponse';
 
 interface VoiceInterfaceProps {
   apiKey?: string;
@@ -801,8 +802,8 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
                 )}
 
                 {/* Full Rich Text Display */}
-                <div className="text-sm text-slate-100 font-normal leading-relaxed whitespace-pre-line">
-                  {cleanText}
+                <div className="text-sm text-slate-100 font-normal leading-relaxed">
+                  <FormattedResponse text={cleanText} />
                 </div>
 
                 {chartData && (

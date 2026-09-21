@@ -43,54 +43,79 @@ export function parseChartDataFromResponse(responseText: string): {
   let cleanText = responseText;
 
   // Search for ```json ... ``` code blocks
-  const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/gi;
+  const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*(?:```|$)/gi;
   let match;
 
   while ((match = codeBlockRegex.exec(responseText)) !== null) {
     const jsonStr = match[1].trim();
     try {
       const parsed = JSON.parse(jsonStr);
-      if (
-        parsed &&
-        (parsed.type === 'chart' || parsed.chartType) &&
-        Array.isArray(parsed.labels) &&
-        Array.isArray(parsed.datasets)
-      ) {
-        chartData = {
-          type: parsed.type || 'chart',
-          chartType: (parsed.chartType || 'bar').toLowerCase() as 'bar' | 'pie' | 'line',
-          title: parsed.title || 'Data Comparison',
-          labels: parsed.labels,
-          datasets: parsed.datasets,
-        };
-        cleanText = responseText.replace(match[0], '').trim();
-        break;
-      }
-    } catch (e) {
-      // Not a valid JSON chart block, continue
-    }
-  }
+      if (parsed && typeof parsed === 'object') {
+        const chartType = (parsed.chartType || parsed.type || 'bar').toLowerCase() as 'bar' | 'pie' | 'line';
+        const title = parsed.title || 'Data Comparison';
 
-  // Fallback inline JSON match if code block tags were omitted
-  if (!chartData) {
-    const inlineJsonRegex = /\{\s*"type"\s*:\s*"chart"[\s\S]*?\}/gi;
-    const inlineMatch = inlineJsonRegex.exec(responseText);
-    if (inlineMatch) {
-      try {
-        const parsed = JSON.parse(inlineMatch[0]);
+        // Format 1: Standard labels + datasets
         if (Array.isArray(parsed.labels) && Array.isArray(parsed.datasets)) {
           chartData = {
             type: 'chart',
-            chartType: (parsed.chartType || 'bar').toLowerCase() as 'bar' | 'pie' | 'line',
-            title: parsed.title || 'Data Comparison',
+            chartType: ['bar', 'pie', 'line'].includes(chartType) ? chartType : 'bar',
+            title,
             labels: parsed.labels,
             datasets: parsed.datasets,
           };
-          cleanText = responseText.replace(inlineMatch[0], '').trim();
+          cleanText = cleanText.replace(match[0], '').trim();
+          break;
         }
-      } catch (e) {}
+
+        // Format 2: labels + data array of numbers
+        if (Array.isArray(parsed.labels) && Array.isArray(parsed.data)) {
+          chartData = {
+            type: 'chart',
+            chartType: ['bar', 'pie', 'line'].includes(chartType) ? chartType : 'bar',
+            title,
+            labels: parsed.labels,
+            datasets: [{ label: parsed.metric || title, data: parsed.data }],
+          };
+          cleanText = cleanText.replace(match[0], '').trim();
+          break;
+        }
+
+        // Format 3: data is an array of objects e.g. [{ location: "Colombo", accidents: 2835 }]
+        if (Array.isArray(parsed.data) && parsed.data.length > 0 && typeof parsed.data[0] === 'object') {
+          const firstObj = parsed.data[0];
+          const keys = Object.keys(firstObj);
+          const labelKey = keys.find(k => typeof firstObj[k] === 'string') || keys[0];
+          const numericKeys = keys.filter(k => typeof firstObj[k] === 'number');
+
+          const labels = parsed.data.map((item: any) => String(item[labelKey] || ''));
+          const datasets: ChartDataset[] = (numericKeys.length > 0 ? numericKeys : [keys[1] || 'Value']).map(nKey => ({
+            label: nKey.replace(/_/g, ' ').toUpperCase(),
+            data: parsed.data.map((item: any) => Number(item[nKey]) || 0),
+          }));
+
+          chartData = {
+            type: 'chart',
+            chartType: ['bar', 'pie', 'line'].includes(chartType) ? chartType : 'bar',
+            title,
+            labels,
+            datasets,
+          };
+          cleanText = cleanText.replace(match[0], '').trim();
+          break;
+        }
+      }
+    } catch (e) {
+      // JSON parsing error, but check if it was intended as a chart
+      if (jsonStr.includes('"chartType"') || jsonStr.includes('"datasets"') || jsonStr.includes('"labels"')) {
+        cleanText = cleanText.replace(match[0], '').trim();
+      }
     }
   }
+
+  // Ensure any leftover raw ```json ... ``` or unclosed ```json blocks are stripped from user-facing text
+  cleanText = cleanText
+    .replace(/```(?:json)?[\s\S]*?(?:```|$)/gi, '')
+    .trim();
 
   return { cleanText, chartData };
 }

@@ -93,6 +93,17 @@ def clean_text_for_speech(text: str, language: str = "si") -> str:
 
     # Remove JSON code blocks and markdown blocks
     cleaned = re.sub(r"```[\s\S]*?```", " ", cleaned)
+    cleaned = re.sub(r"```[\s\S]*$", " ", cleaned)  # unclosed code blocks
+    cleaned = re.sub(r"\{[\s\S]*?\"chartType\"[\s\S]*?\}", " ", cleaned)
+    # Remove markdown table lines completely from spoken audio
+    cleaned = re.sub(r"^\s*\|.*\|.*$", " ", cleaned, flags=re.MULTILINE)
+
+    # Strip robotic memory regurgitations
+    cleaned = re.sub(r"(?:ඔබගේ\s+)?මතක\s+සටහන්වල\s+ඇති\s+පරිදි\s*,?", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"(?:as\s+)?(?:recorded\s+in|according\s+to)\s+your\s+memory\s+notes\s*,?", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"අපගේ\s+දත්ත\s+සමුදායේ\s+සඳහන්\s+වන\s+පරිදි\s*,?", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"according\s+to\s+our\s+database\s*,?", "", cleaned, flags=re.IGNORECASE)
+
     cleaned = re.sub(r"`([^`]+)`", r"\1", cleaned)
     cleaned = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", cleaned)
     cleaned = re.sub(r"\[\s*Source\s*\d+[^\]]*\]", "", cleaned, flags=re.IGNORECASE)
