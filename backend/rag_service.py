@@ -848,14 +848,17 @@ def generate_voice_rag_answer(
 
     if is_sinhala:
         language_instruction = (
-            "CONVERSATIONAL TONE & ACCURACY RULES (SINHALA / සිංහල):\n"
-            "Speak naturally, warmly, and politely like a helpful human assistant. Avoid sounding robotic or like a computer terminal.\n\n"
-            "CRITICAL RULES:\n"
-            "1. NATURAL & DIRECT START: Answer the user's specific question directly in the very first sentence. "
-            "DO NOT mention unrelated user memory items (such as past tracked orders or tickets) unless the user explicitly asks about them (e.g. 'මගේ ඇණවුම මොකක්ද?', 'මම කවුද?').\n"
-            "2. NO ROBOTIC FILLER: Never say robotic phrases such as 'ඔබගේ මතක සටහන්වල ඇති පරිදි' (as in your memory notes), 'දත්ත සමුදායේ සඳහන් වන පරිදි' (as in database), or 'අපගේ වාර්තා අනුව'. Speak directly and pleasantly.\n"
-            "3. ELEGANT STRUCTURE: After 1-2 conversational introductory sentences, present key details, figures, and categories using clean markdown bullet points or a clean markdown table.\n"
-            "4. CHART SCHEMA FORMAT: If comparing numbers or statistics across categories, append a single JSON block at the very end formatted EXACTLY as:\n"
+            "PRO-LEVEL VOICE & KNOWLEDGE ASSISTANT RULES (SINHALA / සිංහල):\n"
+            "You are a top-tier, friendly, articulate voice AI expert. Your spoken answers must feel completely natural, professional, and pleasant.\n\n"
+            "CRITICAL RULES FOR VOICE & TEXT HARMONY:\n"
+            "1. COMPLETE SPOKEN ANSWER IN FIRST 1-2 SENTENCES: The very first paragraph MUST be a complete, self-contained conversational answer that states the actual facts and key numbers directly. "
+            "NEVER write lazy visual placeholders like 'මෙන්න විස්තර' or 'පහත පරිදි වේ' in the spoken opening! State the core conclusion like a knowledgeable professional speaking on a phone call.\n"
+            "   - Bad (Robotic): '2012 වර්ෂයේ දත්ත වාර්තා අනුව ප්‍රධාන ප්‍රදේශ කිහිපයක මෝටර් සයිකල් අනතුරු සංඛ්‍යාව පහත පරිදි වේ.'\n"
+            "   - Good (Pro Voice): '2012 වසරේ වැඩිම මෝටර් සයිකල් අනතුරු සංඛ්‍යාවක් වාර්තා වී ඇත්තේ කොළඹින් වන අතර, එය අනතුරු 2,835 කි. ගම්පහ ප්‍රදේශයෙන් අනතුරු 2,598 ක් වාර්තා වී තිබේ.'\n"
+            "2. NO ROBOTIC PREAMBLES: Never say robotic phrases like 'ඔබගේ මතක සටහන්වල ඇති පරිදි', 'දත්ත සමුදායේ සඳහන් වන පරිදි', or 'අපගේ වාර්තා අනුව'. Answer directly.\n"
+            "3. NO ENGLISH TRANSLITERATION IN PARENTHESES: In Sinhala text, do NOT add English words in brackets (e.g. write 'මෝටර් සයිකල්' instead of 'මෝටර් සයිකල් (Motor Cycles / Mopeds)', and write 'කොළඹ' instead of 'කොළඹ (Colombo)'). This ensures smooth, stutter-free voice synthesis.\n"
+            "4. ELEGANT STRUCTURED BREAKDOWN FOR SCREEN: Below the 1-2 sentence spoken intro, present comprehensive breakdowns using clean bullet points and clean markdown tables for visual inspection.\n"
+            "5. CHART SCHEMA FORMAT: If comparing numbers or statistics across categories, append a single JSON block at the very end formatted EXACTLY as:\n"
             "```json\n"
             "{\n"
             '  "chartType": "bar",\n'
@@ -864,17 +867,19 @@ def generate_voice_rag_answer(
             '  "datasets": [{"label": "Metric Name", "data": [100, 200]}]\n'
             "}\n"
             "```\n"
-            "5. NO INTERNAL THOUGHTS: Never output internal reasoning, planning steps, or meta-commentary."
+            "6. NO INTERNAL REASONING: Never output thinking or planning steps."
         )
     else:
         language_instruction = (
-            "CONVERSATIONAL TONE & ACCURACY RULES (ENGLISH):\n"
-            "Speak naturally, warmly, and helpfully like an articulate human expert. Avoid sounding robotic or mechanical.\n\n"
-            "CRITICAL RULES:\n"
-            "1. NATURAL & DIRECT START: Answer the user's core question directly in the very first sentence. "
-            "DO NOT bring up unrelated past orders, past tickets, or stored user memories unless the user explicitly asks for them (e.g. 'What was my order?', 'Who am I?').\n"
-            "2. NO ROBOTIC FILLER: Never say robotic phrases like 'As recorded in your memory notes' or 'According to our database records'. Speak directly and engagingly.\n"
-            "3. ELEGANT STRUCTURE: Following the conversational summary, present key details, numbers, and points using clean markdown bullet points or clean markdown tables.\n"
+            "PRO-LEVEL VOICE & KNOWLEDGE ASSISTANT RULES (ENGLISH):\n"
+            "You are a top-tier, friendly, articulate voice AI expert. Your spoken answers must feel completely natural, engaging, and polished.\n\n"
+            "CRITICAL RULES FOR VOICE & TEXT HARMONY:\n"
+            "1. COMPLETE SPOKEN ANSWER IN FIRST 1-2 SENTENCES: The very first paragraph MUST be a complete, self-contained conversational answer that states the actual facts and key numbers directly. "
+            "NEVER end the opening with lazy visual pointers like 'as follows below:' or 'here is the breakdown:'. Answer the question directly with the most significant findings!\n"
+            "   - Bad (Robotic): 'The 2012 report on motorcycle accidents in major districts is shown below:'\n"
+            "   - Good (Pro Voice): 'In 2012, Colombo recorded the highest number of motorcycle accidents at 2,835, followed closely by Gampaha with 2,598 accidents.'\n"
+            "2. NO ROBOTIC PREAMBLES: Never say robotic phrases like 'As recorded in your memory notes' or 'According to our database records'. Answer directly.\n"
+            "3. ELEGANT STRUCTURED BREAKDOWN FOR SCREEN: Following the conversational summary, present key details, numbers, and points using clean markdown bullet points or clean markdown tables for screen display.\n"
             "4. CHART SCHEMA FORMAT: If comparing numerical data across categories, append a single JSON block at the very end formatted EXACTLY as:\n"
             "```json\n"
             "{\n"
@@ -884,7 +889,7 @@ def generate_voice_rag_answer(
             '  "datasets": [{"label": "Metric Name", "data": [100, 200]}]\n'
             "}\n"
             "```\n"
-            "5. NO INTERNAL THOUGHTS: Never output internal reasoning, planning steps, or meta-commentary."
+            "6. NO INTERNAL REASONING: Never output thinking or planning steps."
         )
 
     system_prompt = (

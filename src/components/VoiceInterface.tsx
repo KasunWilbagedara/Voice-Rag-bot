@@ -131,7 +131,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
 
       if (audioPlayerRef.current) {
         audioPlayerRef.current.src = audioUrl;
-        audioPlayerRef.current.playbackRate = speedToUse;
+        audioPlayerRef.current.playbackRate = 1.0;
         audioPlayerRef.current.onended = () => {
           setState('idle');
           if (isHandsFree) {
@@ -141,7 +141,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
         await audioPlayerRef.current.play();
       } else {
         const audio = new Audio(audioUrl);
-        audio.playbackRate = speedToUse;
+        audio.playbackRate = 1.0;
         audio.onended = () => {
           setState('idle');
           if (isHandsFree) {
@@ -398,7 +398,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
 
         if (audioPlayerRef.current) {
           audioPlayerRef.current.src = audioSrc;
-          audioPlayerRef.current.playbackRate = playbackSpeed;
+          audioPlayerRef.current.playbackRate = 1.0;
           audioPlayerRef.current.onended = () => {
             setState('idle');
             if (isHandsFree) {
@@ -523,54 +523,58 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
               <>
                 <button
                   onClick={() => handleVoiceSelect('thilini')}
-                  className={`px-2 py-1 rounded-lg transition-all flex items-center gap-1 ${
+                  className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
                     activeVoice.toLowerCase().includes('thilini') || activeVoice === 'nova'
-                      ? 'btn-gradient-red-sm text-white font-extrabold'
+                      ? 'btn-gradient-red-sm text-white font-extrabold shadow-sm'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
-                  title="Thilini: Natural Female Voice"
+                  title="Thilini: Studio Neural Female Voice"
                 >
                   <span>👩</span>
                   <span>තිළිණි</span>
+                  <span className="text-[9px] px-1 rounded bg-white/20 uppercase font-black tracking-wider">Pro</span>
                 </button>
                 <button
                   onClick={() => handleVoiceSelect('sameera')}
-                  className={`px-2 py-1 rounded-lg transition-all flex items-center gap-1 ${
+                  className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
                     activeVoice.toLowerCase().includes('sameera')
-                      ? 'btn-gradient-red-sm text-white font-extrabold'
+                      ? 'btn-gradient-red-sm text-white font-extrabold shadow-sm'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
-                  title="Sameera: Natural Male Voice"
+                  title="Sameera: Studio Neural Male Voice"
                 >
                   <span>👨</span>
                   <span>සමීර</span>
+                  <span className="text-[9px] px-1 rounded bg-white/20 uppercase font-black tracking-wider">Pro</span>
                 </button>
               </>
             ) : (
               <>
                 <button
                   onClick={() => handleVoiceSelect('ava')}
-                  className={`px-2 py-1 rounded-lg transition-all flex items-center gap-1 ${
+                  className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
                     activeVoice.toLowerCase().includes('ava') || activeVoice === 'nova'
-                      ? 'btn-gradient-red-sm text-white font-extrabold'
+                      ? 'btn-gradient-red-sm text-white font-extrabold shadow-sm'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
-                  title="Ava: Natural Studio Female Voice"
+                  title="Ava: Expressive Multilingual Studio Female"
                 >
                   <span>👩</span>
                   <span>Ava</span>
+                  <span className="text-[9px] px-1 rounded bg-white/20 uppercase font-black tracking-wider">HD</span>
                 </button>
                 <button
                   onClick={() => handleVoiceSelect('andrew')}
-                  className={`px-2 py-1 rounded-lg transition-all flex items-center gap-1 ${
+                  className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
                     activeVoice.toLowerCase().includes('andrew')
-                      ? 'btn-gradient-red-sm text-white font-extrabold'
+                      ? 'btn-gradient-red-sm text-white font-extrabold shadow-sm'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
-                  title="Andrew: Natural Studio Male Voice"
+                  title="Andrew: Expressive Multilingual Studio Male"
                 >
                   <span>👨</span>
                   <span>Andrew</span>
+                  <span className="text-[9px] px-1 rounded bg-white/20 uppercase font-black tracking-wider">HD</span>
                 </button>
               </>
             )}
