@@ -2,12 +2,23 @@
   "include": [
     "backend"
   ],
+  "exclude": [
+    "venv",
+    "node_modules",
+    "**/__pycache__"
+  ],
   "venvPath": ".",
   "venv": "venv",
+  "pythonPath": "./venv/Scripts/python.exe",
+  "pythonPlatform": "Windows",
   "extraPaths": [
     "."
   ],
-  "pythonPath": "./venv/Scripts/python.exe",
+  "typeCheckingMode": "basic",
   "reportMissingTypeStubs": false,
-  "reportMissingModuleSource": false
+  "reportMissingModuleSource": false,
+  "reportPrivateImportUsage": false,
+  "reportAttributeAccessIssue": false,
+  "useLibraryCodeForTypes": true,
+  "stubPath": "typestubs"
 }

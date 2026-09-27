@@ -7,8 +7,8 @@ from pydantic import BaseModel
 
 from backend.db import get_db_connection, is_db_connected, in_memory_store, SQLITE_DB_PATH
 from backend.document_parser import parse_document
-from backend.rag_service import ingest_document
-from backend.db_query_service import db_manager
+from backend.rag import ingest_document
+from backend.services.db_query import db_manager
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
 logger = logging.getLogger("voicerag.documents")

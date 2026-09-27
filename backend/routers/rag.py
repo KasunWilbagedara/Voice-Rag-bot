@@ -3,10 +3,10 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from backend.rag_service import (
-    get_embedding,
-    search_vector_database,
-    generate_voice_rag_answer,
+from backend.rag import (
+    get_text_embedding as get_embedding,
+    search_similar_chunks as search_vector_database,
+    query_rag as generate_voice_rag_answer,
     save_chat_history,
 )
 

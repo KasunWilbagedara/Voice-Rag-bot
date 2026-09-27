@@ -3,7 +3,7 @@ from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 
-from backend.db_query_service import db_manager
+from backend.services.db_query import db_manager
 
 router = APIRouter(prefix="/api/databases", tags=["Databases"])
 logger = logging.getLogger("voicerag.databases_router")
@@ -70,7 +70,7 @@ async def upload_csv_table(
         )
         # Also auto-ingest CSV data into RAG Document Vector Store for dual-path retrieval
         try:
-            from backend.rag_service import ingest_document
+            from backend.rag import ingest_document
             csv_str = content.decode('utf-8', errors='ignore')
             lines = csv_str.splitlines()
             header = lines[0] if lines else ""

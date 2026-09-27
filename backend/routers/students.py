@@ -3,7 +3,7 @@ from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from backend.db_query_service import (
+from backend.services.db_query import (
     get_all_students,
     query_student_by_id_or_name,
     upsert_student,
