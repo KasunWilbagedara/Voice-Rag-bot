@@ -13,7 +13,13 @@ import openai
 from google import genai
 from google.genai import types
 
-from backend.config import get_api_key, is_gemini_key
+try:
+    import httpx
+    _HTTPX_AVAILABLE = True
+except ImportError:
+    _HTTPX_AVAILABLE = False
+
+from backend.config import get_api_key, is_gemini_key, TOOL_SERVICE_URL
 from backend.db import (
     get_db_connection,
     is_db_connected,
@@ -28,6 +34,50 @@ from backend import db_query_service
 from backend import tools
 
 logger = logging.getLogger("voicerag.rag_service")
+
+
+# ---------------------------------------------------------------------------
+# Remote Tool Delegation — calls Tool Service (port 8001) with local fallback
+# ---------------------------------------------------------------------------
+def call_remote_tool(tool_name: str, **kwargs) -> Any:
+    """
+    Delegates a tool call to the Tool Execution Service (Port 8001) via HTTP.
+
+    Falls back to the local in-process tools.call_tool() if:
+      - httpx is not installed
+      - The Tool Service is unreachable (network timeout / connection error)
+      - The Tool Service returns an HTTP error
+
+    Args:
+        tool_name: Registered tool name (e.g. 'get_live_weather').
+        **kwargs:  Keyword arguments forwarded to the tool as JSON.
+
+    Returns:
+        The tool's return value (dict, list, bool, etc.).
+    """
+    if _HTTPX_AVAILABLE:
+        try:
+            payload = {"tool_name": tool_name, "parameters": kwargs}
+            with httpx.Client(timeout=8.0) as client:
+                resp = client.post(TOOL_SERVICE_URL, json=payload)
+            if resp.status_code == 200:
+                data = resp.json()
+                return data.get("result")
+            # Non-2xx — fall through to local fallback
+            logger.warning(
+                "Tool Service returned %s for '%s'. Falling back to local execution.",
+                resp.status_code,
+                tool_name,
+            )
+        except (httpx.ConnectError, httpx.TimeoutException, httpx.RequestError) as http_err:
+            logger.warning(
+                "Tool Service unreachable (%s). Falling back to local execution for '%s'.",
+                http_err,
+                tool_name,
+            )
+
+    # Local in-process fallback
+    return tools.call_tool(tool_name, **kwargs)
 
 # Global cached embedding model & LRU caches
 _CACHED_EMBEDDING_MODEL: Optional[str] = "models/gemini-embedding-001"
@@ -553,19 +603,19 @@ def generate_voice_rag_answer(
                     "විමසන්නේ", "සහ", "සහ", "හා", "මොකක්ද", "කුමක්ද", "මතකද", "කවුද", "who", "what"
                 ]
                 if cand.lower() not in excluded and len(cand) > 1:
-                    tools.call_tool("save_session_memory", session_id=session, key="user_name", value=cand, category="identity")
+                    call_remote_tool("save_session_memory", session_id=session, key="user_name", value=cand, category="identity")
 
         order_match = re.search(r"\b(ORD-\d{3,8})\b", user_query, re.IGNORECASE)
         if order_match:
-            tools.call_tool("save_session_memory", session_id=session, key="last_tracked_order", value=order_match.group(1).upper(), category="entity")
+            call_remote_tool("save_session_memory", session_id=session, key="last_tracked_order", value=order_match.group(1).upper(), category="entity")
 
         ticket_match = re.search(r"\b(TCK-\d{3,8})\b", user_query, re.IGNORECASE)
         if ticket_match:
-            tools.call_tool("save_session_memory", session_id=session, key="last_tracked_ticket", value=ticket_match.group(1).upper(), category="entity")
+            call_remote_tool("save_session_memory", session_id=session, key="last_tracked_ticket", value=ticket_match.group(1).upper(), category="entity")
 
         student_match = re.search(r"\b(STU\d{3,6})\b", user_query, re.IGNORECASE)
         if student_match:
-            tools.call_tool("save_session_memory", session_id=session, key="last_tracked_student", value=student_match.group(1).upper(), category="entity")
+            call_remote_tool("save_session_memory", session_id=session, key="last_tracked_student", value=student_match.group(1).upper(), category="entity")
 
         rem_match = re.search(
             r"(?:remember that|please remember|keep in mind|save this|මතක තබාගන්න|මතක තියාගන්න)\s+(.+)",
@@ -574,12 +624,12 @@ def generate_voice_rag_answer(
         )
         if rem_match:
             note_content = rem_match.group(1).strip()
-            tools.call_tool("save_session_memory", session_id=session, key=f"custom_note_{int(time.time()) % 10000}", value=note_content, category="pinned_fact")
+            call_remote_tool("save_session_memory", session_id=session, key=f"custom_note_{int(time.time()) % 10000}", value=note_content, category="pinned_fact")
     except Exception as mem_err:
         logger.debug(f"Memory auto-extraction note: {mem_err}")
 
     # Fetch stored memories for this session and filter by relevance to avoid unrelated regurgitation
-    user_memories = tools.call_tool("get_session_memories", session_id=session)
+    user_memories = call_remote_tool("get_session_memories", session_id=session)
     is_asking_order = bool(re.search(r"order|ඇණවුම|tracking|status|ලැබෙන්නේ|බඩු|භාණ්ඩ|ord-\d+", user_query, re.IGNORECASE))
     is_asking_ticket = bool(re.search(r"ticket|ටිකට්|complaint|පැමිණිල්ල|issue|tck-\d+", user_query, re.IGNORECASE))
     is_asking_student = bool(re.search(r"student|ශිෂ්‍ය|marks|ලකුණු|grade|ප්‍රතිඵල", user_query, re.IGNORECASE))
@@ -610,7 +660,7 @@ def generate_voice_rag_answer(
     order_match = re.search(r"\b(ORD-\d{3,8})\b", user_query, re.IGNORECASE)
     if order_match:
         target_ord = order_match.group(1).upper()
-        ord_res = tools.call_tool("track_customer_order", order_id=target_ord)
+        ord_res = call_remote_tool("track_customer_order", order_id=target_ord)
         if ord_res.get("status") == "found" and ord_res.get("order"):
             o = ord_res["order"]
             db_context_blocks.append(
@@ -635,7 +685,7 @@ def generate_voice_rag_answer(
     ticket_match = re.search(r"\b(TCK-\d{3,8})\b", user_query, re.IGNORECASE)
     if ticket_match:
         target_tck = ticket_match.group(1).upper()
-        tck_res = tools.call_tool("track_support_ticket", ticket_id=target_tck)
+        tck_res = call_remote_tool("track_support_ticket", ticket_id=target_tck)
         if tck_res.get("status") == "found" and tck_res.get("ticket"):
             t = tck_res["ticket"]
             db_context_blocks.append(
@@ -664,7 +714,7 @@ def generate_voice_rag_answer(
         city_match = re.search(r"\b(?:in|at|for|of)\s+([A-Za-z]+)\b", user_query, re.IGNORECASE)
         if city_match and city_match.group(1).lower() not in ["the", "today", "now", "here", "celsius"]:
             city_cand = city_match.group(1)
-        w_res = tools.call_tool("get_live_weather", city=city_cand)
+        w_res = call_remote_tool("get_live_weather", city=city_cand)
         if w_res.get("status") == "success":
             db_context_blocks.append(
                 f"LIVE REAL-TIME WEATHER TOOL REPORT:\n"
@@ -686,7 +736,7 @@ def generate_voice_rag_answer(
 
     # 3. Real-Time DateTime Tool
     if re.search(r"\b(what time|what date|current date|today's date|current time|what day|දැන් වෙලාව|දිනය|අද වෙලාව)\b", user_query, re.IGNORECASE):
-        dt_res = tools.call_tool("get_current_datetime")
+        dt_res = call_remote_tool("get_current_datetime")
         if dt_res.get("status") == "success":
             db_context_blocks.append(
                 f"SYSTEM REAL-TIME DATETIME TOOL:\n"
@@ -709,7 +759,7 @@ def generate_voice_rag_answer(
     math_match = re.search(r"\b(\d+(?:\.\d+)?\s*[\+\-\*\/]\s*\d+(?:\.\d+)?(?:\s*[\+\-\*\/]\s*\d+(?:\.\d+)?)*)\b", user_query)
     if math_match:
         expr = math_match.group(1)
-        math_res = tools.call_tool("calculate_expression", expression=expr)
+        math_res = call_remote_tool("calculate_expression", expression=expr)
         if math_res.get("status") == "success":
             db_context_blocks.append(
                 f"MATHEMATICAL CALCULATOR TOOL RESULT:\n"
@@ -734,7 +784,7 @@ def generate_voice_rag_answer(
             try:
                 search_q = re.sub(r"\b(who is|what is|tell me about|please tell|can you tell|කවුද|මොකක්ද)\b", "", user_query, flags=re.IGNORECASE).strip()
                 if search_q:
-                    w_search = tools.call_tool("web_search", query=search_q)
+                    w_search = call_remote_tool("web_search", query=search_q)
                     if w_search.get("status") == "success" and w_search.get("summary"):
                         db_context_blocks.append(
                             f"LIVE WEB SEARCH TOOL RESULT ({w_search.get('source')}):\n"
@@ -755,7 +805,7 @@ def generate_voice_rag_answer(
                 logger.debug(f"Web search tool fallback note: {w_err}")
 
     # 6. Direct Student Database Lookup using central tool
-    student_record = tools.call_tool("lookup_student", search_term=user_query)
+    student_record = call_remote_tool("lookup_student", search_term=user_query)
     if student_record:
         db_context_blocks.append(
             f"STRUCTURED STUDENT DATABASE RECORD:\n"
@@ -779,11 +829,11 @@ def generate_voice_rag_answer(
     # 7. Heuristic Entity Scan & Text-to-SQL using central tools
     try:
         query_words = [w.strip(",.'\"!?") for w in user_query.split() if len(w.strip(",.'\"!?")) >= 3]
-        all_dbs = tools.call_tool("list_databases")
+        all_dbs = call_remote_tool("list_databases")
 
         for db in all_dbs:
             db_id = db["id"]
-            schemas = tools.call_tool("get_database_schema", db_id=db_id)
+            schemas = call_remote_tool("get_database_schema", db_id=db_id)
             for schema in schemas:
                 table_name = schema["table_name"]
                 if table_name in ["documents", "document_chunks", "chat_history", "rag_documents", "rag_document_chunks", "rag_user_memories"]:
@@ -800,7 +850,7 @@ def generate_voice_rag_answer(
                 if clauses:
                     sql_stmt = f"SELECT * FROM {table_name} WHERE {' OR '.join(clauses)} LIMIT 6;"
                     try:
-                        sql_res = tools.call_tool("execute_sql", sql_query=sql_stmt, db_id=db_id)
+                        sql_res = call_remote_tool("execute_sql", sql_query=sql_stmt, db_id=db_id)
                         if sql_res and sql_res.get("rows") and len(sql_res["rows"]) > 0:
                             rows_data = sql_res["rows"]
                             block_text = f"DATABASE '{db['name']}' -> TABLE '{table_name}':\n" + json.dumps(rows_data[:5], indent=2)

@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import PORT
 from backend.db import init_db_schema, close_db_pool, is_db_connected, seed_initial_students
-from backend.routers import documents, rag, audio, students, databases, memory
+from backend.routers import documents, rag, audio, memory
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,8 +23,8 @@ async def lifespan(app: FastAPI):
     close_db_pool()
 
 app = FastAPI(
-    title="Voice-RAG Bot Python Backend",
-    description="Full Python Backend and RAG Engine for Voice-RAG Bot (Sinhala & English)",
+    title="Voice-RAG Bot — RAG & Audio Service",
+    description="RAG Engine, Vector Search, Audio STT/TTS and LLM Reasoning (Port 8000)",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -38,12 +38,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include API Routers
+# Include API Routers — RAG, Audio, Documents, and Memory
+# NOTE: /api/students and /api/databases are served by the Tool Service (port 8001)
 app.include_router(documents.router)
 app.include_router(rag.router)
 app.include_router(audio.router)
-app.include_router(students.router)
-app.include_router(databases.router)
 app.include_router(memory.router)
 
 @app.get("/")
@@ -59,8 +58,11 @@ def health_check():
     db_active = is_db_connected()
     return {
         "status": "healthy",
+        "service": "RAG & Audio Service",
+        "port": PORT,
         "dbConnected": db_active,
         "database": "PostgreSQL + pgvector" if db_active else "In-Memory Vector Store",
+        "toolServiceUrl": "http://localhost:8001 (tool-service)",
     }
 
 if __name__ == "__main__":

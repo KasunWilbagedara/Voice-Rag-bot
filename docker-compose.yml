@@ -21,22 +21,51 @@ services:
       - "3000:3000"
     environment:
       - DATABASE_URL=postgresql://postgres:postgrespassword@postgres:5432/voicerag
+      # RAG service (vector search, audio, LLM)
+      - PYTHON_BACKEND_URL=http://rag-service:8000
+      # Tool execution service (databases, students, tool registry)
+      - PYTHON_TOOL_BACKEND_URL=http://tool-service:8001
     env_file:
       - .env
     depends_on:
       - postgres
+      - rag-service
+      - tool-service
 
-  backend:
+  # ─── RAG & Voice Service (Port 8000) ────────────────────────────────────────
+  rag-service:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    container_name: voice_rag_backend
+    command: python -m backend.main
+    container_name: voice_rag_rag_service
     restart: always
     ports:
-      - "9005:8000"
+      - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://postgres:postgrespassword@postgres:5432/voicerag
       - PORT=8000
+      # Delegate tool calls to the tool-service container
+      - TOOL_SERVICE_URL=http://tool-service:8001/api/tools/call
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - tool-service
+
+  # ─── Tool Execution Service (Port 8001) ─────────────────────────────────────
+  tool-service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: python -m backend.tool_server
+    container_name: voice_rag_tool_service
+    restart: always
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgrespassword@postgres:5432/voicerag
+      - TOOL_PORT=8001
     env_file:
       - .env
     depends_on:
