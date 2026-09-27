@@ -5,8 +5,9 @@
   "venvPath": ".",
   "venv": "venv",
   "extraPaths": [
-    ".",
-    "backend"
+    "."
   ],
-  "reportMissingTypeStubs": false
+  "pythonPath": "./venv/Scripts/python.exe",
+  "reportMissingTypeStubs": false,
+  "reportMissingModuleSource": false
 }

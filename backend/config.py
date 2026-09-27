@@ -10,13 +10,28 @@ DATABASE_URL = os.getenv(
     "DATABASE_URL",
     os.getenv("POSTGRES_URL", "postgresql://postgres:postgrespassword@localhost:5432/voicerag")
 )
+
+# RAG & Voice Service port (Port 8000)
 PORT = int(os.getenv("PORT", "8000"))
+
+# Tool Execution Service port (Port 8001)
+TOOL_PORT = int(os.getenv("TOOL_PORT", "8001"))
+
+# URL for the Tool Execution Service.
+# Override via TOOL_SERVICE_URL env var for container environments
+# e.g. TOOL_SERVICE_URL=http://tool-service:8001/api/tools/call
+TOOL_SERVICE_URL = os.getenv(
+    "TOOL_SERVICE_URL",
+    f"http://localhost:{TOOL_PORT}/api/tools/call",
+)
+
 
 def get_api_key(custom_api_key: str = None) -> str:
     key = custom_api_key or GEMINI_API_KEY or OPENAI_API_KEY
     if not key:
         raise ValueError("API Key is required. Please provide a Google Gemini API Key or OpenAI API Key.")
     return key
+
 
 def is_gemini_key(key: str = None) -> bool:
     api_key = key or GEMINI_API_KEY or OPENAI_API_KEY or ""

@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 
-const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://localhost:8000';
+// Databases & SQL tools are served by the Tool Execution Service (Port 8001)
+const PYTHON_TOOL_BACKEND_URL = process.env.PYTHON_TOOL_BACKEND_URL || 'http://localhost:8001';
 
 export async function GET() {
   try {
-    const res = await fetch(`${PYTHON_BACKEND_URL}/api/databases`, {
+    const res = await fetch(`${PYTHON_TOOL_BACKEND_URL}/api/databases`, {
       headers: { 'Content-Type': 'application/json' },
       cache: 'no-store',
     });
@@ -22,7 +23,7 @@ export async function POST(req: Request) {
 
     if (action === 'upload-csv') {
       const formData = await req.formData();
-      const res = await fetch(`${PYTHON_BACKEND_URL}/api/databases/upload-csv`, {
+      const res = await fetch(`${PYTHON_TOOL_BACKEND_URL}/api/databases/upload-csv`, {
         method: 'POST',
         body: formData,
       });
@@ -32,7 +33,7 @@ export async function POST(req: Request) {
 
     if (action === 'connect') {
       const body = await req.json();
-      const res = await fetch(`${PYTHON_BACKEND_URL}/api/databases/connect`, {
+      const res = await fetch(`${PYTHON_TOOL_BACKEND_URL}/api/databases/connect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
 
     if (action === 'query') {
       const body = await req.json();
-      const res = await fetch(`${PYTHON_BACKEND_URL}/api/databases/query`, {
+      const res = await fetch(`${PYTHON_TOOL_BACKEND_URL}/api/databases/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
     }
 
     if (action === 'seed') {
-      const res = await fetch(`${PYTHON_BACKEND_URL}/api/databases/seed`, {
+      const res = await fetch(`${PYTHON_TOOL_BACKEND_URL}/api/databases/seed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
     }
 
     if (action === 'reset') {
-      const res = await fetch(`${PYTHON_BACKEND_URL}/api/databases/reset`, {
+      const res = await fetch(`${PYTHON_TOOL_BACKEND_URL}/api/databases/reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -71,7 +72,7 @@ export async function POST(req: Request) {
     }
 
     // Default list schemas
-    const res = await fetch(`${PYTHON_BACKEND_URL}/api/databases/schemas`, {
+    const res = await fetch(`${PYTHON_TOOL_BACKEND_URL}/api/databases/schemas`, {
       headers: { 'Content-Type': 'application/json' },
       cache: 'no-store',
     });
@@ -90,7 +91,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'dbId parameter is required' }, { status: 400 });
     }
 
-    const res = await fetch(`${PYTHON_BACKEND_URL}/api/databases/${dbId}`, {
+    const res = await fetch(`${PYTHON_TOOL_BACKEND_URL}/api/databases/${dbId}`, {
       method: 'DELETE',
     });
     const data = await res.json();
