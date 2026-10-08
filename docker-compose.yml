@@ -21,22 +21,42 @@ services:
       - "3000:3000"
     environment:
       - DATABASE_URL=postgresql://postgres:postgrespassword@postgres:5432/voicerag
+      - PURE_RAG_BACKEND_URL=http://backend-pure-rag:8000
+      - TOOLS_RAG_BACKEND_URL=http://backend-with-tools:8001
     env_file:
       - .env
     depends_on:
       - postgres
 
-  backend:
+  backend-pure-rag:
     build:
       context: .
-      dockerfile: backend/Dockerfile
-    container_name: voice_rag_backend
+      dockerfile: backend_pure_rag/Dockerfile
+    container_name: voice_rag_pure_backend
     restart: always
     ports:
-      - "9005:8000"
+      - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://postgres:postgrespassword@postgres:5432/voicerag
       - PORT=8000
+      - PURE_RAG_PORT=8000
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+
+  backend-with-tools:
+    build:
+      context: .
+      dockerfile: backend_with_tools/Dockerfile
+    container_name: voice_rag_tools_backend
+    restart: always
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgrespassword@postgres:5432/voicerag
+      - PORT=8001
+      - TOOLS_RAG_PORT=8001
     env_file:
       - .env
     depends_on:

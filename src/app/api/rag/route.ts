@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-
-const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://localhost:8000';
+import { getBackendUrl } from '@/lib/backend-config';
 
 export async function POST(req: Request) {
   try {
+    const backendUrl = getBackendUrl(req, 'pure');
     const body = await req.json();
-    const res = await fetch(`${PYTHON_BACKEND_URL}/api/rag`, {
+    const res = await fetch(`${backendUrl}/api/rag`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),

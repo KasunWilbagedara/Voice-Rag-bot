@@ -27,32 +27,34 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ isActive, mode
       const height = canvas.height;
       const centerY = height / 2;
 
+      const isLight = typeof document !== 'undefined' && document.documentElement.classList.contains('light');
+
       // Color scheme based on active state
       let topColor = '#38bdf8'; // Sky cyan
       let bottomColor = '#818cf8'; // Indigo
       let glowColor = 'rgba(56, 189, 248, 0.3)';
 
       if (mode === 'listening') {
-        topColor = '#FF204E'; // Neon red
-        bottomColor = '#A0153E'; // Deep red
-        glowColor = 'rgba(255, 32, 78, 0.5)';
+        topColor = isLight ? '#e11d48' : '#f43f5e'; // Apple Siri radiant rose
+        bottomColor = isLight ? '#be123c' : '#e11d48'; // Deep rose
+        glowColor = 'rgba(244, 63, 94, 0.4)';
       } else if (mode === 'transcribing' || mode === 'searching') {
-        topColor = '#c084fc'; // Purple
-        bottomColor = '#6366f1'; // Indigo
-        glowColor = 'rgba(192, 132, 252, 0.4)';
+        topColor = isLight ? '#7c3aed' : '#c084fc'; // Purple
+        bottomColor = isLight ? '#4f46e5' : '#6366f1'; // Indigo
+        glowColor = 'rgba(124, 58, 237, 0.35)';
       } else if (mode === 'speaking') {
-        topColor = '#34d399'; // Emerald
-        bottomColor = '#059669'; // Dark emerald
-        glowColor = 'rgba(52, 211, 153, 0.45)';
+        topColor = isLight ? '#059669' : '#34d399'; // Emerald
+        bottomColor = isLight ? '#047857' : '#059669'; // Dark emerald
+        glowColor = 'rgba(16, 185, 129, 0.35)';
       } else {
         // Idle
-        topColor = '#64748b';
-        bottomColor = '#334155';
-        glowColor = 'rgba(100, 116, 139, 0.2)';
+        topColor = isLight ? '#0284c7' : '#64748b';
+        bottomColor = isLight ? '#4f46e5' : '#334155';
+        glowColor = isLight ? 'rgba(2, 132, 199, 0.25)' : 'rgba(100, 116, 139, 0.2)';
       }
 
       // Draw subtle background center baseline
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.strokeStyle = isLight ? 'rgba(148, 163, 184, 0.35)' : 'rgba(255, 255, 255, 0.05)';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(0, centerY);
@@ -113,7 +115,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ isActive, mode
   }, [isActive, mode]);
 
   return (
-    <div className="w-full h-24 flex items-center justify-center relative overflow-hidden rounded-2xl bg-black/40 border border-white/10 p-2 shadow-inner backdrop-blur-md">
+    <div className="w-full h-24 flex items-center justify-center relative overflow-hidden rounded-2xl ios-spectrum-box bg-slate-100/70 dark:bg-slate-950/50 border border-slate-200/90 dark:border-white/10 p-2 shadow-inner backdrop-blur-xl">
       <canvas
         ref={canvasRef}
         width={560}
@@ -124,10 +126,12 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ isActive, mode
       <div className="absolute top-2 left-3 flex items-center gap-1.5">
         <span
           className={`w-1.5 h-1.5 rounded-full ${
-            isActive ? 'bg-[#FF204E] animate-pulse shadow-[0_0_8px_rgba(255,32,78,0.85)]' : 'bg-slate-600'
+            isActive
+              ? 'bg-sky-500 dark:bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(56,189,248,0.85)]'
+              : 'bg-slate-400 dark:bg-slate-600'
           }`}
         />
-        <span className="text-[9px] font-mono tracking-widest text-slate-500 uppercase">
+        <span className="text-[9px] font-mono tracking-widest text-slate-600 dark:text-slate-400 font-bold uppercase">
           {mode === 'listening' ? 'LIVE AUDIO INPUT' : mode === 'speaking' ? 'NEURAL VOICE OUT' : 'SPECTRUM'}
         </span>
       </div>

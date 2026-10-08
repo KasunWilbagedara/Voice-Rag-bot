@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-
-const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://localhost:8000';
+import { getBackendUrl } from '@/lib/backend-config';
 
 export async function POST(req: Request) {
   try {
+    const backendUrl = getBackendUrl(req, 'pure');
     const formData = await req.formData();
-    const res = await fetch(`${PYTHON_BACKEND_URL}/api/voice-pipeline`, {
+    const res = await fetch(`${backendUrl}/api/voice-pipeline`, {
       method: 'POST',
       body: formData,
     });

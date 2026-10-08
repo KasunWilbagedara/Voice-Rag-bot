@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/mcp-config.json",
+  "mcpServers": {
+    "voicerag-tools": {
+      "command": "/Users/uvs/SLT/Rag Voice/Voice-Rag-bot/venv/bin/python",
+      "args": [
+        "-m",
+        "backend_with_tools.mcp_server"
+      ],
+      "env": {
+        "PYTHONPATH": "/Users/uvs/SLT/Rag Voice/Voice-Rag-bot"
+      }
+    },
+    "voicerag-tools-sse": {
+      "url": "http://localhost:8001/mcp/sse"
+    }
+  }
+}

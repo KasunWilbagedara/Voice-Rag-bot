@@ -69,7 +69,7 @@ export function FormattedResponse({ text }: FormattedResponseProps) {
     blocks.push(
       <ListTag
         key={`list-${blocks.length}`}
-        className={`${isNumbered ? 'list-decimal' : 'list-disc'} space-y-1.5 pl-5 leading-7 marker:text-[#FF204E] text-slate-200`}
+        className={`${isNumbered ? 'list-decimal' : 'list-disc'} space-y-1.5 pl-5 leading-7 marker:text-cyan-400 text-slate-200`}
       >
         {listItems.map((item, index) => (
           <li key={`item-${index}`}>{renderInline(item.text, `item-${index}`)}</li>

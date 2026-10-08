@@ -167,7 +167,7 @@ export const DynamicChart: React.FC<DynamicChartProps> = ({ chartData }) => {
                 style={{ backgroundColor: entry.color || entry.fill }}
               />
               <span className="text-slate-400">{entry.name}:</span>
-              <span className="font-semibold text-[#FF204E]">
+              <span className="font-bold text-cyan-300">
                 {typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}
               </span>
             </div>
@@ -183,12 +183,12 @@ export const DynamicChart: React.FC<DynamicChartProps> = ({ chartData }) => {
       initial={{ opacity: 0, y: 8, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 md:p-5 flex flex-col gap-4 shadow-xl my-2 overflow-hidden backdrop-blur-md"
+      className="w-full ios-glass-card-interactive p-4 md:p-5 flex flex-col gap-4 shadow-2xl my-2 overflow-hidden"
     >
       {/* Header & Controls */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-[#FF204E]/15 border border-[#FF204E]/30 flex items-center justify-center text-[#FF204E]">
+          <div className="w-7 h-7 rounded-xl bg-cyan-500/15 border border-cyan-400/30 flex items-center justify-center text-cyan-300 shadow-sm">
             <Sparkles className="w-4 h-4" />
           </div>
           <div>
@@ -202,12 +202,12 @@ export const DynamicChart: React.FC<DynamicChartProps> = ({ chartData }) => {
         </div>
 
         {/* Chart View Mode Switcher */}
-        <div className="flex items-center p-0.5 bg-black/50 border border-white/10 rounded-xl text-xs self-end sm:self-auto">
+        <div className="ios-segmented-capsule flex items-center p-0.5 text-xs self-end sm:self-auto">
           <button
             onClick={() => setActiveChartType('bar')}
-            className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 font-semibold text-[11px] ${
+            className={`px-3 py-1 rounded-full transition-all flex items-center gap-1 font-semibold text-[11px] ${
               activeChartType === 'bar'
-                ? 'btn-gradient-red-sm text-white font-bold'
+                ? 'ios-glass-pill-active font-extrabold shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
             title="Bar Chart"
@@ -218,9 +218,9 @@ export const DynamicChart: React.FC<DynamicChartProps> = ({ chartData }) => {
 
           <button
             onClick={() => setActiveChartType('pie')}
-            className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 font-semibold text-[11px] ${
+            className={`px-3 py-1 rounded-full transition-all flex items-center gap-1 font-semibold text-[11px] ${
               activeChartType === 'pie'
-                ? 'btn-gradient-red-sm text-white font-bold'
+                ? 'ios-glass-pill-active font-extrabold shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
             title="Pie / Donut Chart"
@@ -231,9 +231,9 @@ export const DynamicChart: React.FC<DynamicChartProps> = ({ chartData }) => {
 
           <button
             onClick={() => setActiveChartType('line')}
-            className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 font-semibold text-[11px] ${
+            className={`px-3 py-1 rounded-full transition-all flex items-center gap-1 font-semibold text-[11px] ${
               activeChartType === 'line'
-                ? 'btn-gradient-red-sm text-white font-bold'
+                ? 'ios-glass-pill-active font-extrabold shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
             title="Line Trend Chart"

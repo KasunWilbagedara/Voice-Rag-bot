@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-
-const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://localhost:8000';
+import { getBackendUrl } from '@/lib/backend-config';
 
 export async function GET(req: Request) {
   try {
+    const backendUrl = getBackendUrl(req, 'pure');
     const { searchParams } = new URL(req.url);
     const limit = searchParams.get('limit') || '30';
-    const res = await fetch(`${PYTHON_BACKEND_URL}/api/history?limit=${limit}`, {
+    const res = await fetch(`${backendUrl}/api/history?limit=${limit}`, {
       cache: 'no-store',
     });
     const data = await res.json();
@@ -22,7 +22,8 @@ export async function GET(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const res = await fetch(`${PYTHON_BACKEND_URL}/api/history`, {
+    const backendUrl = getBackendUrl(req, 'pure');
+    const res = await fetch(`${backendUrl}/api/history`, {
       method: 'DELETE',
     });
     const data = await res.json();

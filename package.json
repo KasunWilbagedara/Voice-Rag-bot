@@ -4,6 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:all": "./start_all.sh",
+    "backend:pure": "python3 -m backend_pure_rag.main",
+    "backend:tools": "python3 -m backend_with_tools.main",
+    "mcp:server": "python3 -m backend_with_tools.mcp_server",
+    "mcp:sse": "python3 -m backend_with_tools.mcp_server --transport sse --port 8005",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

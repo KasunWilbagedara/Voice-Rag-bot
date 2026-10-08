@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-
-const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://localhost:8000';
+import { getBackendUrl } from '@/lib/backend-config';
 
 export async function POST(req: Request) {
   try {
+    const backendUrl = getBackendUrl(req, 'pure');
     const body = await req.json();
-    const res = await fetch(`${PYTHON_BACKEND_URL}/api/tts`, {
+    const res = await fetch(`${backendUrl}/api/tts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -16,10 +16,11 @@ export async function POST(req: Request) {
       return NextResponse.json(errData, { status: res.status });
     }
 
+    const contentType = res.headers.get('content-type') || 'audio/mpeg';
     const audioBuffer = await res.arrayBuffer();
     return new Response(audioBuffer, {
       headers: {
-        'Content-Type': 'audio/mpeg',
+        'Content-Type': contentType,
         'Content-Length': audioBuffer.byteLength.toString(),
         'Cache-Control': 'no-cache',
       },
