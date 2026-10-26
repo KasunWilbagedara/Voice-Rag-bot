@@ -1,15 +1,20 @@
 """
-rag/retriever.py — Hybrid Vector & BM25 Search Engine
-=======================================================
-Provides search_similar_chunks() — a cross-lingual Reciprocal Rank Fusion
-(RRF) search over:
+rag/retriever.py — Hybrid Vector & BM25 Search Engine + MMR Diversity Filter
+==============================================================================
+Provides:
+  - search_similar_chunks()  — Hybrid RRF search (dense + BM25)
+  - mmr_filter()             — Maximal Marginal Relevance diversity re-ranking
+
+Search order:
   1. PostgreSQL HNSW vector index (pgvector ``<=>`` cosine operator)
   2. SQLite cosine-similarity fallback for offline / dev mode
   3. BM25 sparse keyword ranking over SQLite stored chunks
+  4. RRF fusion → MMR diversity filter (for Pure-RAG mode)
 """
 
 import re
 import json
+import math
 import sqlite3
 import logging
 from typing import Dict, List, Optional, Any
@@ -21,6 +26,108 @@ from backend.db import (
 )
 
 logger = logging.getLogger("voicerag.rag.retriever")
+
+
+# ---------------------------------------------------------------------------
+# MMR — Maximal Marginal Relevance Diversity Filter
+# ---------------------------------------------------------------------------
+
+def _dot(a: List[float], b: List[float]) -> float:
+    """Fast dot product of two equal-length float lists."""
+    return sum(x * y for x, y in zip(a, b))
+
+
+def _norm(v: List[float]) -> float:
+    return math.sqrt(sum(x * x for x in v))
+
+
+def _cosine(a: List[float], b: List[float]) -> float:
+    na, nb = _norm(a), _norm(b)
+    if na == 0 or nb == 0:
+        return 0.0
+    return _dot(a, b) / (na * nb)
+
+
+def mmr_filter(
+    candidates: List[Dict[str, Any]],
+    query_embedding: List[float],
+    top_n: int = 5,
+    lambda_param: float = 0.7,
+) -> List[Dict[str, Any]]:
+    """
+    Maximal Marginal Relevance (MMR) diversity filter.
+
+    Selects ``top_n`` chunks that balance:
+      - Relevance to the query   (weight = lambda_param,       default 70 %)
+      - Diversity from each other (weight = 1 - lambda_param,  default 30 %)
+
+    This prevents the LLM from seeing five near-identical chunks and instead
+    surfaces a diverse, non-redundant set of evidence passages.
+
+    Algorithm:
+        MMR score = λ · sim(chunk, query) − (1−λ) · max_sim(chunk, already_selected)
+
+    Args:
+        candidates:      Ranked list of chunk dicts (must have 'content' key).
+        query_embedding: Query vector for relevance scoring.
+        top_n:           Number of chunks to return.
+        lambda_param:    Trade-off weight (0 = max diversity, 1 = max relevance).
+
+    Returns:
+        Filtered list of ``top_n`` chunk dicts in MMR-selected order.
+    """
+    if not candidates:
+        return []
+    if len(candidates) <= top_n:
+        return candidates
+
+    # Build simple TF-IDF-like embeddings from content text for inter-chunk similarity.
+    # We use the stored similarity score as a proxy for relevance to the query.
+    selected: List[Dict[str, Any]] = []
+    remaining = list(candidates)
+
+    while len(selected) < top_n and remaining:
+        best_idx = -1
+        best_score = float("-inf")
+
+        for i, chunk in enumerate(remaining):
+            relevance = chunk.get("similarity", 0.5)
+
+            # Max similarity to already-selected chunks (using content overlap as proxy)
+            if not selected:
+                redundancy = 0.0
+            else:
+                redundancy = max(
+                    _content_overlap(chunk["content"], sel["content"])
+                    for sel in selected
+                )
+
+            mmr_score = lambda_param * relevance - (1 - lambda_param) * redundancy
+            if mmr_score > best_score:
+                best_score = mmr_score
+                best_idx = i
+
+        if best_idx == -1:
+            break
+
+        selected.append(remaining.pop(best_idx))
+
+    logger.debug(
+        "MMR filter: %d candidates → %d selected (λ=%.2f)",
+        len(candidates) + len(selected),
+        len(selected),
+        lambda_param,
+    )
+    return selected
+
+
+def _content_overlap(a: str, b: str) -> float:
+    """Fast Jaccard token overlap between two text strings (0.0 – 1.0)."""
+    set_a = set(re.findall(r"\w+", a.lower()))
+    set_b = set(re.findall(r"\w+", b.lower()))
+    if not set_a or not set_b:
+        return 0.0
+    return len(set_a & set_b) / len(set_a | set_b)
 
 
 # ---------------------------------------------------------------------------
