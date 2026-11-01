@@ -1,4 +1,4 @@
-import { BACKEND1_URL, backendModeFrom } from '../../_lib/backend';
+import { BACKEND1_URL, backendModeFrom, userHeaders } from '../../_lib/backend';
 
 // Streams the answer from Backend 1 straight through to the browser
 // (newline-delimited JSON events: sources, token..., done).
@@ -6,10 +6,10 @@ export async function POST(req: Request) {
   try {
     const res = await fetch(`${BACKEND1_URL}/api/rag/stream`, {
       method: 'POST',
-      headers: {
+      headers: userHeaders({
         'Content-Type': 'application/json',
         'x-backend-mode': backendModeFrom(req),
-      },
+      }),
       body: await req.text(),
     });
 

@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 
-import { BACKEND1_URL as PYTHON_BACKEND_URL } from '../_lib/backend';
+import { BACKEND1_URL as PYTHON_BACKEND_URL, userHeaders } from '../_lib/backend';
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const res = await fetch(`${PYTHON_BACKEND_URL}/api/memory?${searchParams.toString()}`, {
+      headers: userHeaders(),
       cache: 'no-store',
     });
     const data = await res.json();
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const res = await fetch(`${PYTHON_BACKEND_URL}/api/memory`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: userHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
     });
     const data = await res.json();
@@ -43,6 +44,7 @@ export async function DELETE(req: Request) {
     const { searchParams } = new URL(req.url);
     const res = await fetch(`${PYTHON_BACKEND_URL}/api/memory?${searchParams.toString()}`, {
       method: 'DELETE',
+      headers: userHeaders(),
     });
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });

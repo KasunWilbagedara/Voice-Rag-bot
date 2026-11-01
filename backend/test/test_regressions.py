@@ -290,3 +290,72 @@ def test_agentic_plain_answer_is_not_a_tool_call():
     from backend.rag.agentic_generator import _parse_tool_call
 
     assert _parse_tool_call("Order ORD-1 was delivered on {date}.") is None
+
+
+# ---------------------------------------------------------------------------
+# User accounts
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def login_required(monkeypatch):
+    import backend.auth as auth
+    from backend.main import app
+
+    monkeypatch.setattr(auth, "AUTH_REQUIRED", True)
+    return TestClient(app)
+
+
+def _register(client, username, password="correct-horse"):
+    res = client.post("/api/auth/register", json={"username": username, "password": password})
+    assert res.status_code == 200, res.text
+    return {"Authorization": f"Bearer {res.json()['token']}"}
+
+
+def test_register_login_me_logout(login_required):
+    client = login_required
+    _register(client, "kasun")
+
+    assert client.post("/api/auth/login", json={"username": "kasun", "password": "wrong-pass"}).status_code == 401
+    token = client.post("/api/auth/login", json={"username": "KASUN", "password": "correct-horse"}).json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    assert client.get("/api/auth/me", headers=headers).json()["user"]["username"] == "kasun"
+    client.post("/api/auth/logout", headers=headers)
+    assert client.get("/api/auth/me", headers=headers).status_code == 401
+
+
+def test_register_validation(login_required):
+    client = login_required
+    _register(client, "nimal")
+    assert client.post("/api/auth/register", json={"username": "nimal", "password": "another-pass"}).status_code == 400
+    assert client.post("/api/auth/register", json={"username": "x", "password": "long-enough"}).status_code == 400
+    assert client.post("/api/auth/register", json={"username": "dilani", "password": "short"}).status_code == 400
+
+
+def test_passwords_are_hashed(login_required, isolated_store):
+    _register(login_required, "sarah", "plain-text-secret")
+    stored = sqlite3.connect(isolated_store).execute("SELECT password_hash FROM users").fetchone()[0]
+    assert "plain-text-secret" not in stored
+
+
+def test_endpoints_need_login_when_required(login_required):
+    client = login_required
+    assert client.get("/api/memory").status_code == 401
+    assert client.get("/api/history").status_code == 401
+    assert client.post("/api/rag", json={"query": "hi"}).status_code == 401
+    assert client.post("/api/tts", json={"text": "hi"}).status_code == 401
+
+
+def test_each_user_has_private_memory_and_history(login_required):
+    client = login_required
+    alice, bob = _register(client, "alice"), _register(client, "bob")
+
+    client.post("/api/memory", json={"key": "user_name", "value": "Alice", "sessionId": "bob"}, headers=alice)
+    # The sessionId in the request is ignored when logged in
+    assert client.get("/api/memory", params={"sessionId": "alice"}, headers=bob).json()["count"] == 0
+    alice_memories = client.get("/api/memory", headers=alice).json()["memories"]
+    assert [m["value"] for m in alice_memories] == ["Alice"]
+
+    # Bob can't delete Alice's memory
+    assert client.delete(f"/api/memory/{alice_memories[0]['id']}", headers=bob).json()["success"] is False
+    assert client.get("/api/memory", headers=alice).json()["count"] == 1

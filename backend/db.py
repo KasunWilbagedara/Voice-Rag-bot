@@ -462,19 +462,24 @@ def _pg_execute(sql: str, params: tuple) -> None:
                 logger.debug(f"PostgreSQL mirror write note: {e}")
 
 
-def delete_memory(memory_id: str) -> bool:
-    """Deletes a specific remembered fact by ID."""
+def delete_memory(memory_id: str, session_id: Optional[str] = None) -> bool:
+    """Deletes a remembered fact by ID (only if it belongs to *session_id*, when given)."""
     try:
         conn = sqlite3.connect(SQLITE_DB_PATH)
         cur = conn.cursor()
-        cur.execute("DELETE FROM rag_user_memories WHERE id = ?;", (memory_id,))
+        if session_id:
+            cur.execute("DELETE FROM rag_user_memories WHERE id = ? AND session_id = ?;", (memory_id, session_id))
+        else:
+            cur.execute("DELETE FROM rag_user_memories WHERE id = ?;", (memory_id,))
+        deleted = cur.rowcount > 0
         conn.commit()
         conn.close()
     except Exception as e:
         logger.error(f"Error deleting memory: {e}")
         return False
-    _pg_execute("DELETE FROM user_memories WHERE id::text = %s;", (memory_id,))
-    return True
+    if deleted:
+        _pg_execute("DELETE FROM user_memories WHERE id::text = %s;", (memory_id,))
+    return deleted
 
 
 def clear_all_memories(session_id: str = "default_user") -> bool:

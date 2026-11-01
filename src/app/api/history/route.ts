@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { BACKEND1_URL } from '../_lib/backend';
+import { BACKEND1_URL, userHeaders } from '../_lib/backend';
 
 // Forwards ?limit= and ?sessionId= so history is scoped to the caller's session.
 
@@ -8,6 +8,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     if (!searchParams.get('limit')) searchParams.set('limit', '30');
     const res = await fetch(`${BACKEND1_URL}/api/history?${searchParams.toString()}`, {
+      headers: userHeaders(),
       cache: 'no-store',
     });
     const data = await res.json();
@@ -26,6 +27,7 @@ export async function DELETE(req: Request) {
     const { searchParams } = new URL(req.url);
     const res = await fetch(`${BACKEND1_URL}/api/history?${searchParams.toString()}`, {
       method: 'DELETE',
+      headers: userHeaders(),
     });
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });

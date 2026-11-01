@@ -78,11 +78,17 @@ PYTHON_TOOL_BACKEND_URL=http://localhost:8001
 # Optional hardening
 # ADMIN_API_KEY=some-long-random-string   # required (x-admin-key) for upload/delete/reset/connect & raw tool calls
 # CORS_ORIGINS=http://localhost:3000      # browser origins allowed to call the Python services directly
+# AUTH_REQUIRED=false                    # turn off login (local scripts / tests only)
 ```
 
 When `ADMIN_API_KEY` is set, the Next.js proxy forwards it to the backends automatically, so the
 UI keeps working while direct calls to the destructive endpoints require the key. Leave it unset for
 local development.
+
+**User accounts.** Chat, voice, memory and history require a logged-in user (username + password,
+created from the login screen). Each user has their own memory and conversation history. The login
+token is kept in an httpOnly cookie by the Next.js proxy and forwarded to the backends. For scripts
+that call the Python API directly (e.g. `eval/run_eval.py`), set `AUTH_REQUIRED=false` on the backend.
 
 ---
 

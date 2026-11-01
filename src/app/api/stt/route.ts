@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 
-import { BACKEND1_URL as PYTHON_BACKEND_URL } from '../_lib/backend';
+import { BACKEND1_URL as PYTHON_BACKEND_URL, userHeaders } from '../_lib/backend';
 
 export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const res = await fetch(`${PYTHON_BACKEND_URL}/api/stt`, {
       method: 'POST',
+      headers: userHeaders(),
       body: formData,
     });
 

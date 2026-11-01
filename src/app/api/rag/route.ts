@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { BACKEND1_URL, BACKEND2_URL, backendModeFrom } from '../_lib/backend';
+import { BACKEND1_URL, BACKEND2_URL, backendModeFrom, userHeaders } from '../_lib/backend';
 
 export async function POST(req: Request) {
   try {
@@ -12,10 +12,10 @@ export async function POST(req: Request) {
 
     const res = await fetch(targetUrl, {
       method: 'POST',
-      headers: {
+      headers: userHeaders({
         'Content-Type': 'application/json',
         'x-backend-mode': backendMode,
-      },
+      }),
       body: JSON.stringify(body),
     });
 

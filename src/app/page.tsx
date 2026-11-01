@@ -24,6 +24,7 @@ import {
   Terminal,
   Sun,
   Moon,
+  LogOut,
 } from 'lucide-react';
 import { VoiceInterface } from '@/components/VoiceInterface';
 import { DocumentManager } from '@/components/DocumentManager';
@@ -36,6 +37,7 @@ import { FormattedResponse } from '@/components/FormattedResponse';
 import { BackendModeSwitcher, type BackendMode } from '@/components/BackendModeSwitcher';
 import { BackendStatusMonitor } from '@/components/BackendStatusMonitor';
 import { firstSentences, speakableText, streamRag } from '@/lib/rag-stream';
+import { LoginScreen, type AppUser } from '@/components/LoginScreen';
 
 interface ChatMessage {
   id: string;
@@ -69,7 +71,11 @@ export default function Home() {
   const [isMemoryOpen, setIsMemoryOpen] = useState<boolean>(false);
   const [memoryCount, setMemoryCount] = useState<number>(0);
   const [isLightMode, setIsLightMode] = useState<boolean>(true);
-  const sessionId = 'default_user';
+  // Logged-in user (null = not logged in). Their id is the session id, so
+  // memory and history are private to each person.
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [authChecked, setAuthChecked] = useState<boolean>(false);
+  const sessionId = user?.id || 'default_user';
   const [backendMode, setBackendMode] = React.useState<BackendMode>('pure');
 
   useEffect(() => {
@@ -78,6 +84,25 @@ export default function Home() {
   }, [isLightMode]);
 
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+
+  // Who is logged in? (When the backend doesn't require login, continue as a guest.)
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) setUser(data.user || { id: 'default_user', username: '' });
+      })
+      .catch(() => {})
+      .finally(() => setAuthChecked(true));
+  }, []);
+
+  const logout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    setUser(null);
+    setChatHistory([]);
+    setActiveContextChunks([]);
+    setMemoryCount(0);
+  };
 
   const refreshMemoryCount = useCallback(async () => {
     try {
@@ -91,8 +116,9 @@ export default function Home() {
     }
   }, [sessionId]);
 
-  // Restore chat history and memory count on page load across sessions
+  // Restore the user's chat history and memory count after login
   useEffect(() => {
+    if (!user) return;
     const initHistoryAndMemory = async () => {
       try {
         const [histRes, memRes] = await Promise.all([
@@ -132,7 +158,7 @@ export default function Home() {
     };
 
     initHistoryAndMemory();
-  }, [sessionId]);
+  }, [user, sessionId]);
 
   const handleQueryCompleted = (data: {
     userQuery: string;
@@ -278,6 +304,9 @@ export default function Home() {
     setIsContextDrawerOpen(true);
   };
 
+  if (!authChecked) return null;
+  if (!user) return <LoginScreen onLogin={setUser} />;
+
   return (
     <main
       className="min-h-screen flex flex-col font-sans transition-colors duration-200 selection:bg-sky-200 selection:text-slate-900"
@@ -389,6 +418,18 @@ export default function Home() {
           >
             {isLightMode ? <Moon className="w-4 h-4 text-[#FF204E]" /> : <Sun className="w-4 h-4 text-[#FF204E]" />}
           </button>
+
+          {/* Logged-in user + logout */}
+          {user.username && (
+            <button
+              onClick={logout}
+              className="px-3 py-2 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-sm active:scale-95"
+              title="Log out"
+            >
+              <LogOut className="w-4 h-4 text-[#FF204E]" />
+              <span className="hidden sm:inline">{user.username}</span>
+            </button>
+          )}
 
           {/* Settings Button */}
           <button

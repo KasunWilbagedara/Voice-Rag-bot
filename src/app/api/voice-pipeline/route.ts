@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { BACKEND1_URL, BACKEND2_URL, backendModeFrom } from '../_lib/backend';
+import { BACKEND1_URL, BACKEND2_URL, backendModeFrom, userHeaders } from '../_lib/backend';
 
 export async function POST(req: Request) {
   try {
@@ -13,9 +13,9 @@ export async function POST(req: Request) {
     const res = await fetch(`${targetBase}/api/voice-pipeline`, {
       method: 'POST',
       body: formData,
-      headers: {
+      headers: userHeaders({
         'x-backend-mode': backendMode,
-      },
+      }),
     });
 
     const data = await res.json();

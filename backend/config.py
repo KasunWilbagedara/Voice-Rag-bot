@@ -43,6 +43,11 @@ CORS_ORIGINS = [
 # proxy forwards it automatically. Leave empty for local development.
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
 
+# User accounts: when true (default) chat, voice, memory and history endpoints
+# need a logged-in user, and each user gets their own memory and history.
+# Set AUTH_REQUIRED=false for local scripts/tests that call the API directly.
+AUTH_REQUIRED = os.getenv("AUTH_REQUIRED", "true").strip().lower() not in ("0", "false", "no")
+
 
 def get_api_key(custom_api_key: str = None) -> str:
     key = custom_api_key or GEMINI_API_KEY or OPENAI_API_KEY

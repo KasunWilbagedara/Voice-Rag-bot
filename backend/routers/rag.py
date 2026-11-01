@@ -1,10 +1,11 @@
 import json
 import logging
 from typing import Optional, List, Dict
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from backend.auth import current_user_id
 from backend.rag import save_chat_history
 from backend.rag.pipeline import normalize_mode, run_rag_turn, stream_rag_turn
 
@@ -27,6 +28,7 @@ class RagQueryRequest(BaseModel):
 def process_rag_query(
     req: RagQueryRequest,
     x_backend_mode: Optional[str] = Header(default=None, alias="x-backend-mode"),
+    user_id: Optional[str] = Depends(current_user_id),
 ):
     """
     Text RAG query endpoint.
@@ -41,7 +43,7 @@ def process_rag_query(
         raise HTTPException(status_code=400, detail="Query text is required.")
 
     mode = normalize_mode(x_backend_mode)
-    session_id = req.sessionId or "default_user"
+    session_id = user_id or req.sessionId or "default_user"
     logger.info("RAG query | mode=%s | session=%s | query_len=%d", mode, session_id, len(req.query))
 
     try:
@@ -76,6 +78,7 @@ def process_rag_query(
 def stream_rag_query(
     req: RagQueryRequest,
     x_backend_mode: Optional[str] = Header(default=None, alias="x-backend-mode"),
+    user_id: Optional[str] = Depends(current_user_id),
 ):
     """
     Same as POST /api/rag but streams the answer as it is generated.
@@ -90,7 +93,7 @@ def stream_rag_query(
         raise HTTPException(status_code=400, detail="Query text is required.")
 
     mode = normalize_mode(x_backend_mode)
-    session_id = req.sessionId or "default_user"
+    session_id = user_id or req.sessionId or "default_user"
 
     def events():
         chunks = []

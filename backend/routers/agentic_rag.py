@@ -8,10 +8,11 @@ This router is mounted ONLY on tool_server.py (Port 8001).
 """
 
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
+from backend.auth import current_user_id
 from backend.rag import save_chat_history
 from backend.rag.agentic_generator import agentic_query
 
@@ -28,7 +29,7 @@ class AgenticRAGRequest(BaseModel):
 
 
 @router.post("/api/agentic-rag")
-def agentic_rag_endpoint(req: AgenticRAGRequest):
+def agentic_rag_endpoint(req: AgenticRAGRequest, user_id: Optional[str] = Depends(current_user_id)):
     """
     Agentic RAG endpoint — multi-step LLM reasoning with tool access.
 
@@ -45,7 +46,7 @@ def agentic_rag_endpoint(req: AgenticRAGRequest):
         raise HTTPException(status_code=400, detail="query must not be empty.")
 
     query = req.query.strip()
-    session_id = req.sessionId or "default_user"
+    session_id = user_id or req.sessionId or "default_user"
     try:
         result = agentic_query(
             user_query=query,

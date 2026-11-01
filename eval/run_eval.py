@@ -5,7 +5,7 @@ Sends every question in eval/questions.json to the running backend and checks:
   - answer:  at least one of `expect_any` appears in the answer (case-insensitive)
   - source:  if `expect_source` is set, a retrieved chunk's title contains it
 
-Usage (with Backend 1 running on :8000 and Backend 2 on :8001 for tools mode):
+Usage (start the backends with AUTH_REQUIRED=false; Backend 1 on :8000, Backend 2 on :8001):
     python eval/run_eval.py                  # all questions
     python eval/run_eval.py --seed           # first add the sample document
     python eval/run_eval.py --mode pure      # only one mode
