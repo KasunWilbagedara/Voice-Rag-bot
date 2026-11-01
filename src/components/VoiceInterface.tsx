@@ -21,6 +21,7 @@ import { AudioVisualizer } from './AudioVisualizer';
 import { DynamicChart, parseChartDataFromResponse } from './DynamicChart';
 import { FormattedResponse } from './FormattedResponse';
 import type { BackendMode } from './BackendModeSwitcher';
+import { firstSentences, speakableText, streamRag } from '@/lib/rag-stream';
 
 interface VoiceInterfaceProps {
   apiKey?: string;
@@ -160,19 +161,37 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
     }
   };
 
-  const processInstantTextQuery = async (queryText: string) => {
+  const secondsSince = (t: number) => Number(((performance.now() - t) / 1000).toFixed(2));
+
+  // Streams the answer and starts speaking as soon as the first two sentences
+  // are complete, instead of waiting for the whole answer.
+  const processInstantTextQuery = async (queryText: string, sttSeconds?: number) => {
     if (!queryText || !queryText.trim()) return;
 
     try {
       setState('searching');
       setCurrentQuery(queryText);
+      setCurrentResponse('');
+      setVoiceSpokenText('');
       setLatencyMetrics(null);
 
       const t0 = performance.now();
-      const res = await fetch('/api/rag', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-backend-mode': backendMode },
-        body: JSON.stringify({
+      let firstTextSeconds = 0;
+      let spoken = '';
+      let speech: Promise<void> | null = null;
+      let ttsSeconds = 0;
+
+      const speak = (text: string) => {
+        spoken = text;
+        setVoiceSpokenText(text);
+        const tSpeak = performance.now();
+        speech = playServerTTS(text).then(() => {
+          ttsSeconds = secondsSince(tSpeak);
+        });
+      };
+
+      const result = await streamRag(
+        {
           query: queryText,
           apiKey,
           model: model || 'gemini-3.5-flash-lite',
@@ -180,59 +199,39 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
           baseUrl,
           language,
           sessionId: sessionId || 'default_user',
-        }),
-      });
+        },
+        backendMode,
+        (textSoFar) => {
+          if (!firstTextSeconds) firstTextSeconds = secondsSince(t0);
+          setCurrentResponse(textSoFar);
+          if (!spoken && firstSentences(textSoFar)) speak(firstSentences(textSoFar));
+        }
+      );
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'RAG Query failed');
-
-      const ragTime = Number(((performance.now() - t0) / 1000).toFixed(2));
-      setCurrentResponse(data.answer);
-
-      // Clean spoken sentence for TTS
-      const spokenSummary = extractSpokenSummary(data.answer);
-      setVoiceSpokenText(spokenSummary);
-
+      setCurrentResponse(result.answer);
       if (onQueryComplete) {
         onQueryComplete({
           userQuery: queryText,
-          aiResponse: data.answer,
-          retrievedChunks: data.retrievedChunks || [],
+          aiResponse: result.answer,
+          retrievedChunks: result.retrievedChunks,
         });
       }
 
-      // Synthesize neural voice
-      const t1 = performance.now();
-      await playServerTTS(spokenSummary || data.answer);
-      const ttsTime = Number(((performance.now() - t1) / 1000).toFixed(2));
+      // Short answers never reach two full sentences — speak what we have.
+      if (!spoken) speak(firstSentences(result.answer, 1) || speakableText(result.answer).slice(0, 200));
+      await speech;
 
       setLatencyMetrics({
-        rag: ragTime,
-        tts: ttsTime,
-        total: Number((ragTime + ttsTime).toFixed(2)),
+        stt: sttSeconds,
+        rag: firstTextSeconds || secondsSince(t0),
+        tts: ttsSeconds,
+        total: Number(((sttSeconds || 0) + firstTextSeconds + ttsSeconds).toFixed(2)),
       });
     } catch (err: any) {
       console.error('Instant RAG Error:', err);
       setErrorMessage(err.message || 'Error processing query');
       setState('idle');
     }
-  };
-
-  const extractSpokenSummary = (text: string): string => {
-    if (!text) return '';
-    const clean = text
-      .replace(/```[\s\S]*?```/g, '')
-      .replace(/\[\s*Source\s*\d+[^\]]*\]/gi, '')
-      .replace(/\[\d+\]/g, '')
-      .replace(/[*#\`_~]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    const sentences = clean.split(/(?<=[.!?෴])\s+/);
-    if (sentences.length > 0 && sentences[0].length >= 10) {
-      return (sentences.slice(0, 2).join(' ')).trim();
-    }
-    return clean.slice(0, 150);
   };
 
   const startRecording = async () => {
@@ -356,68 +355,22 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
     }
   };
 
+  // Recorded voice: transcribe first, then answer through the streaming path above.
   const processVoiceInput = async (audioBlob: Blob) => {
     try {
-      setState('searching');
+      setState('transcribing');
+      const t0 = performance.now();
       const formData = new FormData();
       formData.append('audio', audioBlob, 'voice_query.webm');
       if (apiKey) formData.append('apiKey', apiKey);
-      formData.append('voice', activeVoice);
-      if (model) formData.append('model', model);
-      if (provider) formData.append('provider', provider);
-      if (baseUrl) formData.append('baseUrl', baseUrl);
       if (language) formData.append('language', language);
-      formData.append('speed', playbackSpeed.toString());
-      formData.append('sessionId', sessionId || 'default_user');
 
-      const res = await fetch('/api/voice-pipeline', {
-        method: 'POST',
-        headers: { 'x-backend-mode': backendMode },
-        body: formData,
-      });
-
+      const res = await fetch('/api/stt', { method: 'POST', body: formData });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.detail || 'Speech recognition failed');
+      if (!data.text || !data.text.trim()) throw new Error('Could not hear any speech. Please try again.');
 
-      if (!res.ok) {
-        throw new Error(data.error || 'Voice RAG pipeline failed');
-      }
-
-      setCurrentQuery(data.userQueryText);
-      setCurrentResponse(data.aiResponseText);
-      setVoiceSpokenText(data.voiceSpokenText || '');
-
-      if (data.latency) {
-        setLatencyMetrics(data.latency);
-      }
-
-      if (onQueryComplete) {
-        onQueryComplete({
-          userQuery: data.userQueryText,
-          aiResponse: data.aiResponseText,
-          retrievedChunks: data.retrievedChunks || [],
-        });
-      }
-
-      if (data.audioBase64) {
-        setState('speaking');
-        const audioSrc = `data:${data.audioFormat || 'audio/mp3'};base64,${data.audioBase64}`;
-
-        if (audioPlayerRef.current) {
-          audioPlayerRef.current.src = audioSrc;
-          audioPlayerRef.current.playbackRate = 1.0;
-          audioPlayerRef.current.onended = () => {
-            setState('idle');
-            if (isHandsFree) {
-              setTimeout(() => startRecording(), 800);
-            }
-          };
-          await audioPlayerRef.current.play();
-        } else {
-          await playServerTTS(data.voiceSpokenText || data.aiResponseText);
-        }
-      } else {
-        await playServerTTS(data.voiceSpokenText || data.aiResponseText);
-      }
+      await processInstantTextQuery(data.text, secondsSince(t0));
     } catch (err: any) {
       console.error('Voice Processing Error:', err);
       setErrorMessage(err.message || 'Error processing voice query');
@@ -517,7 +470,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
               <span>⚡ {latencyMetrics.total}s</span>
               {latencyMetrics.stt !== undefined && (
                 <span className="text-emerald-400/70 hidden sm:inline">
-                  (STT {latencyMetrics.stt}s • RAG {latencyMetrics.rag}s • TTS {latencyMetrics.tts}s)
+                  (STT {latencyMetrics.stt}s • first text {latencyMetrics.rag}s • TTS {latencyMetrics.tts}s)
                 </span>
               )}
             </div>

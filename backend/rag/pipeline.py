@@ -12,10 +12,10 @@ to the right pipeline, so the text endpoint (/api/rag) and the voice endpoint
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 from backend.rag.embedder import get_text_embedding
-from backend.rag.generator import query_rag
+from backend.rag.generator import query_rag, stream_rag
 from backend.rag.retriever import mmr_filter, search_similar_chunks
 
 logger = logging.getLogger("voicerag.rag.pipeline")
@@ -36,6 +36,20 @@ def safe_query_embedding(text: str, custom_api_key: Optional[str] = None) -> Lis
     except Exception as e:
         logger.warning("Query embedding failed, falling back to keyword search only: %s", e)
         return []
+
+
+def retrieve_chunks(user_query: str, pure: bool, custom_api_key: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Hybrid search; Pure RAG takes 12 candidates and keeps a diverse top 5 (MMR)."""
+    query_embedding = safe_query_embedding(user_query, custom_api_key)
+    chunks = search_similar_chunks(
+        query_embedding=query_embedding,
+        top_k=12 if pure else 8,
+        query_text=user_query,
+        custom_api_key=custom_api_key,
+    )
+    if pure:
+        chunks = mmr_filter(chunks, query_embedding, top_n=5, lambda_param=0.7)
+    return chunks
 
 
 def run_rag_turn(
@@ -73,15 +87,7 @@ def run_rag_turn(
         }
 
     pure = mode == "pure"
-    query_embedding = safe_query_embedding(user_query, custom_api_key)
-    retrieved = search_similar_chunks(
-        query_embedding=query_embedding,
-        top_k=12 if pure else 8,
-        query_text=user_query,
-        custom_api_key=custom_api_key,
-    )
-    if pure:
-        retrieved = mmr_filter(retrieved, query_embedding, top_n=5, lambda_param=0.7)
+    retrieved = retrieve_chunks(user_query, pure, custom_api_key)
 
     rag_res = query_rag(
         user_query=user_query,
@@ -101,3 +107,46 @@ def run_rag_turn(
         "mode": mode,
         "toolCalls": [],
     }
+
+
+def stream_rag_turn(
+    user_query: str,
+    mode: str,
+    custom_api_key: Optional[str] = None,
+    model_name: str = "gemini-3.5-flash",
+    target_language: str = "si",
+    conversation_history: Optional[List[Dict[str, str]]] = None,
+    provider: Optional[str] = None,
+    base_url: Optional[str] = None,
+    session_id: str = "default_user",
+) -> Iterator[Dict[str, Any]]:
+    """
+    Streaming version of run_rag_turn. Yields "sources", "token" and "done"
+    events (see generator.stream_rag). Tools mode can't stream the agent's
+    multi-step reasoning, so its whole answer arrives as a single token.
+    """
+    if mode == "tools":
+        result = run_rag_turn(
+            user_query, mode, custom_api_key, model_name, target_language,
+            conversation_history, provider, base_url, session_id,
+        )
+        yield {"type": "sources", "retrievedChunks": result["retrievedChunks"]}
+        yield {"type": "token", "text": result["answer"]}
+        yield {"type": "done", "answer": result["answer"], "toolCalls": result["toolCalls"]}
+        return
+
+    pure = mode == "pure"
+    retrieved = retrieve_chunks(user_query, pure, custom_api_key)
+
+    yield from stream_rag(
+        user_query=user_query,
+        retrieved_chunks=retrieved,
+        custom_api_key=custom_api_key,
+        model_name=model_name,
+        target_language=target_language,
+        conversation_history=conversation_history,
+        provider=provider,
+        base_url=base_url,
+        session_id=session_id,
+        pure_rag_mode=pure,
+    )

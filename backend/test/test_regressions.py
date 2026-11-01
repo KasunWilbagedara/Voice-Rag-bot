@@ -144,7 +144,7 @@ def no_llm(monkeypatch):
 
     monkeypatch.setattr(pipeline, "safe_query_embedding", lambda *a, **k: [])
     monkeypatch.setattr(gen, "_enrich_with_tools", fake_enrich)
-    monkeypatch.setattr(gen, "_call_llm", lambda **kw: "Grounded answer.")
+    monkeypatch.setattr(gen, "_call_llm", lambda *a, **kw: "Grounded answer.")
     return calls
 
 
@@ -254,3 +254,39 @@ def test_reembed_updates_old_chunks(monkeypatch):
     model, emb = conn.execute("SELECT embedding_model, embedding FROM rag_document_chunks WHERE id='c1'").fetchone()
     assert model == "gemini-embedding-001" and len(json.loads(emb)) == 768
     conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Streaming + agentic tool calls
+# ---------------------------------------------------------------------------
+
+def test_stream_endpoint_sends_sources_tokens_and_done(no_llm, monkeypatch):
+    import backend.rag.generator as gen
+    from backend.main import app
+
+    monkeypatch.setattr(gen, "_stream_llm", lambda *a, **kw: iter(["Refunds take ", "14 days."]))
+    res = TestClient(app).post(
+        "/api/rag/stream",
+        json={"query": "refunds?", "apiKey": "AIzaTEST", "sessionId": "s1"},
+        headers={"x-backend-mode": "pure"},
+    )
+    events = [json.loads(line) for line in res.text.splitlines()]
+    assert [e["type"] for e in events] == ["sources", "token", "token", "done"]
+    assert events[-1]["answer"] == "Refunds take 14 days."
+    assert db.get_saved_chat_history(5, session_id="s1")[0]["aiResponse"] == "Refunds take 14 days."
+
+
+@pytest.mark.parametrize("text", [
+    '{"tool_call": {"name": "track_customer_order", "parameters": {"order_id": "ORD-1"}}}',
+    '```json\n{"tool_call": {"name": "track_customer_order", "parameters": {"order_id": "ORD-1"}}}\n```',
+])
+def test_agentic_parses_nested_tool_call_json(text):
+    from backend.rag.agentic_generator import _parse_tool_call
+
+    assert _parse_tool_call(text) == ("track_customer_order", {"order_id": "ORD-1"})
+
+
+def test_agentic_plain_answer_is_not_a_tool_call():
+    from backend.rag.agentic_generator import _parse_tool_call
+
+    assert _parse_tool_call("Order ORD-1 was delivered on {date}.") is None

@@ -15,8 +15,9 @@ import re
 import json
 import time
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
+import httpx
 import openai
 from google import genai
 from google.genai import types
@@ -30,13 +31,11 @@ from backend.db import (
 )
 from backend.rag.prompts import build_language_instruction, build_system_prompt
 
-try:
-    import httpx
-    _HTTPX_AVAILABLE = True
-except ImportError:
-    _HTTPX_AVAILABLE = False
-
 logger = logging.getLogger("voicerag.rag.generator")
+
+# One shared HTTP client: reuses the connection to the Tool Service instead of
+# opening a new one for every tool call.
+_tool_client = httpx.Client(timeout=8.0)
 
 
 # ---------------------------------------------------------------------------
@@ -45,41 +44,22 @@ logger = logging.getLogger("voicerag.rag.generator")
 
 def call_remote_tool(tool_name: str, **kwargs) -> Any:
     """
-    Delegates a tool call to the Tool Execution Service (Port 8001) via HTTP.
-
-    Falls back to the local in-process ``tools.call_tool()`` if:
-      - httpx is not installed
-      - The Tool Service is unreachable (network timeout / connection error)
-      - The Tool Service returns an HTTP error
-
-    Args:
-        tool_name: Registered tool name (e.g. ``'get_live_weather'``).
-        **kwargs:  Keyword arguments forwarded to the tool as JSON.
-
-    Returns:
-        The tool's return value (dict, list, bool, etc.).
+    Runs a tool on the Tool Execution Service (Port 8001) over HTTP, falling
+    back to running it in this process if the service is unreachable or
+    returns an error.
     """
-    if _HTTPX_AVAILABLE:
-        try:
-            payload = {"tool_name": tool_name, "parameters": kwargs}
-            with httpx.Client(timeout=8.0) as client:
-                resp = client.post(TOOL_SERVICE_URL, json=payload, headers=admin_headers())
-            if resp.status_code == 200:
-                data = resp.json()
-                return data.get("result")
-            logger.warning(
-                "Tool Service returned %s for '%s'. Falling back to local execution.",
-                resp.status_code,
-                tool_name,
-            )
-        except (httpx.ConnectError, httpx.TimeoutException, httpx.RequestError) as http_err:
-            logger.warning(
-                "Tool Service unreachable (%s). Falling back to local execution for '%s'.",
-                http_err,
-                tool_name,
-            )
+    try:
+        resp = _tool_client.post(
+            TOOL_SERVICE_URL,
+            json={"tool_name": tool_name, "parameters": kwargs},
+            headers=admin_headers(),
+        )
+        if resp.status_code == 200:
+            return resp.json().get("result")
+        logger.warning("Tool Service returned %s for '%s'; running it locally.", resp.status_code, tool_name)
+    except httpx.HTTPError as err:
+        logger.warning("Tool Service unreachable (%s); running '%s' locally.", err, tool_name)
 
-    # Local in-process fallback
     from backend import tools
     return tools.call_tool(tool_name, **kwargs)
 
@@ -374,6 +354,37 @@ def _enrich_with_tools(
     return db_context_blocks, enriched_chunks
 
 
+GEMINI_FALLBACK_MODELS = ["gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-3.5-flash", "gemini-3.6-flash"]
+_GEMINI_CONFIG = types.GenerateContentConfig(temperature=0.2, max_output_tokens=1536)
+
+
+def _use_gemini(api_key: str, provider: Optional[str], base_url: Optional[str]) -> bool:
+    if base_url:
+        return False
+    return provider == "gemini" or (is_gemini_key(api_key) and not provider)
+
+
+def _gemini_models(model_name: str) -> List[str]:
+    """Requested model first, then the fallback chain (no duplicates)."""
+    models = [model_name] if model_name else []
+    return models + [m for m in GEMINI_FALLBACK_MODELS if m not in models]
+
+
+def _openai_client(api_key: str, provider: Optional[str], base_url: Optional[str]) -> openai.OpenAI:
+    """OpenAI-compatible client (OpenAI, Groq, Ollama, OpenRouter or a custom base URL)."""
+    default_urls = {
+        "groq": "https://api.groq.com/openai/v1",
+        "ollama": "http://localhost:11434/v1",
+        "openrouter": "https://openrouter.ai/api/v1",
+    }
+    url = base_url or default_urls.get(provider or "")
+    return openai.OpenAI(api_key=api_key or "ollama", base_url=url) if url else openai.OpenAI(api_key=api_key)
+
+
+def _openai_messages(system_prompt: str, user_query: str) -> List[Dict[str, str]]:
+    return [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_query}]
+
+
 def _call_llm(
     system_prompt: str,
     user_query: str,
@@ -382,60 +393,70 @@ def _call_llm(
     provider: Optional[str],
     base_url: Optional[str],
 ) -> str:
-    """Calls Gemini or OpenAI-compatible LLM and returns the generated text."""
-    is_gemini = (provider == "gemini") or (is_gemini_key(api_key) and not provider and not base_url)
-
-    if is_gemini and not base_url:
+    """Calls Gemini or an OpenAI-compatible LLM and returns the whole answer."""
+    if _use_gemini(api_key, provider, base_url):
         client = genai.Client(api_key=api_key)
         full_prompt = f"{system_prompt}\n\nUSER QUESTION: {user_query}"
-        models_to_try = []
-        if model_name:
-            models_to_try.append(model_name)
-        for m in ["gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-3.5-flash", "gemini-3.6-flash"]:
-            if m not in models_to_try:
-                models_to_try.append(m)
-
         last_err = None
-        for m_name in models_to_try:
+        for m_name in _gemini_models(model_name):
             try:
-                res = client.models.generate_content(
-                    model=m_name,
-                    contents=full_prompt,
-                    config=types.GenerateContentConfig(temperature=0.2, max_output_tokens=1536),
-                )
+                res = client.models.generate_content(model=m_name, contents=full_prompt, config=_GEMINI_CONFIG)
                 if res and res.text and res.text.strip():
                     return res.text.strip()
             except Exception as e:
                 last_err = e
-
         raise RuntimeError(f"Gemini LLM generation failed: {last_err}")
 
-    else:
-        resolved_base_url = base_url
-        if provider == "groq" and not resolved_base_url:
-            resolved_base_url = "https://api.groq.com/openai/v1"
-        elif provider == "ollama" and not resolved_base_url:
-            resolved_base_url = "http://localhost:11434/v1"
-        elif provider == "openrouter" and not resolved_base_url:
-            resolved_base_url = "https://openrouter.ai/api/v1"
+    completion = _openai_client(api_key, provider, base_url).chat.completions.create(
+        model=model_name or "gpt-4o-mini",
+        messages=_openai_messages(system_prompt, user_query),
+        temperature=0.2,
+        max_tokens=2048,
+    )
+    ans = completion.choices[0].message.content
+    return ans.strip() if ans else ""
 
-        client_kwargs: Dict[str, Any] = {"api_key": api_key if api_key else "ollama"}
-        if resolved_base_url:
-            client_kwargs["base_url"] = resolved_base_url
 
-        client = openai.OpenAI(**client_kwargs)
-        active_model = model_name or "gpt-4o-mini"
-        completion = client.chat.completions.create(
-            model=active_model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_query},
-            ],
-            temperature=0.2,
-            max_tokens=2048,
-        )
-        ans = completion.choices[0].message.content
-        return ans.strip() if ans else ""
+def _stream_llm(
+    system_prompt: str,
+    user_query: str,
+    api_key: str,
+    model_name: str,
+    provider: Optional[str],
+    base_url: Optional[str],
+) -> Iterator[str]:
+    """Like _call_llm but yields the answer in pieces as the model writes it."""
+    if _use_gemini(api_key, provider, base_url):
+        client = genai.Client(api_key=api_key)
+        full_prompt = f"{system_prompt}\n\nUSER QUESTION: {user_query}"
+        last_err = None
+        for m_name in _gemini_models(model_name):
+            started = False
+            try:
+                for piece in client.models.generate_content_stream(
+                    model=m_name, contents=full_prompt, config=_GEMINI_CONFIG
+                ):
+                    if piece.text:
+                        started = True
+                        yield piece.text
+                if started:
+                    return
+            except Exception as e:
+                if started:
+                    raise  # can't switch models halfway through an answer
+                last_err = e
+        raise RuntimeError(f"Gemini LLM generation failed: {last_err}")
+
+    stream = _openai_client(api_key, provider, base_url).chat.completions.create(
+        model=model_name or "gpt-4o-mini",
+        messages=_openai_messages(system_prompt, user_query),
+        temperature=0.2,
+        max_tokens=2048,
+        stream=True,
+    )
+    for piece in stream:
+        if piece.choices and piece.choices[0].delta.content:
+            yield piece.choices[0].delta.content
 
 
 def _clean_generated_text(
@@ -476,48 +497,22 @@ def _clean_generated_text(
 # Public API
 # ---------------------------------------------------------------------------
 
-def query_rag(
+def prepare_rag_prompt(
     user_query: str,
     retrieved_chunks: List[Dict[str, Any]],
     custom_api_key: Optional[str] = None,
-    model_name: str = "gemini-3.5-flash",
     target_language: str = "si",
     conversation_history: Optional[List[Dict[str, str]]] = None,
-    provider: Optional[str] = None,
-    base_url: Optional[str] = None,
     session_id: Optional[str] = "default_user",
     pure_rag_mode: bool = False,
 ) -> Dict[str, Any]:
     """
-    Full RAG pipeline: memory recall → tool enrichment → LLM generation.
+    Everything before the LLM call: memory recall, tool enrichment (skipped
+    in Pure RAG mode), conversation history and prompt assembly.
 
-    Steps:
-      1. Auto-extract & persist entity signals from query (order/ticket/name).
-      2. Fetch & filter user session memories.
-      3. Call contextual tools (order tracking, weather, datetime, SQL, …).
-      4. Build system prompt with all context layers.
-      5. Generate answer via Gemini or OpenAI-compatible LLM.
-      6. Clean and return the structured response.
-
-    Args:
-        user_query:           User's natural-language question.
-        retrieved_chunks:     Dense/sparse vector search results from retriever.
-        custom_api_key:       Optional per-request API key.
-        model_name:           LLM model identifier.
-        target_language:      ``"si"`` for Sinhala, anything else for English.
-        conversation_history: Recent in-memory turn history.
-        provider:             LLM provider override (``"gemini"``, ``"groq"``,
-                              ``"ollama"``, ``"openrouter"``).
-        base_url:             Custom OpenAI-compatible base URL.
-        session_id:           User session identifier for persistent memory.
-        pure_rag_mode:        When True, skip tool enrichment (order/weather/
-                              SQL/web lookups) so the answer is grounded only
-                              in the retrieved document chunks.
-
-    Returns:
-        ``{"answer": str, "retrievedChunks": list}``
+    Returns ``{"system_prompt", "chunks", "clean"}`` where ``clean`` is a
+    function that tidies the model's raw answer.
     """
-    api_key = get_api_key(custom_api_key)
     session = session_id or "default_user"
 
     # Step 1: persist memory signals
@@ -579,25 +574,72 @@ def query_rag(
         doc_context_text=doc_context_text,
     )
 
-    # Step 6: LLM generation
-    generated_text = _call_llm(
-        system_prompt=system_prompt,
-        user_query=user_query,
-        api_key=api_key,
-        model_name=model_name,
-        provider=provider,
-        base_url=base_url,
-    )
-
-    if generated_text:
-        generated_text = _clean_generated_text(
-            generated_text, is_asking_order, is_asking_ticket, is_asking_identity
-        )
-
     return {
-        "answer": generated_text,
-        "retrievedChunks": enriched_chunks,
+        "system_prompt": system_prompt,
+        "chunks": enriched_chunks,
+        "clean": lambda text: _clean_generated_text(
+            text, is_asking_order, is_asking_ticket, is_asking_identity
+        ) if text else "",
     }
+
+
+def query_rag(
+    user_query: str,
+    retrieved_chunks: List[Dict[str, Any]],
+    custom_api_key: Optional[str] = None,
+    model_name: str = "gemini-3.5-flash",
+    target_language: str = "si",
+    conversation_history: Optional[List[Dict[str, str]]] = None,
+    provider: Optional[str] = None,
+    base_url: Optional[str] = None,
+    session_id: Optional[str] = "default_user",
+    pure_rag_mode: bool = False,
+) -> Dict[str, Any]:
+    """
+    Full RAG answer: prompt preparation (see prepare_rag_prompt) + LLM call.
+
+    Returns ``{"answer": str, "retrievedChunks": list}``.
+    """
+    api_key = get_api_key(custom_api_key)
+    prep = prepare_rag_prompt(
+        user_query, retrieved_chunks, custom_api_key, target_language,
+        conversation_history, session_id, pure_rag_mode,
+    )
+    raw = _call_llm(prep["system_prompt"], user_query, api_key, model_name, provider, base_url)
+    return {"answer": prep["clean"](raw), "retrievedChunks": prep["chunks"]}
+
+
+def stream_rag(
+    user_query: str,
+    retrieved_chunks: List[Dict[str, Any]],
+    custom_api_key: Optional[str] = None,
+    model_name: str = "gemini-3.5-flash",
+    target_language: str = "si",
+    conversation_history: Optional[List[Dict[str, str]]] = None,
+    provider: Optional[str] = None,
+    base_url: Optional[str] = None,
+    session_id: Optional[str] = "default_user",
+    pure_rag_mode: bool = False,
+) -> Iterator[Dict[str, Any]]:
+    """
+    Streaming version of query_rag. Yields events:
+      {"type": "sources", "retrievedChunks": [...]}   once, before the answer
+      {"type": "token", "text": "..."}                 many
+      {"type": "done", "answer": "..."}                once, cleaned full answer
+    """
+    api_key = get_api_key(custom_api_key)
+    prep = prepare_rag_prompt(
+        user_query, retrieved_chunks, custom_api_key, target_language,
+        conversation_history, session_id, pure_rag_mode,
+    )
+    yield {"type": "sources", "retrievedChunks": prep["chunks"]}
+
+    pieces: List[str] = []
+    for text in _stream_llm(prep["system_prompt"], user_query, api_key, model_name, provider, base_url):
+        pieces.append(text)
+        yield {"type": "token", "text": text}
+
+    yield {"type": "done", "answer": prep["clean"]("".join(pieces))}
 
 
 def generate_rag_response(

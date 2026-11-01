@@ -35,6 +35,7 @@ import { DynamicChart, parseChartDataFromResponse } from '@/components/DynamicCh
 import { FormattedResponse } from '@/components/FormattedResponse';
 import { BackendModeSwitcher, type BackendMode } from '@/components/BackendModeSwitcher';
 import { BackendStatusMonitor } from '@/components/BackendStatusMonitor';
+import { firstSentences, speakableText, streamRag } from '@/lib/rag-stream';
 
 interface ChatMessage {
   id: string;
@@ -154,6 +155,23 @@ export default function Home() {
     refreshMemoryCount();
   };
 
+  // Speaks text with the selected neural voice.
+  const speak = async (text: string) => {
+    if (!text) return;
+    try {
+      const ttsRes = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, voice, apiKey, language, speed: 1.0 }),
+      });
+      if (ttsRes.ok) {
+        await new Audio(URL.createObjectURL(await ttsRes.blob())).play();
+      }
+    } catch (e) {
+      console.error('TTS error:', e);
+    }
+  };
+
   const handleTextSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!textInput.trim() || isSubmittingText) return;
@@ -167,91 +185,56 @@ export default function Home() {
       { role: 'assistant', content: m.aiResponse },
     ]).flat();
 
-    try {
-      const res = await fetch('/api/rag', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-backend-mode': backendMode },
-        body: JSON.stringify({
-          query,
-          apiKey,
-          model,
-          provider,
-          baseUrl,
-          language,
-          conversationHistory: historyFormatted,
-          sessionId,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'RAG Query failed');
-
-      const newMessage: ChatMessage = {
-        id: Date.now().toString(),
+    // Show the turn right away and fill in the answer as it streams.
+    const id = Date.now().toString();
+    const updateAnswer = (aiResponse: string, retrievedChunks?: any[]) =>
+      setChatHistory((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, aiResponse, retrievedChunks: retrievedChunks ?? m.retrievedChunks } : m))
+      );
+    setChatHistory((prev) => [
+      {
+        id,
         userQuery: query,
-        aiResponse: data.answer,
-        retrievedChunks: data.retrievedChunks || [],
+        aiResponse: '',
+        retrievedChunks: [],
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         language: language,
         mode: 'text',
-      };
+      },
+      ...prev,
+    ]);
 
-      setChatHistory((prev) => [newMessage, ...prev]);
-      setActiveContextChunks(data.retrievedChunks || []);
+    try {
+      let spoken = '';
+      const result = await streamRag(
+        { query, apiKey, model, provider, baseUrl, language, conversationHistory: historyFormatted, sessionId },
+        backendMode,
+        (textSoFar) => {
+          updateAnswer(textSoFar);
+          // Start speaking as soon as the first two sentences are complete
+          if (!spoken && firstSentences(textSoFar)) {
+            spoken = firstSentences(textSoFar);
+            speak(spoken);
+          }
+        }
+      );
+
+      updateAnswer(result.answer, result.retrievedChunks);
+      setActiveContextChunks(result.retrievedChunks);
       setActiveQueryForContext(query);
       refreshMemoryCount();
 
-      // Play natural neural audio via TTS for the conversational answer
-      const cleanSpoken = (data.voiceSpokenText || data.answer || '')
-        .replace(/```[\s\S]*?```/g, '')
-        .replace(/\[[^\]]*\]/g, '')
-        .replace(/[*#\`_~]/g, '')
-        .trim();
-      const firstSentence = cleanSpoken.split(/(?<=[.!?෴])\s+/).slice(0, 2).join(' ') || cleanSpoken.slice(0, 160);
-
-      const ttsRes = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: firstSentence, voice, apiKey, language, speed: 1.0 }),
-      });
-
-      if (ttsRes.ok) {
-        const audioBlob = await ttsRes.blob();
-        const audioUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(audioUrl);
-        await audio.play();
-      }
+      if (!spoken) speak(firstSentences(result.answer, 1) || speakableText(result.answer).slice(0, 200));
     } catch (err: any) {
       console.error('Text RAG Error:', err);
+      updateAnswer(`⚠️ ${err.message || 'RAG query failed'}`);
     } finally {
       setIsSubmittingText(false);
     }
   };
 
-  const replayMessageAudio = async (text: string) => {
-    try {
-      const cleanSpoken = text
-        .replace(/```[\s\S]*?```/g, '')
-        .replace(/\[[^\]]*\]/g, '')
-        .replace(/[*#\`_~]/g, '')
-        .trim();
-      const firstSentence = cleanSpoken.split(/(?<=[.!?෴])\s+/).slice(0, 2).join(' ') || cleanSpoken.slice(0, 160);
-
-      const ttsRes = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: firstSentence, voice, apiKey, language }),
-      });
-      if (ttsRes.ok) {
-        const audioBlob = await ttsRes.blob();
-        const audioUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(audioUrl);
-        await audio.play();
-      }
-    } catch (e) {
-      console.error('Replay error:', e);
-    }
-  };
+  const replayMessageAudio = (text: string) =>
+    speak(firstSentences(text) || speakableText(text).slice(0, 160));
 
   const copyMessage = (id: string, text: string) => {
     navigator.clipboard.writeText(text);
