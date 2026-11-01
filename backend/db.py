@@ -12,7 +12,8 @@ from backend.config import DATABASE_URL
 
 logger = logging.getLogger("voicerag.db")
 
-SQLITE_DB_PATH = os.path.join(os.path.dirname(__file__), "customer_datasets.db")
+# Local SQLite store (override with the SQLITE_DB_PATH env var, e.g. for evals/tests)
+SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH") or os.path.join(os.path.dirname(__file__), "customer_datasets.db")
 
 class InMemoryStore:
     def __init__(self):

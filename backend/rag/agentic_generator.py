@@ -15,7 +15,6 @@ Exported functions:
   - agentic_query()   Full pipeline: embed → search → agentic loop → answer
 """
 
-import re
 import json
 import time
 import logging
@@ -25,18 +24,12 @@ import openai
 from google import genai
 from google.genai import types
 
-from backend.config import get_api_key, is_gemini_key, TOOL_SERVICE_URL
-from backend.security import admin_headers
+from backend.config import get_api_key, is_gemini_key
 from backend.db import get_saved_chat_history
 from backend.rag.prompts import build_language_instruction, build_system_prompt
 from backend.rag.embedder import get_text_embedding as get_embedding
 from backend.rag.retriever import search_similar_chunks
-
-try:
-    import httpx
-    _HTTPX_AVAILABLE = True
-except ImportError:
-    _HTTPX_AVAILABLE = False
+from backend.rag.generator import call_remote_tool
 
 logger = logging.getLogger("voicerag.rag.agentic_generator")
 
@@ -75,30 +68,22 @@ ANSWER RULES:
 5. Match the user's language (Sinhala or English).
 """
 
-TOOL_CALL_PATTERN = re.compile(
-    r'\{\s*"tool_call"\s*:\s*\{.*?\}\s*\}',
-    re.DOTALL
-)
-
-
-# ---------------------------------------------------------------------------
-# Remote Tool Execution
-# ---------------------------------------------------------------------------
-
-def _call_remote_tool(tool_name: str, **kwargs) -> Any:
-    """Delegates tool call to Port 8001 tool endpoint, falls back to local."""
-    if _HTTPX_AVAILABLE:
-        try:
-            payload = {"tool_name": tool_name, "parameters": kwargs}
-            with httpx.Client(timeout=8.0) as client:
-                resp = client.post(TOOL_SERVICE_URL, json=payload, headers=admin_headers())
-            if resp.status_code == 200:
-                return resp.json().get("result")
-        except Exception as e:
-            logger.warning("Remote tool call failed for '%s': %s — using local fallback", tool_name, e)
-
-    from backend import tools
-    return tools.call_tool(tool_name, **kwargs)
+def _parse_tool_call(text: str) -> Optional[Tuple[str, Dict[str, Any]]]:
+    """
+    Returns (tool_name, parameters) if *text* is a tool-call JSON object
+    (optionally wrapped in ``` fences or surrounded by text), else None.
+    """
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end <= start:
+        return None
+    try:
+        data = json.loads(text[start:end + 1])
+    except ValueError:
+        return None
+    call = data.get("tool_call") if isinstance(data, dict) else None
+    if isinstance(call, dict) and call.get("name"):
+        return call["name"], call.get("parameters") or {}
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -217,28 +202,21 @@ def _run_agentic_loop(
         llm_output = _call_llm(messages, api_key)
 
         # Check if the LLM wants to call a tool
-        tool_match = TOOL_CALL_PATTERN.search(llm_output)
-        if not tool_match:
+        tool_call = _parse_tool_call(llm_output)
+        if not tool_call:
             # No tool call — this is the final answer
             logger.info("Agentic loop complete in %d rounds", round_num + 1)
             return llm_output.strip(), tool_calls_made
-
-        # Parse tool call
-        try:
-            tool_json = json.loads(tool_match.group())
-            tool_name = tool_json["tool_call"]["name"]
-            tool_params = tool_json["tool_call"].get("parameters", {})
-        except (json.JSONDecodeError, KeyError) as e:
-            logger.warning("Failed to parse tool call JSON: %s", e)
-            return llm_output.strip(), tool_calls_made
+        tool_name, tool_params = tool_call
 
         logger.info("Agentic: calling tool '%s' with params %s", tool_name, tool_params)
 
         # Execute the tool
         try:
-            tool_result = _call_remote_tool(tool_name, **tool_params)
+            tool_result = call_remote_tool(tool_name, **tool_params)
             tool_result_str = json.dumps(tool_result, ensure_ascii=False, default=str)
         except Exception as e:
+            tool_result = None
             tool_result_str = f"Tool error: {e}"
 
         tool_calls_made.append({

@@ -1,0 +1,24 @@
+[
+  {"id": "doc-hotline-en", "mode": "pure", "question": "What is the enterprise hotline number?", "expect_any": ["1717"], "expect_source": "SLT_Enterprise"},
+  {"id": "doc-sla-en", "mode": "pure", "question": "What uptime SLA does the optical fiber service offer?", "expect_any": ["99.99"], "expect_source": "SLT_Enterprise"},
+  {"id": "doc-bandwidth-en", "mode": "pure", "question": "What is the maximum bandwidth of the dedicated fiber connection?", "expect_any": ["10 Gbps", "10Gbps"], "expect_source": "SLT_Enterprise"},
+  {"id": "doc-security-en", "mode": "pure", "question": "Which cybersecurity managed services are offered?", "expect_any": ["DDoS", "SOC", "Firewall"], "expect_source": "SLT_Enterprise"},
+  {"id": "doc-email-en", "mode": "pure", "question": "What is the enterprise email address?", "expect_any": ["enterprise@slt.lk"], "expect_source": "SLT_Enterprise"},
+  {"id": "doc-iso-en", "mode": "pure", "question": "Is the Akaza Cloud data center certified? Which standard?", "expect_any": ["27001"], "expect_source": "SLT_Enterprise"},
+  {"id": "doc-voice-en", "mode": "pure", "question": "What voice and unified communications services are available?", "expect_any": ["SIP", "PABX", "IVR"], "expect_source": "SLT_Enterprise"},
+  {"id": "doc-hotline-si", "mode": "pure", "language": "si", "question": "ව්‍යාපාරික සේවා සඳහා hotline අංකය කුමක්ද?", "expect_any": ["1717"], "expect_source": "SLT_Enterprise"},
+  {"id": "doc-bandwidth-si", "mode": "pure", "language": "si", "question": "ෆයිබර් සම්බන්ධතාවයේ උපරිම වේගය කීයද?", "expect_any": ["10"], "expect_source": "SLT_Enterprise"},
+  {"id": "doc-iso-si", "mode": "pure", "language": "si", "question": "Akaza Cloud සේවාවට ඇති සහතිකය කුමක්ද?", "expect_any": ["27001"], "expect_source": "SLT_Enterprise"},
+
+  {"id": "db-order-en", "mode": "standard", "question": "What is the status of order ORD-9021?", "expect_any": ["Delivered"]},
+  {"id": "db-order-amount-si", "mode": "standard", "language": "si", "question": "ORD-9022 ඇණවුමේ මුදල කීයද?", "expect_any": ["18500", "18,500"]},
+  {"id": "db-ticket-en", "mode": "standard", "question": "What is the priority of support ticket TCK-5501?", "expect_any": ["High"]},
+  {"id": "db-student-en", "mode": "standard", "question": "What is the GPA of student STU1042?", "expect_any": ["3.85"]},
+  {"id": "db-student-si", "mode": "standard", "language": "si", "question": "STU1042 ශිෂ්‍යයාගේ GPA එක කීයද?", "expect_any": ["3.85"]},
+  {"id": "db-math-en", "mode": "standard", "question": "What is 120 + 45?", "expect_any": ["165"]},
+
+  {"id": "tools-order-en", "mode": "tools", "question": "What is the status of order ORD-9023?", "expect_any": ["Shipped"]},
+  {"id": "tools-student-en", "mode": "tools", "question": "Which department is student Dilani Fernando in?", "expect_any": ["Electrical"]},
+  {"id": "tools-math-en", "mode": "tools", "question": "What is 45000 * 0.15?", "expect_any": ["6750", "6,750"]},
+  {"id": "tools-customer-en", "mode": "tools", "question": "What tier is customer Amara Perera?", "expect_any": ["VIP", "Premium"]}
+]

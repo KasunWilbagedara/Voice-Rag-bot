@@ -22,8 +22,11 @@ TOOL_PORT = int(os.getenv("TOOL_PORT", "8001"))
 # e.g. TOOL_SERVICE_URL=http://tool-service:8001/api/tools/call
 TOOL_SERVICE_URL = os.getenv(
     "TOOL_SERVICE_URL",
-    f"http://localhost:{TOOL_PORT}/api/tools/call",
+    f"http://127.0.0.1:{TOOL_PORT}/api/tools/call",
 )
+# On Windows "localhost" tries IPv6 (::1) first and waits ~2 s before falling
+# back to IPv4, which made every tool call ~2 s slower. Use IPv4 directly.
+TOOL_SERVICE_URL = TOOL_SERVICE_URL.replace("://localhost:", "://127.0.0.1:")
 
 # Browser origins allowed to call the Python services directly (comma-separated).
 # The Next.js UI calls the backends server-side through its /api proxy routes,
