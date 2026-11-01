@@ -33,6 +33,8 @@ import { SettingsModal } from '@/components/SettingsModal';
 import { MemoryModal } from '@/components/MemoryModal';
 import { DynamicChart, parseChartDataFromResponse } from '@/components/DynamicChart';
 import { FormattedResponse } from '@/components/FormattedResponse';
+import { BackendModeSwitcher, type BackendMode } from '@/components/BackendModeSwitcher';
+import { BackendStatusMonitor } from '@/components/BackendStatusMonitor';
 
 interface ChatMessage {
   id: string;
@@ -67,6 +69,7 @@ export default function Home() {
   const [memoryCount, setMemoryCount] = useState<number>(0);
   const [isLightMode, setIsLightMode] = useState<boolean>(false);
   const sessionId = 'default_user';
+  const [backendMode, setBackendMode] = React.useState<BackendMode>('pure');
 
   useEffect(() => {
     document.documentElement.classList.toggle('light', isLightMode);
@@ -167,7 +170,7 @@ export default function Home() {
     try {
       const res = await fetch('/api/rag', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-backend-mode': backendMode },
         body: JSON.stringify({
           query,
           apiKey,
@@ -360,6 +363,12 @@ export default function Home() {
               <span>English</span>
             </button>
           </div>
+
+          {/* Backend Mode Switcher */}
+          <BackendModeSwitcher mode={backendMode} onChange={setBackendMode} />
+
+          {/* Backend Status Monitor */}
+          <BackendStatusMonitor />
 
           {/* Context Sources Button */}
           <button

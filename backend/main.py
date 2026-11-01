@@ -1,3 +1,21 @@
+"""
+Pure RAG Microservice — Voice-RAG Bot (Backend 1)
+==================================================
+Runs on Port 8000.
+
+Responsibilities (Backend 1 per the architecture diagram):
+  - Document Ingestion & Chunking
+  - Hybrid Search (70% Dense + 30% BM25)
+  - MMR Diversity Filter
+  - Strictly Grounded LLM (Zero Tools — answers from documents only)
+  - STT/TTS (Sinhala & English)
+  - Conversation Memory
+  - Health Probe: GET /health  →  mode: "pure-rag"
+
+The "RAG + Tools" backend runs separately on Port 8001 (tool_server.py).
+Frontend selects which backend to use via the x-backend-mode header.
+"""
+
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -13,23 +31,28 @@ logging.basicConfig(
 )
 logger = logging.getLogger("voicerag.main")
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Initializing Python Voice-RAG Backend...")
+    logger.info("Initializing Voice-RAG Backend 1 — Pure RAG (Port %s)...", PORT)
     init_db_schema()
     seed_initial_students()
+    logger.info("Backend 1 ready — Pure RAG mode active (MMR + Strictly Grounded LLM)")
     yield
-    logger.info("Shutting down Python Voice-RAG Backend...")
+    logger.info("Shutting down Backend 1 — Pure RAG Service...")
     close_db_pool()
 
+
 app = FastAPI(
-    title="Voice-RAG Bot — RAG & Audio Service",
-    description="RAG Engine, Vector Search, Audio STT/TTS and LLM Reasoning (Port 8000)",
-    version="1.0.0",
-    lifespan=lifespan
+    title="Voice-RAG Bot — Backend 1: Pure RAG",
+    description=(
+        "Pure RAG backend: document ingestion, hybrid search (70% dense + 30% BM25), "
+        "MMR diversity filter, and strictly grounded LLM with zero tool calls. Port 8000."
+    ),
+    version="2.0.0",
+    lifespan=lifespan,
 )
 
-# Configure CORS for Next.js frontend demonstration UI
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -38,32 +61,47 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include API Routers — RAG, Audio, Documents, and Memory
-# NOTE: /api/students and /api/databases are served by the Tool Service (port 8001)
+# ── Routers: RAG, Audio, Documents, Memory ───────────────────────────────────
+# NOTE: /api/agentic-rag, /api/students, /api/databases → served by Backend 2 (Port 8001)
 app.include_router(documents.router)
 app.include_router(rag.router)
 app.include_router(audio.router)
 app.include_router(memory.router)
 
+
 @app.get("/")
 def read_root():
     return {
         "status": "online",
-        "service": "Voice-RAG Bot Python Backend API",
+        "service": "Voice-RAG Bot — Backend 1: Pure RAG",
+        "mode": "pure-rag",
+        "port": PORT,
         "docs": "/docs",
+        "backend2": "http://localhost:8001 (RAG with Tools)",
     }
+
 
 @app.get("/health")
 def health_check():
     db_active = is_db_connected()
     return {
         "status": "healthy",
-        "service": "RAG & Audio Service",
+        "service": "Backend 1 — Pure RAG",
+        "mode": "pure-rag",
         "port": PORT,
         "dbConnected": db_active,
         "database": "PostgreSQL + pgvector" if db_active else "In-Memory Vector Store",
-        "toolServiceUrl": "http://localhost:8001 (tool-service)",
+        "features": [
+            "document-ingestion",
+            "hybrid-search-70-dense-30-bm25",
+            "mmr-diversity-filter",
+            "strictly-grounded-llm",
+            "stt-tts",
+        ],
+        "backend2": "http://localhost:8001",
+        "mcpServer": "http://localhost:8005/mcp/sse",
     }
+
 
 if __name__ == "__main__":
     import uvicorn

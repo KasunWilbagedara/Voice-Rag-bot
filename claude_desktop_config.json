@@ -1,0 +1,18 @@
+{
+  "_comment": "Voice-RAG MCP Server configuration for Claude Desktop.",
+  "_instructions": [
+    "1. Copy this file to Claude Desktop's config directory:",
+    "   Windows: %APPDATA%\\Claude\\claude_desktop_config.json",
+    "   Mac:     ~/Library/Application Support/Claude/claude_desktop_config.json",
+    "2. Start the MCP server: python -m backend.mcp_server",
+    "3. Restart Claude Desktop — tools will appear automatically."
+  ],
+  "mcpServers": {
+    "voice-rag-tools": {
+      "command": "python",
+      "args": ["-m", "backend.mcp_server", "--stdio"],
+      "cwd": "D:\\SLT\\Voice-Rag-bot",
+      "env": {}
+    }
+  }
+}
