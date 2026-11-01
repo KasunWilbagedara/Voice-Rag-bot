@@ -67,7 +67,7 @@ export default function Home() {
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isMemoryOpen, setIsMemoryOpen] = useState<boolean>(false);
   const [memoryCount, setMemoryCount] = useState<number>(0);
-  const [isLightMode, setIsLightMode] = useState<boolean>(false);
+  const [isLightMode, setIsLightMode] = useState<boolean>(true);
   const sessionId = 'default_user';
   const [backendMode, setBackendMode] = React.useState<BackendMode>('pure');
 
@@ -297,9 +297,9 @@ export default function Home() {
 
   return (
     <main
-      className="min-h-screen flex flex-col font-sans transition-colors duration-200 selection:bg-[#FF204E] selection:text-white"
+      className="min-h-screen flex flex-col font-sans transition-colors duration-200 selection:bg-sky-200 selection:text-slate-900"
       style={{
-        background: 'linear-gradient(135deg, #00224D 0%, #00224D 45%, #5D0E41 60%, #A0153E 80%, #FF204E 100%)',
+        background: 'var(--page-bg)',
         backgroundAttachment: 'fixed',
         color: 'var(--text-primary)',
       }}
@@ -308,13 +308,13 @@ export default function Home() {
       <header className="sticky top-0 z-40 w-full glass-panel border-b border-white/10 px-4 md:px-8 py-3.5 flex items-center justify-between shadow-2xl backdrop-blur-xl">
         {/* Brand & Status */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#FF204E] to-[#5D0E41] flex items-center justify-center shadow-lg border border-[#FF204E]/40 neon-glow-red">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-violet-500 flex items-center justify-center shadow-lg border border-[#FF204E]/40 neon-glow-red">
             <Brain className="w-5 h-5 text-white stroke-[2.5]" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-sm md:text-base font-extrabold text-slate-100 tracking-tight">
-                Voice-RAG Bot
+                Voice-RAG Studio
               </h1>
               <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#FF204E]/15 text-[#FF6383] border border-[#FF204E]/30 font-bold flex items-center gap-1">
                 <span>🇱🇰</span>
@@ -419,9 +419,9 @@ export default function Home() {
       </header>
 
       {/* Main Content Dashboard */}
-      <div className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Hero Voice Interface & Conversation (6 Cols) */}
-        <div className="lg:col-span-6 flex flex-col gap-6">
+        <div className="lg:col-span-7 flex flex-col gap-6">
           {/* Main Hero Voice Interaction Hub */}
           <VoiceInterface
             apiKey={apiKey}
@@ -617,7 +617,7 @@ export default function Home() {
         </div>
 
         {/* Right Column: Multi-Database & Knowledge Base Workspace (6 Cols) */}
-        <div className="lg:col-span-6 flex flex-col gap-6">
+        <div className="lg:col-span-5 flex flex-col gap-6">
           {/* Tab Switcher */}
           <div className="glass-panel p-1.5 rounded-2xl flex items-center gap-2 border border-white/10 shadow-xl">
             <button
