@@ -1,5 +1,6 @@
 """Regression tests for the bugs fixed in the dual-backend RAG pipeline."""
 
+import json
 import sqlite3
 
 import pytest
@@ -143,7 +144,7 @@ def no_llm(monkeypatch):
 
     monkeypatch.setattr(pipeline, "safe_query_embedding", lambda *a, **k: [])
     monkeypatch.setattr(gen, "_enrich_with_tools", fake_enrich)
-    monkeypatch.setattr(gen, "_call_llm", lambda **kw: "Grounded answer.")
+    monkeypatch.setattr(gen, "_call_llm", lambda *a, **kw: "Grounded answer.")
     return calls
 
 
@@ -211,3 +212,210 @@ def test_admin_key_optional_in_development(monkeypatch):
 
     monkeypatch.setattr(security, "ADMIN_API_KEY", "")
     assert TestClient(app).delete("/api/documents", params={"id": "x"}).status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Embeddings: fixed size + model tracking
+# ---------------------------------------------------------------------------
+
+def test_ingested_chunks_record_model_and_search_matches_model(monkeypatch):
+    import backend.rag.ingester as ingester
+    from backend.rag.retriever import search_similar_chunks
+
+    monkeypatch.setattr(ingester, "get_embeddings_batch", lambda texts, key=None: [[1.0, 0.0]] * len(texts))
+    ingester.ingest_document("Refunds.txt", "text/plain", "Refunds take 14 business days.", "AIzaTEST")
+
+    conn = sqlite3.connect(db.SQLITE_DB_PATH)
+    assert conn.execute("SELECT embedding_model FROM rag_document_chunks").fetchone()[0] == "gemini-embedding-001"
+    conn.close()
+
+    # Same model (Gemini key) → found by vector search
+    assert search_similar_chunks([1.0, 0.0], top_k=3, custom_api_key="AIzaTEST")
+    # Different model (OpenAI key) → vectors are not comparable, so no dense matches
+    assert search_similar_chunks([1.0, 0.0], top_k=3, custom_api_key="sk-test") == []
+
+
+def test_reembed_updates_old_chunks(monkeypatch):
+    import backend.reembed as reembed
+
+    conn = sqlite3.connect(db.SQLITE_DB_PATH)
+    conn.execute("INSERT INTO rag_documents VALUES ('d1', 'Old', 'txt', '2026-01-01')")
+    conn.execute(
+        "INSERT INTO rag_document_chunks (id, document_id, content, chunk_index, embedding, created_at) "
+        "VALUES ('c1', 'd1', 'old text', 0, '[0.5, 0.5, 0.5]', '2026-01-01')"
+    )
+    conn.commit()
+
+    monkeypatch.setattr(reembed, "embedding_model_name", lambda key=None: "gemini-embedding-001")
+    monkeypatch.setattr(reembed, "get_embeddings_batch", lambda texts, key=None: [[0.1] * 768 for _ in texts])
+    monkeypatch.setattr(reembed, "init_db_schema", lambda: None)
+    reembed.main()
+
+    model, emb = conn.execute("SELECT embedding_model, embedding FROM rag_document_chunks WHERE id='c1'").fetchone()
+    assert model == "gemini-embedding-001" and len(json.loads(emb)) == 768
+    conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Streaming + agentic tool calls
+# ---------------------------------------------------------------------------
+
+def test_stream_endpoint_sends_sources_tokens_and_done(no_llm, monkeypatch):
+    import backend.rag.generator as gen
+    from backend.main import app
+
+    monkeypatch.setattr(gen, "_stream_llm", lambda *a, **kw: iter(["Refunds take ", "14 days."]))
+    res = TestClient(app).post(
+        "/api/rag/stream",
+        json={"query": "refunds?", "apiKey": "AIzaTEST", "sessionId": "s1"},
+        headers={"x-backend-mode": "pure"},
+    )
+    events = [json.loads(line) for line in res.text.splitlines()]
+    assert [e["type"] for e in events] == ["sources", "token", "token", "done"]
+    assert events[-1]["answer"] == "Refunds take 14 days."
+    assert db.get_saved_chat_history(5, session_id="s1")[0]["aiResponse"] == "Refunds take 14 days."
+
+
+@pytest.mark.parametrize("text", [
+    '{"tool_call": {"name": "track_customer_order", "parameters": {"order_id": "ORD-1"}}}',
+    '```json\n{"tool_call": {"name": "track_customer_order", "parameters": {"order_id": "ORD-1"}}}\n```',
+])
+def test_agentic_parses_nested_tool_call_json(text):
+    from backend.rag.agentic_generator import _parse_tool_call
+
+    assert _parse_tool_call(text) == ("track_customer_order", {"order_id": "ORD-1"})
+
+
+def test_agentic_plain_answer_is_not_a_tool_call():
+    from backend.rag.agentic_generator import _parse_tool_call
+
+    assert _parse_tool_call("Order ORD-1 was delivered on {date}.") is None
+
+
+# ---------------------------------------------------------------------------
+# User accounts
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def login_required(monkeypatch):
+    import backend.auth as auth
+    from backend.main import app
+
+    monkeypatch.setattr(auth, "AUTH_REQUIRED", True)
+    return TestClient(app)
+
+
+def _register(client, username, password="correct-horse"):
+    res = client.post("/api/auth/register", json={"username": username, "password": password})
+    assert res.status_code == 200, res.text
+    return {"Authorization": f"Bearer {res.json()['token']}"}
+
+
+def test_register_login_me_logout(login_required):
+    client = login_required
+    _register(client, "kasun")
+
+    assert client.post("/api/auth/login", json={"username": "kasun", "password": "wrong-pass"}).status_code == 401
+    token = client.post("/api/auth/login", json={"username": "KASUN", "password": "correct-horse"}).json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    assert client.get("/api/auth/me", headers=headers).json()["user"]["username"] == "kasun"
+    client.post("/api/auth/logout", headers=headers)
+    assert client.get("/api/auth/me", headers=headers).status_code == 401
+
+
+def test_register_validation(login_required):
+    client = login_required
+    _register(client, "nimal")
+    assert client.post("/api/auth/register", json={"username": "nimal", "password": "another-pass"}).status_code == 400
+    assert client.post("/api/auth/register", json={"username": "x", "password": "long-enough"}).status_code == 400
+    assert client.post("/api/auth/register", json={"username": "dilani", "password": "short"}).status_code == 400
+
+
+def test_passwords_are_hashed(login_required, isolated_store):
+    _register(login_required, "sarah", "plain-text-secret")
+    stored = sqlite3.connect(isolated_store).execute("SELECT password_hash FROM users").fetchone()[0]
+    assert "plain-text-secret" not in stored
+
+
+def test_endpoints_need_login_when_required(login_required):
+    client = login_required
+    assert client.get("/api/memory").status_code == 401
+    assert client.get("/api/history").status_code == 401
+    assert client.post("/api/rag", json={"query": "hi"}).status_code == 401
+    assert client.post("/api/tts", json={"text": "hi"}).status_code == 401
+
+
+def test_each_user_has_private_memory_and_history(login_required):
+    client = login_required
+    alice, bob = _register(client, "alice"), _register(client, "bob")
+
+    client.post("/api/memory", json={"key": "user_name", "value": "Alice", "sessionId": "bob"}, headers=alice)
+    # The sessionId in the request is ignored when logged in
+    assert client.get("/api/memory", params={"sessionId": "alice"}, headers=bob).json()["count"] == 0
+    alice_memories = client.get("/api/memory", headers=alice).json()["memories"]
+    assert [m["value"] for m in alice_memories] == ["Alice"]
+
+    # Bob can't delete Alice's memory
+    assert client.delete(f"/api/memory/{alice_memories[0]['id']}", headers=bob).json()["success"] is False
+    assert client.get("/api/memory", headers=alice).json()["count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Architecture: mode routing + tool-free Pure RAG
+# ---------------------------------------------------------------------------
+
+def test_backend2_streams_tools_mode_with_agentic_loop(monkeypatch):
+    import backend.rag.agentic_generator as ag
+    from backend.tool_server import app
+
+    monkeypatch.setattr(ag, "agentic_query", lambda **kw: {
+        "answer": "Order ORD-9023 has shipped.",
+        "retrievedChunks": [],
+        "toolCalls": [{"tool_name": "track_customer_order"}],
+    })
+    res = TestClient(app).post(
+        "/api/rag/stream",
+        json={"query": "status of ORD-9023?", "apiKey": "AIzaTEST", "sessionId": "s1"},
+        headers={"x-backend-mode": "tools"},
+    )
+    events = [json.loads(line) for line in res.text.splitlines()]
+    assert [e["type"] for e in events] == ["sources", "token", "done"]
+    assert events[-1]["answer"] == "Order ORD-9023 has shipped."
+    assert events[-1]["toolCalls"][0]["tool_name"] == "track_customer_order"
+
+
+def test_pure_mode_never_calls_any_tool(monkeypatch):
+    import backend.rag.generator as gen
+    import backend.rag.pipeline as pipeline
+    from backend import tools
+    from backend.main import app
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("a tool was called in Pure RAG mode")
+
+    monkeypatch.setattr(gen, "call_remote_tool", forbidden)
+    monkeypatch.setattr(tools, "call_tool", forbidden)
+    monkeypatch.setattr(pipeline, "safe_query_embedding", lambda *a, **k: [])
+    monkeypatch.setattr(gen, "_call_llm", lambda *a, **kw: "Grounded.")
+    monkeypatch.setattr(gen, "_stream_llm", lambda *a, **kw: iter(["Grounded."]))
+
+    # Queries that would trigger order, weather, math, student and web-search tools
+    client = TestClient(app)
+    for q in ["Status of ORD-9021?", "weather in Kandy", "What is 2 + 2?", "STU1042 GPA?", "who is Ada Lovelace"]:
+        body = {"query": q, "apiKey": "AIzaTEST"}
+        assert client.post("/api/rag", json=body, headers={"x-backend-mode": "pure"}).status_code == 200
+        streamed = client.post("/api/rag/stream", json=body, headers={"x-backend-mode": "pure"}).text
+        assert '"type": "done"' in streamed and '"type": "error"' not in streamed
+
+
+def test_all_13_tools_registered():
+    from backend import tools
+
+    names = {t["name"] for t in tools.list_tools()}
+    assert names == {
+        "track_customer_order", "track_support_ticket", "lookup_student", "execute_sql",
+        "list_databases", "get_database_schema", "get_session_memories", "save_session_memory",
+        "search_knowledge_base", "get_live_weather", "web_search", "get_current_datetime",
+        "calculate_expression",
+    }

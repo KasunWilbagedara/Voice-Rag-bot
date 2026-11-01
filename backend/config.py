@@ -22,8 +22,11 @@ TOOL_PORT = int(os.getenv("TOOL_PORT", "8001"))
 # e.g. TOOL_SERVICE_URL=http://tool-service:8001/api/tools/call
 TOOL_SERVICE_URL = os.getenv(
     "TOOL_SERVICE_URL",
-    f"http://localhost:{TOOL_PORT}/api/tools/call",
+    f"http://127.0.0.1:{TOOL_PORT}/api/tools/call",
 )
+# On Windows "localhost" tries IPv6 (::1) first and waits ~2 s before falling
+# back to IPv4, which made every tool call ~2 s slower. Use IPv4 directly.
+TOOL_SERVICE_URL = TOOL_SERVICE_URL.replace("://localhost:", "://127.0.0.1:")
 
 # Browser origins allowed to call the Python services directly (comma-separated).
 # The Next.js UI calls the backends server-side through its /api proxy routes,
@@ -39,6 +42,11 @@ CORS_ORIGINS = [
 # When set, callers must send it in the ``x-admin-key`` header; the Next.js
 # proxy forwards it automatically. Leave empty for local development.
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
+
+# User accounts: when true (default) chat, voice, memory and history endpoints
+# need a logged-in user, and each user gets their own memory and history.
+# Set AUTH_REQUIRED=false for local scripts/tests that call the API directly.
+AUTH_REQUIRED = os.getenv("AUTH_REQUIRED", "true").strip().lower() not in ("0", "false", "no")
 
 
 def get_api_key(custom_api_key: str = None) -> str:

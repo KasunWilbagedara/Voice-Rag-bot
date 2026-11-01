@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from backend.db import get_db_connection, is_db_connected
+from backend.db import SQLITE_DB_PATH, get_db_connection, is_db_connected
 
 logger = logging.getLogger("voicerag.db_query.manager")
 
@@ -87,12 +87,8 @@ class DatabaseManager:
     def __init__(self):
         # {db_id: {id, name, type, uri_or_path, is_builtin, …}}
         self.databases: Dict[str, Dict[str, Any]] = {}
-        # SQLite file lives next to the *original* db_query_service.py so
-        # that the path resolves identically whether imported from old or new location.
-        self.sqlite_db_path = os.path.join(
-            os.path.dirname(__file__), "..", "..", "customer_datasets.db"
-        )
-        self.sqlite_db_path = os.path.normpath(self.sqlite_db_path)
+        # Same SQLite file as the RAG store (backend/customer_datasets.db by default)
+        self.sqlite_db_path = os.path.normpath(SQLITE_DB_PATH)
         self._init_customer_datasets_sqlite()
 
     # ------------------------------------------------------------------

@@ -21,6 +21,7 @@ import { AudioVisualizer } from './AudioVisualizer';
 import { DynamicChart, parseChartDataFromResponse } from './DynamicChart';
 import { FormattedResponse } from './FormattedResponse';
 import type { BackendMode } from './BackendModeSwitcher';
+import { firstSentences, speakableText, streamRag } from '@/lib/rag-stream';
 
 interface VoiceInterfaceProps {
   apiKey?: string;
@@ -160,19 +161,37 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
     }
   };
 
-  const processInstantTextQuery = async (queryText: string) => {
+  const secondsSince = (t: number) => Number(((performance.now() - t) / 1000).toFixed(2));
+
+  // Streams the answer and starts speaking as soon as the first two sentences
+  // are complete, instead of waiting for the whole answer.
+  const processInstantTextQuery = async (queryText: string, sttSeconds?: number) => {
     if (!queryText || !queryText.trim()) return;
 
     try {
       setState('searching');
       setCurrentQuery(queryText);
+      setCurrentResponse('');
+      setVoiceSpokenText('');
       setLatencyMetrics(null);
 
       const t0 = performance.now();
-      const res = await fetch('/api/rag', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-backend-mode': backendMode },
-        body: JSON.stringify({
+      let firstTextSeconds = 0;
+      let spoken = '';
+      let speech: Promise<void> | null = null;
+      let ttsSeconds = 0;
+
+      const speak = (text: string) => {
+        spoken = text;
+        setVoiceSpokenText(text);
+        const tSpeak = performance.now();
+        speech = playServerTTS(text).then(() => {
+          ttsSeconds = secondsSince(tSpeak);
+        });
+      };
+
+      const result = await streamRag(
+        {
           query: queryText,
           apiKey,
           model: model || 'gemini-3.5-flash-lite',
@@ -180,59 +199,39 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
           baseUrl,
           language,
           sessionId: sessionId || 'default_user',
-        }),
-      });
+        },
+        backendMode,
+        (textSoFar) => {
+          if (!firstTextSeconds) firstTextSeconds = secondsSince(t0);
+          setCurrentResponse(textSoFar);
+          if (!spoken && firstSentences(textSoFar)) speak(firstSentences(textSoFar));
+        }
+      );
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'RAG Query failed');
-
-      const ragTime = Number(((performance.now() - t0) / 1000).toFixed(2));
-      setCurrentResponse(data.answer);
-
-      // Clean spoken sentence for TTS
-      const spokenSummary = extractSpokenSummary(data.answer);
-      setVoiceSpokenText(spokenSummary);
-
+      setCurrentResponse(result.answer);
       if (onQueryComplete) {
         onQueryComplete({
           userQuery: queryText,
-          aiResponse: data.answer,
-          retrievedChunks: data.retrievedChunks || [],
+          aiResponse: result.answer,
+          retrievedChunks: result.retrievedChunks,
         });
       }
 
-      // Synthesize neural voice
-      const t1 = performance.now();
-      await playServerTTS(spokenSummary || data.answer);
-      const ttsTime = Number(((performance.now() - t1) / 1000).toFixed(2));
+      // Short answers never reach two full sentences — speak what we have.
+      if (!spoken) speak(firstSentences(result.answer, 1) || speakableText(result.answer).slice(0, 200));
+      await speech;
 
       setLatencyMetrics({
-        rag: ragTime,
-        tts: ttsTime,
-        total: Number((ragTime + ttsTime).toFixed(2)),
+        stt: sttSeconds,
+        rag: firstTextSeconds || secondsSince(t0),
+        tts: ttsSeconds,
+        total: Number(((sttSeconds || 0) + firstTextSeconds + ttsSeconds).toFixed(2)),
       });
     } catch (err: any) {
       console.error('Instant RAG Error:', err);
       setErrorMessage(err.message || 'Error processing query');
       setState('idle');
     }
-  };
-
-  const extractSpokenSummary = (text: string): string => {
-    if (!text) return '';
-    const clean = text
-      .replace(/```[\s\S]*?```/g, '')
-      .replace(/\[\s*Source\s*\d+[^\]]*\]/gi, '')
-      .replace(/\[\d+\]/g, '')
-      .replace(/[*#\`_~]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    const sentences = clean.split(/(?<=[.!?෴])\s+/);
-    if (sentences.length > 0 && sentences[0].length >= 10) {
-      return (sentences.slice(0, 2).join(' ')).trim();
-    }
-    return clean.slice(0, 150);
   };
 
   const startRecording = async () => {
@@ -356,68 +355,22 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
     }
   };
 
+  // Recorded voice: transcribe first, then answer through the streaming path above.
   const processVoiceInput = async (audioBlob: Blob) => {
     try {
-      setState('searching');
+      setState('transcribing');
+      const t0 = performance.now();
       const formData = new FormData();
       formData.append('audio', audioBlob, 'voice_query.webm');
       if (apiKey) formData.append('apiKey', apiKey);
-      formData.append('voice', activeVoice);
-      if (model) formData.append('model', model);
-      if (provider) formData.append('provider', provider);
-      if (baseUrl) formData.append('baseUrl', baseUrl);
       if (language) formData.append('language', language);
-      formData.append('speed', playbackSpeed.toString());
-      formData.append('sessionId', sessionId || 'default_user');
 
-      const res = await fetch('/api/voice-pipeline', {
-        method: 'POST',
-        headers: { 'x-backend-mode': backendMode },
-        body: formData,
-      });
-
+      const res = await fetch('/api/stt', { method: 'POST', body: formData });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.detail || 'Speech recognition failed');
+      if (!data.text || !data.text.trim()) throw new Error('Could not hear any speech. Please try again.');
 
-      if (!res.ok) {
-        throw new Error(data.error || 'Voice RAG pipeline failed');
-      }
-
-      setCurrentQuery(data.userQueryText);
-      setCurrentResponse(data.aiResponseText);
-      setVoiceSpokenText(data.voiceSpokenText || '');
-
-      if (data.latency) {
-        setLatencyMetrics(data.latency);
-      }
-
-      if (onQueryComplete) {
-        onQueryComplete({
-          userQuery: data.userQueryText,
-          aiResponse: data.aiResponseText,
-          retrievedChunks: data.retrievedChunks || [],
-        });
-      }
-
-      if (data.audioBase64) {
-        setState('speaking');
-        const audioSrc = `data:${data.audioFormat || 'audio/mp3'};base64,${data.audioBase64}`;
-
-        if (audioPlayerRef.current) {
-          audioPlayerRef.current.src = audioSrc;
-          audioPlayerRef.current.playbackRate = 1.0;
-          audioPlayerRef.current.onended = () => {
-            setState('idle');
-            if (isHandsFree) {
-              setTimeout(() => startRecording(), 800);
-            }
-          };
-          await audioPlayerRef.current.play();
-        } else {
-          await playServerTTS(data.voiceSpokenText || data.aiResponseText);
-        }
-      } else {
-        await playServerTTS(data.voiceSpokenText || data.aiResponseText);
-      }
+      await processInstantTextQuery(data.text, secondsSince(t0));
     } catch (err: any) {
       console.error('Voice Processing Error:', err);
       setErrorMessage(err.message || 'Error processing voice query');
@@ -479,22 +432,22 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
             <span
               className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
                 state === 'listening'
-                  ? 'bg-[#FF204E]'
+                  ? 'bg-[#2563EB]'
                   : state === 'speaking'
                   ? 'bg-emerald-400'
                   : state === 'searching' || state === 'transcribing'
-                  ? 'bg-violet-400'
+                  ? 'bg-sky-400'
                   : 'bg-slate-500'
               }`}
             />
             <span
               className={`relative inline-flex h-3 w-3 rounded-full ${
                 state === 'listening'
-                  ? 'bg-[#FF204E]'
+                  ? 'bg-[#2563EB]'
                   : state === 'speaking'
                   ? 'bg-emerald-500'
                   : state === 'searching' || state === 'transcribing'
-                  ? 'bg-violet-500'
+                  ? 'bg-sky-500'
                   : 'bg-slate-500'
               }`}
             />
@@ -517,7 +470,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
               <span>⚡ {latencyMetrics.total}s</span>
               {latencyMetrics.stt !== undefined && (
                 <span className="text-emerald-400/70 hidden sm:inline">
-                  (STT {latencyMetrics.stt}s • RAG {latencyMetrics.rag}s • TTS {latencyMetrics.tts}s)
+                  (STT {latencyMetrics.stt}s • first text {latencyMetrics.rag}s • TTS {latencyMetrics.tts}s)
                 </span>
               )}
             </div>
@@ -654,8 +607,8 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
         {/* Ripple Rings */}
         {state === 'listening' && (
           <>
-            <div className="absolute -inset-6 rounded-full border-2 border-[#FF204E]/40 animate-ping opacity-30 pointer-events-none" />
-            <div className="absolute -inset-3 rounded-full bg-[#FF204E]/20 blur-md pointer-events-none" />
+            <div className="absolute -inset-6 rounded-full border-2 border-[#2563EB]/40 animate-ping opacity-30 pointer-events-none" />
+            <div className="absolute -inset-3 rounded-full bg-[#2563EB]/20 blur-md pointer-events-none" />
           </>
         )}
         {state === 'speaking' && (
@@ -665,7 +618,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
           </>
         )}
         {state === 'searching' && (
-          <div className="absolute -inset-3 rounded-full bg-violet-500/20 blur-md pointer-events-none" />
+          <div className="absolute -inset-3 rounded-full bg-sky-500/20 blur-md pointer-events-none" />
         )}
 
         <button
@@ -673,17 +626,17 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
           disabled={state === 'transcribing' || state === 'searching'}
           className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-2xl border ${
             state === 'listening'
-              ? 'bg-gradient-to-tr from-[#FF204E] to-[#A0153E] border-[#FF6383] text-white neon-pulse-red'
+              ? 'bg-gradient-to-tr from-[#2563EB] to-[#1D4ED8] border-[#3B82F6] text-white neon-pulse-red'
               : state === 'speaking'
               ? 'bg-gradient-to-tr from-emerald-500 to-teal-400 border-emerald-300 text-slate-950 shadow-emerald-500/30'
               : state === 'searching' || state === 'transcribing'
-              ? 'bg-slate-900 border-violet-500/40 text-violet-300 cursor-wait shadow-violet-500/20'
-              : 'bg-gradient-to-tr from-[#FF204E] via-[#A0153E] to-[#5D0E41] border-[#FF6383]/80 text-white hover:brightness-110 neon-glow-red'
+              ? 'bg-slate-900 border-sky-500/40 text-sky-300 cursor-wait shadow-sky-500/20'
+              : 'bg-gradient-to-tr from-[#2563EB] via-[#1D4ED8] to-[#1E40AF] border-[#3B82F6]/80 text-white hover:brightness-110 neon-glow-red'
           }`}
           title={state === 'listening' ? 'Click to stop listening' : state === 'speaking' ? 'Click to interrupt & speak' : 'Click to start voice query'}
         >
           {state === 'transcribing' || state === 'searching' ? (
-            <Loader2 className="w-10 h-10 animate-spin text-[#FF6383]" />
+            <Loader2 className="w-10 h-10 animate-spin text-[#3B82F6]" />
           ) : state === 'listening' ? (
             <MicOff className="w-10 h-10 animate-pulse text-white" />
           ) : state === 'speaking' ? (
@@ -695,8 +648,8 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
 
         {/* Live Speech Recognition Bubble */}
         {state === 'listening' && liveTranscript && (
-          <div className="mt-4 px-4 py-2 rounded-2xl bg-[#FF204E]/10 border border-[#FF204E]/30 text-[#FF90A7] text-xs font-medium max-w-md text-center animate-fade-in shadow-lg backdrop-blur-md flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#FF204E] animate-ping shrink-0" />
+          <div className="mt-4 px-4 py-2 rounded-2xl bg-[#2563EB]/10 border border-[#2563EB]/30 text-[#60A5FA] text-xs font-medium max-w-md text-center animate-fade-in shadow-lg backdrop-blur-md flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#2563EB] animate-ping shrink-0" />
             <span className="italic">"{liveTranscript}"</span>
           </div>
         )}
@@ -721,9 +674,9 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
             <button
               key={idx}
               onClick={() => processInstantTextQuery(p.query)}
-              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-[#FF204E]/15 border border-white/10 hover:border-[#FF204E]/40 text-slate-300 hover:text-[#FF90A7] text-xs transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-[#2563EB]/15 border border-white/10 hover:border-[#2563EB]/40 text-slate-300 hover:text-[#60A5FA] text-xs transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
             >
-              <MessageSquarePlus className="w-3.5 h-3.5 text-[#FF204E]" />
+              <MessageSquarePlus className="w-3.5 h-3.5 text-[#2563EB]" />
               <span>{p.label}</span>
             </button>
           ))}
@@ -758,14 +711,14 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
           {currentResponse && (() => {
             const { cleanText, chartData } = parseChartDataFromResponse(currentResponse);
             return (
-              <div className="p-4 rounded-2xl bg-[#FF204E]/5 border border-[#FF204E]/25 flex flex-col gap-3 shadow-[0_0_30px_-12px_rgba(255,32,78,0.4)]">
-                <div className="flex items-center justify-between border-b border-[#FF204E]/15 pb-2.5">
+              <div className="p-4 rounded-2xl bg-[#2563EB]/5 border border-[#2563EB]/25 flex flex-col gap-3 shadow-[0_0_30px_-12px_rgba(37, 99, 235,0.4)]">
+                <div className="flex items-center justify-between border-b border-[#2563EB]/15 pb-2.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold tracking-wider text-[#FF204E] uppercase flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold tracking-wider text-[#2563EB] uppercase flex items-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5" /> AI Response
                     </span>
                     <span className="text-[10px] text-slate-400 bg-white/5 px-2 py-0.5 rounded-full border border-white/10 flex items-center gap-1">
-                      <UserCheck className="w-3 h-3 text-[#FF204E]" />
+                      <UserCheck className="w-3 h-3 text-[#2563EB]" />
                       {activeVoice.charAt(0).toUpperCase() + activeVoice.slice(1)} Neural
                     </span>
                   </div>
@@ -791,7 +744,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
                     ) : (
                       <button
                         onClick={() => playServerTTS(voiceSpokenText || cleanText)}
-                        className="px-2.5 py-1 rounded-lg bg-[#FF204E]/15 hover:bg-[#FF204E]/25 text-[#FF6383] border border-[#FF204E]/40 text-[11px] font-bold flex items-center gap-1 transition-all"
+                        className="px-2.5 py-1 rounded-lg bg-[#2563EB]/15 hover:bg-[#2563EB]/25 text-[#3B82F6] border border-[#2563EB]/40 text-[11px] font-bold flex items-center gap-1 transition-all"
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
                         <span>Replay Voice</span>
@@ -802,10 +755,10 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
 
                 {/* Spoken Audio Highlight Pill */}
                 {voiceSpokenText && (
-                  <div className="p-2.5 rounded-xl bg-[#FF204E]/10 border border-[#FF204E]/20 flex items-start gap-2 text-[#FF90A7]/90 text-xs">
-                    <Volume2 className="w-4 h-4 text-[#FF204E] shrink-0 mt-0.5" />
+                  <div className="p-2.5 rounded-xl bg-[#2563EB]/10 border border-[#2563EB]/20 flex items-start gap-2 text-[#60A5FA]/90 text-xs">
+                    <Volume2 className="w-4 h-4 text-[#2563EB] shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-bold text-[#FF6383] mr-1.5">Spoken Summary:</span>
+                      <span className="font-bold text-[#3B82F6] mr-1.5">Spoken Summary:</span>
                       <span className="italic">"{voiceSpokenText}"</span>
                     </div>
                   </div>

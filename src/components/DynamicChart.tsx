@@ -167,7 +167,7 @@ export const DynamicChart: React.FC<DynamicChartProps> = ({ chartData }) => {
                 style={{ backgroundColor: entry.color || entry.fill }}
               />
               <span className="text-slate-400">{entry.name}:</span>
-              <span className="font-semibold text-[#FF204E]">
+              <span className="font-semibold text-[#2563EB]">
                 {typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}
               </span>
             </div>
@@ -188,7 +188,7 @@ export const DynamicChart: React.FC<DynamicChartProps> = ({ chartData }) => {
       {/* Header & Controls */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-[#FF204E]/15 border border-[#FF204E]/30 flex items-center justify-center text-[#FF204E]">
+          <div className="w-7 h-7 rounded-lg bg-[#2563EB]/15 border border-[#2563EB]/30 flex items-center justify-center text-[#2563EB]">
             <Sparkles className="w-4 h-4" />
           </div>
           <div>

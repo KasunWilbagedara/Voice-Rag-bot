@@ -5,6 +5,7 @@ Runs on Port 8001 (TOOL_PORT).
 
 Responsibilities (Backend 2 per the architecture diagram):
   - Agentic LLM Reasoner: POST /api/agentic-rag
+  - Streaming RAG:        POST /api/rag/stream (RAG + Tools mode in the UI)
   - Tool Registry:        GET  /api/tools   |  POST /api/tools/call
   - STT/TTS + Prosody:   mounted from routers/audio.py
   - Database Management: mounted from routers/databases.py
@@ -29,7 +30,7 @@ from backend.config import TOOL_PORT
 from backend.security import cors_kwargs, require_admin
 from backend.db import init_db_schema, close_db_pool, seed_initial_students, is_db_connected
 from backend import tools
-from backend.routers import databases, students, audio, memory, agentic_rag
+from backend.routers import databases, students, audio, memory, agentic_rag, rag
 
 logging.basicConfig(
     level=logging.INFO,
@@ -72,6 +73,10 @@ app.add_middleware(CORSMiddleware, **cors_kwargs())
 
 # ── Agentic RAG (multi-step LLM reasoning + tools) ──────────────────────────
 app.include_router(agentic_rag.router)
+
+# ── Text RAG + streaming (/api/rag, /api/rag/stream) — the UI sends
+#    x-backend-mode: tools here, which runs the agentic loop ─────────────────
+app.include_router(rag.router)
 
 # ── STT / TTS (audio transcription and synthesis) ───────────────────────────
 app.include_router(audio.router)

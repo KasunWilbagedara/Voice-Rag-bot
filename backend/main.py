@@ -5,7 +5,7 @@ Runs on Port 8000.
 
 Responsibilities (Backend 1 per the architecture diagram):
   - Document Ingestion & Chunking
-  - Hybrid Search (70% Dense + 30% BM25)
+  - Hybrid Search (dense vectors + BM25 keywords, merged with Reciprocal Rank Fusion)
   - MMR Diversity Filter
   - Strictly Grounded LLM (Zero Tools — answers from documents only)
   - STT/TTS (Sinhala & English)
@@ -24,7 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.config import PORT
 from backend.security import cors_kwargs
 from backend.db import init_db_schema, close_db_pool, is_db_connected, seed_initial_students
-from backend.routers import documents, rag, audio, memory
+from backend.routers import auth, documents, rag, audio, memory
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Voice-RAG Bot — Backend 1: Pure RAG",
     description=(
-        "Pure RAG backend: document ingestion, hybrid search (70% dense + 30% BM25), "
+        "Pure RAG backend: document ingestion, hybrid search (dense + BM25 merged with Reciprocal Rank Fusion), "
         "MMR diversity filter, and strictly grounded LLM with zero tool calls. Port 8000."
     ),
     version="2.0.0",
@@ -58,6 +58,7 @@ app.add_middleware(CORSMiddleware, **cors_kwargs())
 
 # ── Routers: RAG, Audio, Documents, Memory ───────────────────────────────────
 # NOTE: /api/agentic-rag, /api/students, /api/databases → served by Backend 2 (Port 8001)
+app.include_router(auth.router)
 app.include_router(documents.router)
 app.include_router(rag.router)
 app.include_router(audio.router)
@@ -88,7 +89,7 @@ def health_check():
         "database": "PostgreSQL + pgvector" if db_active else "In-Memory Vector Store",
         "features": [
             "document-ingestion",
-            "hybrid-search-70-dense-30-bm25",
+            "hybrid-search-dense-bm25-rrf",
             "mmr-diversity-filter",
             "strictly-grounded-llm",
             "stt-tts",

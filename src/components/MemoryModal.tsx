@@ -173,7 +173,7 @@ export const MemoryModal: React.FC<MemoryModalProps> = ({
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30">
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30">
             <Tag className="w-3 h-3" /> Note
           </span>
         );

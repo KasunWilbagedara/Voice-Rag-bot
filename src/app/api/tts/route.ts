@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 
-import { BACKEND1_URL as PYTHON_BACKEND_URL } from '../_lib/backend';
+import { BACKEND1_URL as PYTHON_BACKEND_URL, userHeaders } from '../_lib/backend';
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const res = await fetch(`${PYTHON_BACKEND_URL}/api/tts`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: userHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
     });
 

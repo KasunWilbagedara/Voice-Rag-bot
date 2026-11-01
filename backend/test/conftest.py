@@ -5,6 +5,7 @@ treated as offline, and no real LLM / embedding calls are made.
 
 import pytest
 
+import backend.auth as auth
 import backend.db as db
 import backend.rag.ingester as ingester
 import backend.rag.retriever as retriever
@@ -20,6 +21,9 @@ def isolated_store(tmp_path, monkeypatch):
     # Modules that imported SQLITE_DB_PATH by value
     for mod in (db, ingester, retriever, sql_gen, documents_router):
         monkeypatch.setattr(mod, "SQLITE_DB_PATH", db_path, raising=False)
+
+    # Login off by default; auth tests turn it on
+    monkeypatch.setattr(auth, "AUTH_REQUIRED", False)
 
     # PostgreSQL offline
     monkeypatch.setattr(db, "_db_pool", None)

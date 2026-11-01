@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { BACKEND1_URL as PYTHON_BACKEND_URL } from '../../_lib/backend';
+import { BACKEND1_URL as PYTHON_BACKEND_URL, userHeaders } from '../../_lib/backend';
 
 export async function DELETE(
   req: Request,
@@ -12,6 +12,7 @@ export async function DELETE(
 
     const res = await fetch(`${PYTHON_BACKEND_URL}/api/memory/${id}`, {
       method: 'DELETE',
+      headers: userHeaders(),
     });
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });

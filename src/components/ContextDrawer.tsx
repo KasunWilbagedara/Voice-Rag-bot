@@ -65,7 +65,7 @@ export const ContextDrawer: React.FC<ContextDrawerProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-white/10">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400">
+            <div className="w-8 h-8 rounded-xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-400">
               <BrainCircuit className="w-4 h-4" />
             </div>
             <div>
@@ -98,7 +98,7 @@ export const ContextDrawer: React.FC<ContextDrawerProps> = ({
             onClick={() => setFilterType('all')}
             className={`flex-1 py-1.5 px-2 rounded-lg font-bold transition-all ${
               filterType === 'all'
-                ? 'bg-violet-500 text-white shadow-sm'
+                ? 'bg-sky-500 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -144,7 +144,7 @@ export const ContextDrawer: React.FC<ContextDrawerProps> = ({
                   className={`p-4 rounded-2xl border transition-all flex flex-col gap-2.5 ${
                     isDb
                       ? 'bg-amber-500/5 border-amber-500/25 hover:border-amber-500/50'
-                      : 'bg-black/30 border-white/10 hover:border-violet-500/40'
+                      : 'bg-black/30 border-white/10 hover:border-sky-500/40'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">

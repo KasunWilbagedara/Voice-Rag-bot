@@ -2,7 +2,7 @@ import time
 import base64
 import logging
 from typing import Optional
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Response, Header
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Response, Header
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
@@ -11,6 +11,7 @@ from backend.audio_service import (
     generate_speech_audio_async,
     extract_conversational_voice_summary,
 )
+from backend.auth import current_user_id
 from backend.rag import save_chat_history
 from backend.rag.pipeline import normalize_mode, run_rag_turn
 
@@ -31,6 +32,7 @@ async def speech_to_text(
     audio: UploadFile = File(...),
     apiKey: Optional[str] = Form(None),
     language: Optional[str] = Form("si"),
+    user_id: Optional[str] = Depends(current_user_id),  # login required (paid API)
 ):
     try:
         audio_bytes = await audio.read()
@@ -58,7 +60,7 @@ async def speech_to_text(
 
 
 @router.post("/api/tts")
-async def text_to_speech(req: TtsRequest):
+async def text_to_speech(req: TtsRequest, user_id: Optional[str] = Depends(current_user_id)):
     if not req.text or not req.text.strip():
         raise HTTPException(status_code=400, detail="Text string is required.")
 
@@ -95,6 +97,7 @@ async def unified_voice_pipeline(
     speed: Optional[float] = Form(1.0),
     sessionId: Optional[str] = Form("default_user"),
     x_backend_mode: Optional[str] = Header(default=None, alias="x-backend-mode"),
+    user_id: Optional[str] = Depends(current_user_id),
 ):
     """
     Unified low-latency Voice-RAG pipeline:
@@ -135,7 +138,7 @@ async def unified_voice_pipeline(
         # 2-3. Retrieval + LLM answer in the requested backend mode
         rag_t0 = time.time()
         mode = normalize_mode(x_backend_mode)
-        session_id = sessionId or "default_user"
+        session_id = user_id or sessionId or "default_user"
         rag_res = await run_in_threadpool(
             run_rag_turn,
             user_query=user_query_text,

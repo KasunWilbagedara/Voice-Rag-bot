@@ -25,7 +25,7 @@ from backend.db import (
     SQLITE_DB_PATH,
 )
 from backend.rag.chunker import recursive_structural_chunk
-from backend.rag.embedder import get_embeddings_batch
+from backend.rag.embedder import embedding_model_name, get_embeddings_batch
 
 logger = logging.getLogger("voicerag.rag.ingester")
 
@@ -62,6 +62,8 @@ def ingest_document(
         raise ValueError("Document content is empty or contains no parseable text.")
 
     embeddings = get_embeddings_batch(raw_chunks, custom_api_key)
+    model = embedding_model_name(custom_api_key)
+    chunk_ids = [str(uuid.uuid4()) for _ in raw_chunks]  # same IDs in SQLite and PostgreSQL
     doc_id = str(uuid.uuid4())
     created_at = datetime.utcnow().isoformat() + "Z"
 
@@ -74,13 +76,11 @@ def ingest_document(
             (doc_id, title, file_type, created_at),
         )
         for i, (chunk, emb) in enumerate(zip(raw_chunks, embeddings)):
-            chunk_id = str(uuid.uuid4())
-            emb_json = json.dumps(emb)
             cur.execute(
                 """INSERT INTO rag_document_chunks
-                   (id, document_id, content, chunk_index, embedding, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?);""",
-                (chunk_id, doc_id, chunk, i, emb_json, created_at),
+                   (id, document_id, content, chunk_index, embedding, embedding_model, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?);""",
+                (chunk_ids[i], doc_id, chunk, i, json.dumps(emb), model, created_at),
             )
         conn.commit()
         conn.close()
@@ -101,13 +101,11 @@ def ingest_document(
                         (doc_id, title, file_type, created_at),
                     )
                     for i, (chunk, emb) in enumerate(zip(raw_chunks, embeddings)):
-                        chunk_id = str(uuid.uuid4())
-                        vector_str = f"[{','.join(map(str, emb))}]"
                         cur.execute(
                             """INSERT INTO document_chunks
-                               (id, document_id, content, chunk_index, embedding, created_at)
-                               VALUES (%s, %s, %s, %s, %s::vector, %s)""",
-                            (chunk_id, doc_id, chunk, i, vector_str, created_at),
+                               (id, document_id, content, chunk_index, embedding, embedding_model, created_at)
+                               VALUES (%s, %s, %s, %s, %s::vector, %s, %s)""",
+                            (chunk_ids[i], doc_id, chunk, i, str(emb), model, created_at),
                         )
                     conn.commit()
                     logger.info(
@@ -126,7 +124,7 @@ def ingest_document(
     })
     for i, (chunk, emb) in enumerate(zip(raw_chunks, embeddings)):
         in_memory_store.chunks.append({
-            "id": str(uuid.uuid4()),
+            "id": chunk_ids[i],
             "document_id": doc_id,
             "content": chunk,
             "chunk_index": i,

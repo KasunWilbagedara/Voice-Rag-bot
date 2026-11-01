@@ -146,7 +146,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ apiKey, onDocu
     if (lower.endsWith('.pdf')) return <FileText className="w-4 h-4 text-rose-400" />;
     if (lower.endsWith('.docx') || lower.endsWith('.doc')) return <FileText className="w-4 h-4 text-blue-400" />;
     if (lower.endsWith('.xlsx') || lower.endsWith('.xls') || lower.endsWith('.csv')) return <FileSpreadsheet className="w-4 h-4 text-emerald-400" />;
-    if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp')) return <FileImage className="w-4 h-4 text-violet-400" />;
+    if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp')) return <FileImage className="w-4 h-4 text-sky-400" />;
     return <FileCode className="w-4 h-4 text-amber-400" />;
   };
 

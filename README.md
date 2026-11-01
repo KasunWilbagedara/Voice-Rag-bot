@@ -50,15 +50,17 @@ flowchart TD
 
 | Service | Port | Entry point | Role |
 |---|---|---|---|
-| Backend 1 — RAG & Voice | 8000 | `backend/main.py` | Documents, hybrid search, STT/TTS, voice pipeline, memory & history |
-| Backend 2 — RAG + Tools | 8001 | `backend/tool_server.py` | Agentic RAG, tool registry, databases, students |
-| MCP Server | 8005 | `backend/mcp_server.py` | Exposes the tool registry to MCP clients (Claude Desktop, Cursor) |
+| Backend 1 — Pure RAG & Voice | 8000 | `backend/main.py` | Accounts, documents, hybrid search, Pure RAG answers (`/api/rag`, `/api/rag/stream`), STT/TTS, memory & history |
+| Backend 2 — RAG + Tools | 8001 | `backend/tool_server.py` | Agentic RAG (`/api/agentic-rag`, `/api/rag/stream`), 13-tool registry, databases, students, STT/TTS |
+| MCP Server | 8005 | `backend/mcp_server.py` | Separate process exposing the same 13 tools to MCP clients (Claude Desktop, Cursor) over SSE or stdio |
 | RAG v2 (standalone, optional) | 8002 | `rag_v2/main.py` | Streaming RAG with LLM reranking; not used by the UI |
+
+All services share one data store: `backend/customer_datasets.db` (SQLite; override with `SQLITE_DB_PATH`), mirrored to PostgreSQL + pgvector when `DATABASE_URL` is reachable.
 
 The UI's mode switcher is sent as the `x-backend-mode` header on **both** text and voice queries:
 
-- **Pure RAG** (`pure`): hybrid search → MMR diversity filter → LLM grounded only in the retrieved document chunks (no tool lookups).
-- **RAG + Tools** (`tools`): agentic multi-step LLM loop that can call tools (orders, tickets, students, SQL, weather, web search, math).
+- **Pure RAG** (`pure`) → Backend 1: hybrid search (dense + BM25, merged with Reciprocal Rank Fusion) → MMR diversity filter → LLM grounded only in the retrieved document chunks (no tool calls).
+- **RAG + Tools** (`tools`) → Backend 2: agentic multi-step LLM loop that can call tools (orders, tickets, students, SQL, weather, web search, math). The answer arrives as one piece because the agent decides on tools before answering.
 - No header (direct API calls): standard RAG with contextual tool enrichment.
 
 ---
@@ -78,11 +80,17 @@ PYTHON_TOOL_BACKEND_URL=http://localhost:8001
 # Optional hardening
 # ADMIN_API_KEY=some-long-random-string   # required (x-admin-key) for upload/delete/reset/connect & raw tool calls
 # CORS_ORIGINS=http://localhost:3000      # browser origins allowed to call the Python services directly
+# AUTH_REQUIRED=false                    # turn off login (local scripts / tests only)
 ```
 
 When `ADMIN_API_KEY` is set, the Next.js proxy forwards it to the backends automatically, so the
 UI keeps working while direct calls to the destructive endpoints require the key. Leave it unset for
 local development.
+
+**User accounts.** Chat, voice, memory and history require a logged-in user (username + password,
+created from the login screen). Each user has their own memory and conversation history. The login
+token is kept in an httpOnly cookie by the Next.js proxy and forwarded to the backends. For scripts
+that call the Python API directly (e.g. `eval/run_eval.py`), set `AUTH_REQUIRED=false` on the backend.
 
 ---
 
@@ -114,6 +122,10 @@ pip install -r backend/requirements.txt
 python -m backend.main
 python -m backend.tool_server      # in a second terminal
 ```
+
+**Upgrading an existing database?** Embeddings are now always 768-dim and tagged with the model that made them.
+Re-embed old documents once (also needed after switching between a Gemini and an OpenAI key):
+`python -m backend.reembed`
 
 Run the backend tests with `pip install -r backend/requirements-dev.txt && python -m pytest backend/test`.
 
