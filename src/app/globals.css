@@ -358,3 +358,85 @@ html.light [class*='text-[#00224D]'] {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #ff204e;
 }
+
+/* Light glass studio — visual refresh. Existing component behavior remains unchanged. */
+html.light {
+  color-scheme: light;
+  --page-bg: #f2f7ff;
+  --card-bg: rgba(255,255,255,.80);
+  --panel-bg: rgba(245,249,255,.88);
+  --panel-surface: rgba(255,255,255,.72);
+  --border: rgba(129,156,195,.24);
+  --shadow: 0 16px 48px -24px rgba(45,78,132,.22), 0 2px 12px rgba(55,92,146,.04);
+  --text-primary: #17253e;
+  --text-strong: #13243e;
+  --text-muted: #63748d;
+  --crimson: #6366f1;
+  --crimson-soft: rgba(99,102,241,.1);
+  --status-bg: #e8faf3;
+  --status-text: #047857;
+}
+html.light body {
+  background: radial-gradient(ellipse at 10% 8%, rgba(125,211,252,.28), transparent 36%),
+    radial-gradient(ellipse at 92% 12%, rgba(196,181,253,.32), transparent 37%),
+    radial-gradient(ellipse at 48% 90%, rgba(186,230,253,.22), transparent 43%),
+    #f2f7ff;
+  background-attachment: fixed;
+}
+html.light .glass-panel,
+html.light .glass-panel-interactive,
+html.light .glass-panel-glow {
+  background: rgba(255,255,255,.73);
+  border: 1px solid rgba(255,255,255,.86);
+  box-shadow: 0 16px 48px -24px rgba(45,78,132,.22), 0 2px 12px rgba(55,92,146,.05);
+  backdrop-filter: blur(24px) saturate(145%);
+  -webkit-backdrop-filter: blur(24px) saturate(145%);
+}
+html.light .glass-panel-interactive:hover {
+  border-color: rgba(99,102,241,.32);
+  box-shadow: 0 20px 52px -24px rgba(69,88,168,.24);
+}
+html.light .glass-input {
+  background: rgba(247,250,255,.86);
+  border-color: rgba(143,164,202,.28);
+}
+html.light .glass-input:focus {
+  border-color: #818cf8;
+  box-shadow: 0 0 0 3px rgba(129,140,248,.14);
+}
+html.light .btn-gradient-red,
+html.light .btn-gradient-red-sm {
+  background: linear-gradient(125deg,#0284c7,#6366f1);
+  color: white;
+  box-shadow: 0 8px 20px -8px rgba(79,70,229,.4);
+}
+html.light .btn-gradient-red:hover {
+  background: linear-gradient(125deg,#0369a1,#4f46e5);
+  box-shadow: 0 12px 28px -8px rgba(79,70,229,.35);
+}
+html.light .neon-glow-red,
+html.light .neon-glow-red-lg,
+html.light .neon-pulse-red { box-shadow: 0 8px 28px rgba(99,102,241,.15); }
+html.light .neon-pulse-red { animation: lightVoicePulse 2.4s ease-in-out infinite; }
+@keyframes lightVoicePulse {
+  50% { box-shadow: 0 0 0 12px rgba(99,102,241,.07), 0 10px 30px rgba(99,102,241,.2); }
+}
+html.light .custom-scrollbar::-webkit-scrollbar-track,
+html.light ::-webkit-scrollbar-track { background: transparent; }
+html.light .custom-scrollbar::-webkit-scrollbar-thumb,
+html.light ::-webkit-scrollbar-thumb { background: #c7d7eb; }
+html.light [class*='bg-black/'] { background-color: rgba(241,247,255,.68) !important; }
+html.light [class*='text-slate-100'],
+html.light [class*='text-slate-200'],
+html.light [class*='text-slate-300'] { color: #1e3352 !important; }
+html.light [class*='text-[#FF6383]'],
+html.light [class*='text-[#FF204E]'] { color: #4f46e5 !important; }
+html.light [class*='border-white/'] { border-color: rgba(150,174,208,.22) !important; }
+html.light input::placeholder { color: #8494ab; }
+html.light button:focus-visible,
+html.light a:focus-visible,
+html.light input:focus-visible { outline: 2px solid #6366f1; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  html.light .neon-pulse-red { animation: none; }
+  html.light *, html.light *::before, html.light *::after { scroll-behavior: auto !important; }
+}
