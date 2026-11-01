@@ -23,7 +23,7 @@ interface BackendModeSwitcherProps {
  */
 export function BackendModeSwitcher({ mode, onChange, disabled = false }: BackendModeSwitcherProps) {
   return (
-    <div className="flex items-center gap-1 bg-black/30 border border-white/10 rounded-xl p-1 select-none">
+    <div className="flex items-center gap-1 bg-white/70 border border-sky-100 rounded-2xl p-1 shadow-sm backdrop-blur-xl select-none">
       {/* Pure RAG button */}
       <button
         onClick={() => !disabled && onChange('pure')}
@@ -33,8 +33,8 @@ export function BackendModeSwitcher({ mode, onChange, disabled = false }: Backen
           flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
           transition-all duration-200
           ${mode === 'pure'
-            ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
-            : 'text-gray-400 hover:text-white hover:bg-white/5'
+            ? 'bg-sky-600 text-white shadow-md shadow-sky-200/70'
+            : 'text-slate-500 hover:text-slate-900 hover:bg-sky-50'
           }
           ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
         `}
@@ -52,8 +52,8 @@ export function BackendModeSwitcher({ mode, onChange, disabled = false }: Backen
           flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
           transition-all duration-200
           ${mode === 'tools'
-            ? 'bg-violet-600 text-white shadow-lg shadow-violet-900/40'
-            : 'text-gray-400 hover:text-white hover:bg-white/5'
+            ? 'bg-violet-600 text-white shadow-md shadow-violet-200/70'
+            : 'text-slate-500 hover:text-slate-900 hover:bg-sky-50'
           }
           ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
         `}
