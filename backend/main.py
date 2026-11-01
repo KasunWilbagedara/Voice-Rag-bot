@@ -5,7 +5,7 @@ Runs on Port 8000.
 
 Responsibilities (Backend 1 per the architecture diagram):
   - Document Ingestion & Chunking
-  - Hybrid Search (70% Dense + 30% BM25)
+  - Hybrid Search (dense vectors + BM25 keywords, merged with Reciprocal Rank Fusion)
   - MMR Diversity Filter
   - Strictly Grounded LLM (Zero Tools — answers from documents only)
   - STT/TTS (Sinhala & English)
@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Voice-RAG Bot — Backend 1: Pure RAG",
     description=(
-        "Pure RAG backend: document ingestion, hybrid search (70% dense + 30% BM25), "
+        "Pure RAG backend: document ingestion, hybrid search (dense + BM25 merged with Reciprocal Rank Fusion), "
         "MMR diversity filter, and strictly grounded LLM with zero tool calls. Port 8000."
     ),
     version="2.0.0",
@@ -89,7 +89,7 @@ def health_check():
         "database": "PostgreSQL + pgvector" if db_active else "In-Memory Vector Store",
         "features": [
             "document-ingestion",
-            "hybrid-search-70-dense-30-bm25",
+            "hybrid-search-dense-bm25-rrf",
             "mmr-diversity-filter",
             "strictly-grounded-llm",
             "stt-tts",

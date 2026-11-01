@@ -1,14 +1,18 @@
-import { BACKEND1_URL, backendModeFrom, userHeaders } from '../../_lib/backend';
+import { BACKEND1_URL, BACKEND2_URL, backendModeFrom, userHeaders } from '../../_lib/backend';
 
-// Streams the answer from Backend 1 straight through to the browser
+// Streams the answer straight through to the browser
 // (newline-delimited JSON events: sources, token..., done).
+// Mode Switcher: 'pure' → Backend 1 (Port 8000), 'tools' → Backend 2 (Port 8001).
 export async function POST(req: Request) {
   try {
-    const res = await fetch(`${BACKEND1_URL}/api/rag/stream`, {
+    const backendMode = backendModeFrom(req);
+    const targetBase = backendMode === 'tools' ? BACKEND2_URL : BACKEND1_URL;
+
+    const res = await fetch(`${targetBase}/api/rag/stream`, {
       method: 'POST',
       headers: userHeaders({
         'Content-Type': 'application/json',
-        'x-backend-mode': backendModeFrom(req),
+        'x-backend-mode': backendMode,
       }),
       body: await req.text(),
     });

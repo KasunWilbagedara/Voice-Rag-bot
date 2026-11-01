@@ -359,3 +359,63 @@ def test_each_user_has_private_memory_and_history(login_required):
     # Bob can't delete Alice's memory
     assert client.delete(f"/api/memory/{alice_memories[0]['id']}", headers=bob).json()["success"] is False
     assert client.get("/api/memory", headers=alice).json()["count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Architecture: mode routing + tool-free Pure RAG
+# ---------------------------------------------------------------------------
+
+def test_backend2_streams_tools_mode_with_agentic_loop(monkeypatch):
+    import backend.rag.agentic_generator as ag
+    from backend.tool_server import app
+
+    monkeypatch.setattr(ag, "agentic_query", lambda **kw: {
+        "answer": "Order ORD-9023 has shipped.",
+        "retrievedChunks": [],
+        "toolCalls": [{"tool_name": "track_customer_order"}],
+    })
+    res = TestClient(app).post(
+        "/api/rag/stream",
+        json={"query": "status of ORD-9023?", "apiKey": "AIzaTEST", "sessionId": "s1"},
+        headers={"x-backend-mode": "tools"},
+    )
+    events = [json.loads(line) for line in res.text.splitlines()]
+    assert [e["type"] for e in events] == ["sources", "token", "done"]
+    assert events[-1]["answer"] == "Order ORD-9023 has shipped."
+    assert events[-1]["toolCalls"][0]["tool_name"] == "track_customer_order"
+
+
+def test_pure_mode_never_calls_any_tool(monkeypatch):
+    import backend.rag.generator as gen
+    import backend.rag.pipeline as pipeline
+    from backend import tools
+    from backend.main import app
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("a tool was called in Pure RAG mode")
+
+    monkeypatch.setattr(gen, "call_remote_tool", forbidden)
+    monkeypatch.setattr(tools, "call_tool", forbidden)
+    monkeypatch.setattr(pipeline, "safe_query_embedding", lambda *a, **k: [])
+    monkeypatch.setattr(gen, "_call_llm", lambda *a, **kw: "Grounded.")
+    monkeypatch.setattr(gen, "_stream_llm", lambda *a, **kw: iter(["Grounded."]))
+
+    # Queries that would trigger order, weather, math, student and web-search tools
+    client = TestClient(app)
+    for q in ["Status of ORD-9021?", "weather in Kandy", "What is 2 + 2?", "STU1042 GPA?", "who is Ada Lovelace"]:
+        body = {"query": q, "apiKey": "AIzaTEST"}
+        assert client.post("/api/rag", json=body, headers={"x-backend-mode": "pure"}).status_code == 200
+        streamed = client.post("/api/rag/stream", json=body, headers={"x-backend-mode": "pure"}).text
+        assert '"type": "done"' in streamed and '"type": "error"' not in streamed
+
+
+def test_all_13_tools_registered():
+    from backend import tools
+
+    names = {t["name"] for t in tools.list_tools()}
+    assert names == {
+        "track_customer_order", "track_support_ticket", "lookup_student", "execute_sql",
+        "list_databases", "get_database_schema", "get_session_memories", "save_session_memory",
+        "search_knowledge_base", "get_live_weather", "web_search", "get_current_datetime",
+        "calculate_expression",
+    }
