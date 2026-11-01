@@ -1,5 +1,6 @@
 """Regression tests for the bugs fixed in the dual-backend RAG pipeline."""
 
+import json
 import sqlite3
 
 import pytest
@@ -211,3 +212,45 @@ def test_admin_key_optional_in_development(monkeypatch):
 
     monkeypatch.setattr(security, "ADMIN_API_KEY", "")
     assert TestClient(app).delete("/api/documents", params={"id": "x"}).status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Embeddings: fixed size + model tracking
+# ---------------------------------------------------------------------------
+
+def test_ingested_chunks_record_model_and_search_matches_model(monkeypatch):
+    import backend.rag.ingester as ingester
+    from backend.rag.retriever import search_similar_chunks
+
+    monkeypatch.setattr(ingester, "get_embeddings_batch", lambda texts, key=None: [[1.0, 0.0]] * len(texts))
+    ingester.ingest_document("Refunds.txt", "text/plain", "Refunds take 14 business days.", "AIzaTEST")
+
+    conn = sqlite3.connect(db.SQLITE_DB_PATH)
+    assert conn.execute("SELECT embedding_model FROM rag_document_chunks").fetchone()[0] == "gemini-embedding-001"
+    conn.close()
+
+    # Same model (Gemini key) → found by vector search
+    assert search_similar_chunks([1.0, 0.0], top_k=3, custom_api_key="AIzaTEST")
+    # Different model (OpenAI key) → vectors are not comparable, so no dense matches
+    assert search_similar_chunks([1.0, 0.0], top_k=3, custom_api_key="sk-test") == []
+
+
+def test_reembed_updates_old_chunks(monkeypatch):
+    import backend.reembed as reembed
+
+    conn = sqlite3.connect(db.SQLITE_DB_PATH)
+    conn.execute("INSERT INTO rag_documents VALUES ('d1', 'Old', 'txt', '2026-01-01')")
+    conn.execute(
+        "INSERT INTO rag_document_chunks (id, document_id, content, chunk_index, embedding, created_at) "
+        "VALUES ('c1', 'd1', 'old text', 0, '[0.5, 0.5, 0.5]', '2026-01-01')"
+    )
+    conn.commit()
+
+    monkeypatch.setattr(reembed, "embedding_model_name", lambda key=None: "gemini-embedding-001")
+    monkeypatch.setattr(reembed, "get_embeddings_batch", lambda texts, key=None: [[0.1] * 768 for _ in texts])
+    monkeypatch.setattr(reembed, "init_db_schema", lambda: None)
+    reembed.main()
+
+    model, emb = conn.execute("SELECT embedding_model, embedding FROM rag_document_chunks WHERE id='c1'").fetchone()
+    assert model == "gemini-embedding-001" and len(json.loads(emb)) == 768
+    conn.close()

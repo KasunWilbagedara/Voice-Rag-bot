@@ -115,6 +115,10 @@ python -m backend.main
 python -m backend.tool_server      # in a second terminal
 ```
 
+**Upgrading an existing database?** Embeddings are now always 768-dim and tagged with the model that made them.
+Re-embed old documents once (also needed after switching between a Gemini and an OpenAI key):
+`python -m backend.reembed`
+
 Run the backend tests with `pip install -r backend/requirements-dev.txt && python -m pytest backend/test`.
 
 #### B. Start Next.js Demonstration Frontend:

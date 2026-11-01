@@ -88,6 +88,13 @@ def cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
         return 0.0
     return dot_product / (norm_a * norm_b)
 
+def _add_sqlite_column(cur, table: str, column: str, definition: str) -> None:
+    """Adds *column* to *table* if it doesn't exist yet (SQLite has no ADD COLUMN IF NOT EXISTS)."""
+    cur.execute(f"PRAGMA table_info({table});")
+    if column not in [col[1] for col in cur.fetchall()]:
+        cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition};")
+
+
 def init_sqlite_rag_tables():
     """Ensures persistent SQLite document & chunk storage tables exist in customer_datasets.db."""
     try:
@@ -121,12 +128,9 @@ def init_sqlite_rag_tables():
             created_at TEXT NOT NULL
         );
         """)
-        # Migration: chat history is scoped per session (older DBs lack the column).
-        cur.execute("PRAGMA table_info(rag_chat_history);")
-        if "session_id" not in [col[1] for col in cur.fetchall()]:
-            cur.execute(
-                "ALTER TABLE rag_chat_history ADD COLUMN session_id TEXT NOT NULL DEFAULT 'default_user';"
-            )
+        # Migrations for databases created by older versions
+        _add_sqlite_column(cur, "rag_chat_history", "session_id", "TEXT NOT NULL DEFAULT 'default_user'")
+        _add_sqlite_column(cur, "rag_document_chunks", "embedding_model", "TEXT")
         cur.execute("""
         CREATE TABLE IF NOT EXISTS rag_user_memories (
             id TEXT PRIMARY KEY,
@@ -167,9 +171,18 @@ def init_db_schema():
                 document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
                 content TEXT NOT NULL,
                 chunk_index INT NOT NULL,
-                embedding VECTOR,
+                embedding vector(768),
+                embedding_model TEXT,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
+            """,
+            # Older databases: untyped vector column without the model name.
+            "ALTER TABLE document_chunks ADD COLUMN IF NOT EXISTS embedding_model TEXT;",
+            # Fails while old 1536/3072-dim vectors exist — run `python -m backend.reembed`.
+            "ALTER TABLE document_chunks ALTER COLUMN embedding TYPE vector(768);",
+            """
+            CREATE INDEX IF NOT EXISTS document_chunks_embedding_hnsw_idx
+            ON document_chunks USING hnsw (embedding vector_cosine_ops);
             """,
             """
             CREATE TABLE IF NOT EXISTS chat_history (
@@ -213,7 +226,7 @@ def init_db_schema():
                     conn.commit()
             except Exception as e:
                 conn.rollback()
-                logger.debug(f"DB schema statement execution note: {e}")
+                logger.warning(f"DB schema statement failed: {e}")
 
         logger.info("PostgreSQL database schema verified successfully.")
 

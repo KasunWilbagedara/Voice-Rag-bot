@@ -309,6 +309,7 @@ def agentic_query(
                 query_embedding=query_embedding,
                 top_k=top_k,
                 query_text=user_query,
+                custom_api_key=custom_api_key,
             )
         except Exception as e:
             logger.warning("Retrieval failed: %s", e)

@@ -19,6 +19,7 @@ import sqlite3
 import logging
 from typing import Dict, List, Optional, Any
 
+from backend.rag.embedder import embedding_model_name
 from backend.db import (
     get_db_connection,
     cosine_similarity,
@@ -202,7 +203,7 @@ def search_similar_chunks(
         query_embedding: Pre-computed query vector.
         top_k:           Number of final results to return.
         query_text:      Original query string for BM25 (optional).
-        custom_api_key:  Unused — kept for API symmetry.
+        custom_api_key:  API key of the request (selects the embedding model to match).
 
     Returns:
         List of chunk dicts with keys: id, documentId, documentTitle,
@@ -210,6 +211,8 @@ def search_similar_chunks(
     """
     query_str = query_text or ""
     dense_results: List[Dict[str, Any]] = []
+    # Only compare against chunks embedded by the same model as the query.
+    model = embedding_model_name(custom_api_key) if query_embedding else ""
 
     # 1. PostgreSQL HNSW cosine vector search (skipped when no embedding is available)
     with get_db_connection() as conn:
@@ -227,10 +230,11 @@ def search_similar_chunks(
                             1 - (c.embedding <=> %s::vector) AS similarity
                         FROM document_chunks c
                         JOIN documents d ON c.document_id = d.id
+                        WHERE c.embedding_model = %s
                         ORDER BY c.embedding <=> %s::vector
                         LIMIT %s;
                     """
-                    cur.execute(vector_query, (vector_str, vector_str, top_k * 2))
+                    cur.execute(vector_query, (vector_str, model, vector_str, top_k * 2))
                     rows = cur.fetchall()
                     for row in rows:
                         dense_results.append({
@@ -252,8 +256,9 @@ def search_similar_chunks(
             cur.execute("""
                 SELECT c.id, c.document_id, d.title, c.content, c.chunk_index, c.embedding
                 FROM rag_document_chunks c
-                JOIN rag_documents d ON c.document_id = d.id;
-            """)
+                JOIN rag_documents d ON c.document_id = d.id
+                WHERE c.embedding_model = ?;
+            """, (model,))
             rows = cur.fetchall()
             conn.close()
 
