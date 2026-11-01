@@ -52,7 +52,7 @@ export function BackendModeSwitcher({ mode, onChange, disabled = false }: Backen
           flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
           transition-all duration-200
           ${mode === 'tools'
-            ? 'bg-violet-600 text-white shadow-md shadow-violet-200/70'
+            ? 'bg-sky-600 text-white shadow-md shadow-sky-200/70'
             : 'text-slate-500 hover:text-slate-900 hover:bg-sky-50'
           }
           ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}

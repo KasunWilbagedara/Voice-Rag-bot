@@ -47,7 +47,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
     >
       <form onSubmit={submit} className="glass-panel w-full max-w-sm rounded-3xl p-6 flex flex-col gap-4 border border-white/10 shadow-2xl">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-violet-500 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-400 to-blue-600 flex items-center justify-center">
             <Brain className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -63,7 +63,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
             onChange={(e) => setUsername(e.target.value)}
             autoComplete="username"
             required
-            className="px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-sm text-slate-100 focus:outline-none focus:border-[#FF204E]/60"
+            className="px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-sm text-slate-100 focus:outline-none focus:border-[#2563EB]/60"
           />
         </label>
 
@@ -76,7 +76,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
             minLength={mode === 'register' ? 8 : undefined}
             required
-            className="px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-sm text-slate-100 focus:outline-none focus:border-[#FF204E]/60"
+            className="px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-sm text-slate-100 focus:outline-none focus:border-[#2563EB]/60"
           />
         </label>
 

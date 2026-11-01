@@ -33,9 +33,9 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ isActive, mode
       let glowColor = 'rgba(56, 189, 248, 0.3)';
 
       if (mode === 'listening') {
-        topColor = '#FF204E'; // Neon red
-        bottomColor = '#A0153E'; // Deep red
-        glowColor = 'rgba(255, 32, 78, 0.5)';
+        topColor = '#2563EB'; // Neon red
+        bottomColor = '#1D4ED8'; // Deep red
+        glowColor = 'rgba(37, 99, 235, 0.5)';
       } else if (mode === 'transcribing' || mode === 'searching') {
         topColor = '#c084fc'; // Purple
         bottomColor = '#6366f1'; // Indigo
@@ -124,7 +124,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ isActive, mode
       <div className="absolute top-2 left-3 flex items-center gap-1.5">
         <span
           className={`w-1.5 h-1.5 rounded-full ${
-            isActive ? 'bg-[#FF204E] animate-pulse shadow-[0_0_8px_rgba(255,32,78,0.85)]' : 'bg-slate-600'
+            isActive ? 'bg-[#2563EB] animate-pulse shadow-[0_0_8px_rgba(37, 99, 235,0.85)]' : 'bg-slate-600'
           }`}
         />
         <span className="text-[9px] font-mono tracking-widest text-slate-500 uppercase">
