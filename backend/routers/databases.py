@@ -1,9 +1,10 @@
 import logging
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 
 from backend.services.db_query import db_manager
+from backend.security import require_admin
 
 router = APIRouter(prefix="/api/databases", tags=["Databases"])
 logger = logging.getLogger("voicerag.databases_router")
@@ -38,7 +39,7 @@ def get_all_schemas():
         logger.error(f"Error getting schemas: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/connect")
+@router.post("/connect", dependencies=[Depends(require_admin)])
 def connect_database(req: ConnectDbRequest):
     if not req.name or not req.connectionString:
         raise HTTPException(status_code=400, detail="Database name and connection string are required.")
@@ -53,7 +54,7 @@ def connect_database(req: ConnectDbRequest):
         logger.error(f"Error connecting database: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/upload-csv")
+@router.post("/upload-csv", dependencies=[Depends(require_admin)])
 async def upload_csv_table(
     file: UploadFile = File(...),
     tableName: Optional[str] = Form(None)
@@ -105,7 +106,7 @@ def execute_test_query(req: QueryDbRequest):
         logger.error(f"Query execution error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/seed")
+@router.post("/seed", dependencies=[Depends(require_admin)])
 def seed_sample_database_records():
     try:
         res = db_manager.reseed_sample_data()
@@ -114,7 +115,7 @@ def seed_sample_database_records():
         logger.error(f"Error seeding sample databases: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/reset")
+@router.post("/reset", dependencies=[Depends(require_admin)])
 def reset_all_database_records():
     try:
         res = db_manager.reset_all_data()
@@ -123,7 +124,7 @@ def reset_all_database_records():
         logger.error(f"Error resetting database records: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.delete("/{db_id}")
+@router.delete("/{db_id}", dependencies=[Depends(require_admin)])
 def remove_database(db_id: str):
     try:
         removed = db_manager.remove_database(db_id)

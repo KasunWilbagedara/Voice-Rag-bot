@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-
-const BACKEND2_URL = process.env.TOOL_BACKEND_URL || 'http://localhost:8001';
+import { BACKEND2_URL } from '../../_lib/backend';
 
 export async function GET() {
   try {
     const res = await fetch(`${BACKEND2_URL}/health`, {
       signal: AbortSignal.timeout(3000),
+      cache: 'no-store',
     });
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });

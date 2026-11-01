@@ -17,7 +17,7 @@ import json
 import logging
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
 
-from rag_v2.config import get_api_key, is_gemini_key
+from rag_v2.config import GEMINI_MODEL, OPENAI_MODEL, get_api_key, is_gemini_key
 
 logger = logging.getLogger("rag_v2.core.generator")
 
@@ -168,7 +168,7 @@ def _generate_gemini(full_prompt: str, api_key: str) -> str:
 
     client = genai.Client(api_key=api_key)
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model=GEMINI_MODEL,
         contents=full_prompt,
         config={"system_instruction": SYSTEM_PROMPT},
     )
@@ -181,7 +181,7 @@ def _generate_openai(full_prompt: str, api_key: str) -> str:
 
     client = openai.OpenAI(api_key=api_key)
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model=OPENAI_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": full_prompt},
@@ -197,7 +197,7 @@ def _stream_gemini(full_prompt: str, api_key: str):
 
     client = genai.Client(api_key=api_key)
     for chunk in client.models.generate_content_stream(
-        model="gemini-2.0-flash",
+        model=GEMINI_MODEL,
         contents=full_prompt,
         config={"system_instruction": SYSTEM_PROMPT},
     ):
@@ -211,7 +211,7 @@ def _stream_openai(full_prompt: str, api_key: str):
 
     client = openai.OpenAI(api_key=api_key)
     stream = client.chat.completions.create(
-        model="gpt-4o",
+        model=OPENAI_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": full_prompt},

@@ -658,7 +658,7 @@ export const DatabaseManager: React.FC = () => {
               <div>
                 <h3 className="text-sm font-bold text-slate-200">Register External Database Connection</h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Connect live PostgreSQL, MySQL, or local SQLite database instances.
+                  Connect live PostgreSQL or local SQLite database instances.
                 </p>
               </div>
               
@@ -683,7 +683,6 @@ export const DatabaseManager: React.FC = () => {
                     className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-red-500/60 transition-colors"
                   >
                     <option value="postgresql">PostgreSQL</option>
-                    <option value="mysql">MySQL</option>
                     <option value="sqlite">SQLite (File Path)</option>
                   </select>
                 </div>

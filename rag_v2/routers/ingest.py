@@ -10,6 +10,7 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
 from rag_v2.ingestion.ingester import ingest_file, ingest_url
@@ -71,7 +72,8 @@ async def ingest_document(
                     detail="The uploaded file is empty.",
                 )
             logger.info("Ingesting file '%s' (%d bytes)", file.filename, len(file_bytes))
-            result: IngestResponse = await ingest_file(
+            result = await run_in_threadpool(
+                ingest_file,
                 file_bytes=file_bytes,
                 filename=file.filename,
                 api_key=api_key,
@@ -79,7 +81,8 @@ async def ingest_document(
         else:
             clean_url = url.strip()
             logger.info("Ingesting URL '%s'", clean_url)
-            result: IngestResponse = await ingest_url(
+            result = await run_in_threadpool(
+                ingest_url,
                 url=clean_url,
                 api_key=api_key,
             )
@@ -93,7 +96,7 @@ async def ingest_document(
             detail=f"Ingestion failed: {exc}",
         ) from exc
 
-    return result
+    return IngestResponse(**result)
 
 
 @router.get("/ingest/status", summary="Ingestion subsystem readiness")

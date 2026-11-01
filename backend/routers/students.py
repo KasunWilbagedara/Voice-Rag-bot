@@ -1,6 +1,6 @@
 import logging
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from backend.services.db_query import (
@@ -9,6 +9,7 @@ from backend.services.db_query import (
     upsert_student,
 )
 from backend.db import seed_initial_students
+from backend.security import require_admin
 
 router = APIRouter(prefix="/api/students", tags=["Students Database"])
 logger = logging.getLogger("voicerag.students_router")
@@ -39,7 +40,7 @@ def get_student(student_id: str):
         raise HTTPException(status_code=404, detail=f"Student ID '{student_id}' not found.")
     return student
 
-@router.post("")
+@router.post("", dependencies=[Depends(require_admin)])
 def add_or_update_student(student: StudentModel):
     """Adds a new student or updates an existing student record."""
     try:
@@ -49,7 +50,7 @@ def add_or_update_student(student: StudentModel):
         logger.error(f"Error saving student record: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/seed")
+@router.post("/seed", dependencies=[Depends(require_admin)])
 def seed_students():
     """Re-seeds initial sample student database records."""
     try:

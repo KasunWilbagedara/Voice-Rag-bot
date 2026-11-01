@@ -9,7 +9,6 @@ Also exposes get_embeddings_batch() for bulk ingestion pipelines.
 """
 
 import logging
-import random
 from typing import Dict, List, Optional
 
 import openai
@@ -46,7 +45,10 @@ def get_text_embedding(text: str, custom_api_key: Optional[str] = None) -> List[
 
     Returns:
         A list of floats representing the embedding vector.
-        On Gemini failure a deterministic 768-dim fallback vector is returned.
+
+    Raises:
+        RuntimeError: If every Gemini embedding model fails. (A random vector
+        used to be returned here, which silently poisoned the vector store.)
     """
     global _CACHED_EMBEDDING_MODEL, _EMBEDDING_CACHE
 
@@ -60,6 +62,7 @@ def get_text_embedding(text: str, custom_api_key: Optional[str] = None) -> List[
 
     if is_gemini_key(api_key):
         client = genai.Client(api_key=api_key)
+        last_err: Optional[Exception] = None
         for m in _GEMINI_EMBEDDING_MODELS:
             try:
                 res = client.models.embed_content(model=m, contents=cleaned_text)
@@ -73,15 +76,11 @@ def get_text_embedding(text: str, custom_api_key: Optional[str] = None) -> List[
                     _EMBEDDING_CACHE[cache_key] = list(emb)
                     return list(emb)
             except Exception as e:
+                last_err = e
                 logger.debug(f"Embedding model {m} note: {e}")
                 continue
 
-        # Deterministic fallback vector on total Gemini failure
-        logger.warning("Gemini embedding calls failed. Using deterministic fallback vector.")
-        rng = random.Random(hash(cleaned_text))
-        fallback_emb = [rng.uniform(-0.1, 0.1) for _ in range(768)]
-        _EMBEDDING_CACHE[cache_key] = fallback_emb
-        return fallback_emb
+        raise RuntimeError(f"Gemini embedding failed for all models: {last_err}")
 
     else:
         # OpenAI-compatible path (also used for Groq, OpenRouter, etc.)

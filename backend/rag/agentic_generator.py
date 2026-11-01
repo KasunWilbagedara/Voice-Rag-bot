@@ -26,9 +26,10 @@ from google import genai
 from google.genai import types
 
 from backend.config import get_api_key, is_gemini_key, TOOL_SERVICE_URL
-from backend.db import get_db_connection, get_saved_chat_history
+from backend.security import admin_headers
+from backend.db import get_saved_chat_history
 from backend.rag.prompts import build_language_instruction, build_system_prompt
-from backend.rag.embedder import get_embedding
+from backend.rag.embedder import get_text_embedding as get_embedding
 from backend.rag.retriever import search_similar_chunks
 
 try:
@@ -40,6 +41,8 @@ except ImportError:
 logger = logging.getLogger("voicerag.rag.agentic_generator")
 
 MAX_AGENTIC_ROUNDS = 5
+
+AGENTIC_GEMINI_MODELS = ["gemini-3.5-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-flash-lite-latest"]
 
 # ---------------------------------------------------------------------------
 # AGENTIC SYSTEM PROMPT
@@ -88,7 +91,7 @@ def _call_remote_tool(tool_name: str, **kwargs) -> Any:
         try:
             payload = {"tool_name": tool_name, "parameters": kwargs}
             with httpx.Client(timeout=8.0) as client:
-                resp = client.post(TOOL_SERVICE_URL, json=payload)
+                resp = client.post(TOOL_SERVICE_URL, json=payload, headers=admin_headers())
             if resp.status_code == 200:
                 return resp.json().get("result")
         except Exception as e:
@@ -118,16 +121,25 @@ def _call_llm(messages: List[Dict[str, str]], api_key: str) -> str:
                 elif m["role"] == "assistant":
                     history.append(types.Content(role="model", parts=[types.Part(text=m["content"])]))
 
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=history,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_text,
-                    temperature=0.3,
-                    max_output_tokens=2048,
-                ),
-            )
-            return response.text or ""
+            # Same active model fallback chain as the standard RAG generator.
+            last_err: Optional[Exception] = None
+            for model_name in AGENTIC_GEMINI_MODELS:
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=history,
+                        config=types.GenerateContentConfig(
+                            system_instruction=system_text,
+                            temperature=0.3,
+                            max_output_tokens=2048,
+                        ),
+                    )
+                    if response and response.text:
+                        return response.text
+                except Exception as e:
+                    last_err = e
+                    logger.debug("Agentic model %s failed: %s", model_name, e)
+            raise RuntimeError(f"Gemini generation failed for all models: {last_err}")
         else:
             client = openai.OpenAI(api_key=api_key)
             response = client.chat.completions.create(
@@ -257,7 +269,7 @@ def _run_agentic_loop(
 
 def agentic_query(
     user_query: str,
-    session_id: str = "default",
+    session_id: str = "default_user",
     top_k: int = 8,
     custom_api_key: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -284,7 +296,7 @@ def agentic_query(
 
     # 1. Embed query
     try:
-        query_embedding = get_embedding(user_query, api_key=api_key)
+        query_embedding = get_embedding(user_query, custom_api_key=api_key)
     except Exception as e:
         logger.error("Embedding failed: %s", e)
         query_embedding = []
@@ -312,8 +324,9 @@ def agentic_query(
     # 4. Load chat history
     chat_history: List[Dict] = []
     try:
-        raw_history = get_saved_chat_history(session_id, limit=6)
-        for turn in raw_history:
+        # Session-scoped history, returned newest-first.
+        raw_history = get_saved_chat_history(limit=6, session_id=session_id)
+        for turn in reversed(raw_history):
             chat_history.append({"role": "user", "content": turn.get("userQuery", "")})
             chat_history.append({"role": "assistant", "content": turn.get("aiResponse", "")})
     except Exception:

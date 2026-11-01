@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
-
-const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://localhost:8000';
+import { BACKEND1_URL, adminHeaders } from '../_lib/backend';
 
 export async function GET() {
   try {
-    const res = await fetch(`${PYTHON_BACKEND_URL}/api/documents`, {
+    const res = await fetch(`${BACKEND1_URL}/api/documents`, {
       headers: { 'Content-Type': 'application/json' },
       cache: 'no-store',
     });
@@ -18,9 +17,9 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const res = await fetch(`${PYTHON_BACKEND_URL}/api/documents/seed`, {
+    const res = await fetch(`${BACKEND1_URL}/api/documents/seed`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: adminHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
     });
     const data = await res.json();
@@ -32,14 +31,14 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
+    const id = new URL(req.url).searchParams.get('id');
     if (!id) {
       return NextResponse.json({ error: 'Missing document id' }, { status: 400 });
     }
 
-    const res = await fetch(`${PYTHON_BACKEND_URL}/api/documents?id=${id}`, {
+    const res = await fetch(`${BACKEND1_URL}/api/documents?id=${encodeURIComponent(id)}`, {
       method: 'DELETE',
+      headers: adminHeaders(),
     });
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });

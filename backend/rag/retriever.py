@@ -211,9 +211,9 @@ def search_similar_chunks(
     query_str = query_text or ""
     dense_results: List[Dict[str, Any]] = []
 
-    # 1. PostgreSQL HNSW cosine vector search
+    # 1. PostgreSQL HNSW cosine vector search (skipped when no embedding is available)
     with get_db_connection() as conn:
-        if conn:
+        if conn and query_embedding:
             try:
                 with conn.cursor() as cur:
                     vector_str = f"[{','.join(map(str, query_embedding))}]"
@@ -245,7 +245,7 @@ def search_similar_chunks(
                 logger.debug(f"PostgreSQL vector search note: {e}")
 
     # 2. SQLite cosine-similarity fallback
-    if not dense_results:
+    if not dense_results and query_embedding:
         try:
             conn = sqlite3.connect(SQLITE_DB_PATH)
             cur = conn.cursor()

@@ -150,7 +150,7 @@ def generate_llm_sql_query(
         sql_match = re.search(r"SQL:\s*(SELECT[\s\S]+)", cleaned, re.IGNORECASE)
         if db_match and sql_match:
             db_id    = db_match.group(1).strip().strip("'\"`")
-            sql_stmt = sql_match.group(2).strip().rstrip(";") + ";"
+            sql_stmt = sql_match.group(1).strip().rstrip(";") + ";"
             return db_id, sql_stmt
         select_match = re.search(r"(SELECT[\s\S]+?;)", cleaned, re.IGNORECASE)
         if select_match:

@@ -41,8 +41,11 @@ def track_customer_order(order_id: str) -> Dict[str, Any]:
     match = re.search(r"\b(ORD-\d{3,8})\b", clean_id)
     target_id = match.group(1) if match else clean_id
 
-    sql = f"SELECT * FROM orders WHERE UPPER(order_id) = '{target_id}' OR order_id LIKE '%{target_id}%' LIMIT 1;"
-    res = db_manager.execute_safe_sql(sql, db_id="customer_support_db")
+    ph = db_manager.param_placeholder("customer_support_db")
+    sql = f"SELECT * FROM orders WHERE UPPER(order_id) = {ph} OR UPPER(order_id) LIKE {ph} LIMIT 1;"
+    res = db_manager.execute_safe_sql(
+        sql, db_id="customer_support_db", params=[target_id, f"%{target_id}%"]
+    )
     if res.get("rows"):
         return {"order": res["rows"][0], "status": "found"}
     return {"order_id": target_id, "status": "not_found", "message": f"No order found with ID {target_id}"}
@@ -65,8 +68,11 @@ def track_support_ticket(ticket_id: str) -> Dict[str, Any]:
     match = re.search(r"\b(TCK-\d{3,8})\b", clean_id)
     target_id = match.group(1) if match else clean_id
 
-    sql = f"SELECT * FROM support_tickets WHERE UPPER(ticket_id) = '{target_id}' OR ticket_id LIKE '%{target_id}%' LIMIT 1;"
-    res = db_manager.execute_safe_sql(sql, db_id="customer_support_db")
+    ph = db_manager.param_placeholder("customer_support_db")
+    sql = f"SELECT * FROM support_tickets WHERE UPPER(ticket_id) = {ph} OR UPPER(ticket_id) LIKE {ph} LIMIT 1;"
+    res = db_manager.execute_safe_sql(
+        sql, db_id="customer_support_db", params=[target_id, f"%{target_id}%"]
+    )
     if res.get("rows"):
         return {"ticket": res["rows"][0], "status": "found"}
     return {"ticket_id": target_id, "status": "not_found", "message": f"No support ticket found with ID {target_id}"}
@@ -99,9 +105,13 @@ def lookup_student(search_term: str) -> Optional[Dict[str, Any]]:
         "database (customer_support_db, primary_db)."
     ),
 )
-def execute_sql(sql_query: str, db_id: Optional[str] = "customer_support_db") -> Dict[str, Any]:
-    """Runs a read-only SQL query against the target database."""
-    return db_manager.execute_safe_sql(sql_query=sql_query, db_id=db_id)
+def execute_sql(
+    sql_query: str,
+    db_id: Optional[str] = "customer_support_db",
+    params: Optional[List[Any]] = None,
+) -> Dict[str, Any]:
+    """Runs a read-only SQL query (with optional bound parameters) against the target database."""
+    return db_manager.execute_safe_sql(sql_query=sql_query, db_id=db_id, params=params)
 
 
 # ---------------------------------------------------------------------------
@@ -162,8 +172,10 @@ def save_session_memory(
 ) -> bool:
     """Stores a fact into persistent memory."""
     try:
-        save_or_update_memory(session_id=session_id, key=key, value=value, category=category)
-        return True
+        saved = save_or_update_memory(
+            session_id=session_id, memory_key=key, memory_value=value, category=category
+        )
+        return bool(saved)
     except Exception as e:
         logger.warning(f"Failed to save session memory: {e}")
         return False

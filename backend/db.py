@@ -121,6 +121,12 @@ def init_sqlite_rag_tables():
             created_at TEXT NOT NULL
         );
         """)
+        # Migration: chat history is scoped per session (older DBs lack the column).
+        cur.execute("PRAGMA table_info(rag_chat_history);")
+        if "session_id" not in [col[1] for col in cur.fetchall()]:
+            cur.execute(
+                "ALTER TABLE rag_chat_history ADD COLUMN session_id TEXT NOT NULL DEFAULT 'default_user';"
+            )
         cur.execute("""
         CREATE TABLE IF NOT EXISTS rag_user_memories (
             id TEXT PRIMARY KEY,
@@ -168,12 +174,14 @@ def init_db_schema():
             """
             CREATE TABLE IF NOT EXISTS chat_history (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                session_id VARCHAR(100) NOT NULL DEFAULT 'default_user',
                 user_query_text TEXT NOT NULL,
                 retrieved_chunks JSONB,
                 ai_response_text TEXT NOT NULL,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
             """,
+            "ALTER TABLE chat_history ADD COLUMN IF NOT EXISTS session_id VARCHAR(100) NOT NULL DEFAULT 'default_user';",
             """
             CREATE TABLE IF NOT EXISTS user_memories (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -360,18 +368,27 @@ def save_or_update_memory(
     except Exception as e:
         logger.error(f"Error saving memory to SQLite: {e}")
 
-    # 2. PostgreSQL
+    # 2. PostgreSQL (update-or-insert so repeated saves don't create duplicates)
     with get_db_connection() as conn:
         if conn:
             try:
                 with conn.cursor() as cur:
                     cur.execute(
                         """
-                        INSERT INTO user_memories (session_id, memory_key, memory_value, category, updated_at)
-                        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP);
+                        UPDATE user_memories
+                        SET memory_value = %s, category = %s, updated_at = CURRENT_TIMESTAMP
+                        WHERE session_id = %s AND LOWER(memory_key) = LOWER(%s);
                         """,
-                        (session_id, clean_key, clean_val, category),
+                        (clean_val, category, session_id, clean_key),
                     )
+                    if cur.rowcount == 0:
+                        cur.execute(
+                            """
+                            INSERT INTO user_memories (id, session_id, memory_key, memory_value, category, updated_at)
+                            VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP);
+                            """,
+                            (mem_id, session_id, clean_key, clean_val, category),
+                        )
                     conn.commit()
             except Exception as e:
                 conn.rollback()
@@ -418,6 +435,19 @@ def get_user_memories(session_id: str = "default_user") -> List[Dict[str, Any]]:
     return memories
 
 
+def _pg_execute(sql: str, params: tuple) -> None:
+    """Best-effort write to PostgreSQL (mirrors SQLite, which is the read source)."""
+    with get_db_connection() as conn:
+        if conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(sql, params)
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                logger.debug(f"PostgreSQL mirror write note: {e}")
+
+
 def delete_memory(memory_id: str) -> bool:
     """Deletes a specific remembered fact by ID."""
     try:
@@ -426,10 +456,11 @@ def delete_memory(memory_id: str) -> bool:
         cur.execute("DELETE FROM rag_user_memories WHERE id = ?;", (memory_id,))
         conn.commit()
         conn.close()
-        return True
     except Exception as e:
         logger.error(f"Error deleting memory: {e}")
         return False
+    _pg_execute("DELETE FROM user_memories WHERE id::text = %s;", (memory_id,))
+    return True
 
 
 def clear_all_memories(session_id: str = "default_user") -> bool:
@@ -440,24 +471,31 @@ def clear_all_memories(session_id: str = "default_user") -> bool:
         cur.execute("DELETE FROM rag_user_memories WHERE session_id = ?;", (session_id,))
         conn.commit()
         conn.close()
-        return True
     except Exception as e:
         logger.error(f"Error clearing memories: {e}")
         return False
+    _pg_execute("DELETE FROM user_memories WHERE session_id = %s;", (session_id,))
+    return True
 
 
-def get_saved_chat_history(limit: int = 30) -> List[Dict[str, Any]]:
-    """Retrieves saved chat conversation history across sessions from SQLite."""
+def get_saved_chat_history(limit: int = 30, session_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    Retrieves saved chat history from SQLite, newest first.
+    When *session_id* is given only that session's turns are returned.
+    """
     history = []
     try:
         conn = sqlite3.connect(SQLITE_DB_PATH)
         cur = conn.cursor()
+        where = "WHERE session_id = ?" if session_id else ""
+        params: tuple = (session_id, limit) if session_id else (limit,)
         cur.execute(
-            """SELECT id, user_query_text, retrieved_chunks, ai_response_text, created_at
+            f"""SELECT id, user_query_text, retrieved_chunks, ai_response_text, created_at
                FROM rag_chat_history
+               {where}
                ORDER BY created_at DESC
                LIMIT ?;""",
-            (limit,),
+            params,
         )
         rows = cur.fetchall()
         conn.close()
@@ -482,15 +520,22 @@ def get_saved_chat_history(limit: int = 30) -> List[Dict[str, Any]]:
     return history
 
 
-def clear_saved_chat_history() -> bool:
-    """Clears persistent chat history."""
+def clear_saved_chat_history(session_id: Optional[str] = None) -> bool:
+    """Clears persistent chat history (only *session_id*'s turns when given)."""
     try:
         conn = sqlite3.connect(SQLITE_DB_PATH)
         cur = conn.cursor()
-        cur.execute("DELETE FROM rag_chat_history;")
+        if session_id:
+            cur.execute("DELETE FROM rag_chat_history WHERE session_id = ?;", (session_id,))
+        else:
+            cur.execute("DELETE FROM rag_chat_history;")
         conn.commit()
         conn.close()
-        return True
     except Exception as e:
         logger.error(f"Error clearing chat history: {e}")
         return False
+    if session_id:
+        _pg_execute("DELETE FROM chat_history WHERE session_id = %s;", (session_id,))
+    else:
+        _pg_execute("DELETE FROM chat_history;", ())
+    return True

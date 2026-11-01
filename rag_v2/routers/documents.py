@@ -5,16 +5,20 @@ Exposes:
   GET    /api/v2/documents                  — list all ingested documents
   GET    /api/v2/documents/{document_id}    — get a single document + chunk previews
   DELETE /api/v2/documents/{document_id}    — permanently delete a document and its chunks
+
+The storage layer is synchronous psycopg2, so these are plain ``def`` endpoints
+(FastAPI runs them in a worker thread).
 """
 
 import logging
 from typing import Any, Dict, List
 
+import psycopg2.extras
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
 from rag_v2.schemas import DocumentInfo
-from rag_v2.storage.db import get_db_connection
+from rag_v2.storage.db import require_db_connection
 
 logger = logging.getLogger(__name__)
 
@@ -24,16 +28,20 @@ router = APIRouter(prefix="/api/v2", tags=["Documents"])
 # Helper
 # ---------------------------------------------------------------------------
 
-def _row_to_document_info(row) -> DocumentInfo:
-    """Convert a DB row (tuple or mapping) to a :class:`DocumentInfo`."""
+def _row_to_document_info(row: Dict[str, Any]) -> DocumentInfo:
+    """Convert a DB row mapping to a :class:`DocumentInfo`."""
     return DocumentInfo(
         id=str(row["id"]),
         title=row["title"],
         file_type=row["file_type"],
         source_url=row.get("source_url"),
-        chunk_count=row["chunk_count"],
-        created_at=str(row["created_at"]),
+        chunk_count=row["chunk_count"] or 0,
+        created_at=row["created_at"],
     )
+
+
+def _dict_cursor(conn):
+    return conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
 
 # ---------------------------------------------------------------------------
@@ -44,7 +52,7 @@ def _row_to_document_info(row) -> DocumentInfo:
     "/documents",
     summary="List all ingested documents",
 )
-async def list_documents() -> JSONResponse:
+def list_documents() -> JSONResponse:
     """
     Returns every document that has been ingested into the RAG system,
     ordered by most recent first.
@@ -55,16 +63,15 @@ async def list_documents() -> JSONResponse:
         "ORDER BY created_at DESC"
     )
     try:
-        async with get_db_connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(sql)
-                rows = await cur.fetchall()
+        with require_db_connection() as conn, _dict_cursor(conn) as cur:
+            cur.execute(sql)
+            rows = cur.fetchall()
     except Exception as exc:
         logger.exception("Failed to list documents: %s", exc)
         raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
 
     documents: List[Dict[str, Any]] = [
-        _row_to_document_info(row).model_dump() for row in rows
+        _row_to_document_info(row).model_dump(mode="json") for row in rows
     ]
     return JSONResponse(content={"documents": documents, "total": len(documents)})
 
@@ -77,7 +84,7 @@ async def list_documents() -> JSONResponse:
     "/documents/{document_id}",
     summary="Get a document and its chunk previews",
 )
-async def get_document(document_id: str) -> JSONResponse:
+def get_document(document_id: str) -> JSONResponse:
     """
     Fetches the document metadata and the first 200 characters of each
     stored chunk so callers can verify what was ingested.
@@ -95,28 +102,22 @@ async def get_document(document_id: str) -> JSONResponse:
     )
 
     try:
-        async with get_db_connection() as conn:
-            async with conn.cursor() as cur:
-                # Fetch document
-                await cur.execute(doc_sql, (document_id,))
-                doc_row = await cur.fetchone()
-
-                if doc_row is None:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"Document '{document_id}' not found.",
-                    )
-
-                # Fetch chunks
-                await cur.execute(chunks_sql, (document_id,))
-                chunk_rows = await cur.fetchall()
+        with require_db_connection() as conn, _dict_cursor(conn) as cur:
+            cur.execute(doc_sql, (document_id,))
+            doc_row = cur.fetchone()
+            if doc_row is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Document '{document_id}' not found.",
+                )
+            cur.execute(chunks_sql, (document_id,))
+            chunk_rows = cur.fetchall()
     except HTTPException:
         raise
     except Exception as exc:
         logger.exception("Failed to get document %s: %s", document_id, exc)
         raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
 
-    doc_info = _row_to_document_info(doc_row)
     chunks = [
         {
             "chunk_index": row["chunk_index"],
@@ -127,7 +128,7 @@ async def get_document(document_id: str) -> JSONResponse:
 
     return JSONResponse(
         content={
-            "document": doc_info.model_dump(),
+            "document": _row_to_document_info(doc_row).model_dump(mode="json"),
             "chunks": chunks,
         }
     )
@@ -141,33 +142,23 @@ async def get_document(document_id: str) -> JSONResponse:
     "/documents/{document_id}",
     summary="Delete a document and all its chunks",
 )
-async def delete_document(document_id: str) -> JSONResponse:
+def delete_document(document_id: str) -> JSONResponse:
     """
     Permanently removes the document and every associated chunk from the
-    database. The ``rag_v2_chunks`` table must have a foreign-key cascade
-    on ``document_id`` so chunks are cleaned up automatically.
+    database (``rag_v2_chunks`` cascades on ``document_id``).
     """
-    check_sql = "SELECT id FROM rag_v2_documents WHERE id = %s"
-    delete_sql = "DELETE FROM rag_v2_documents WHERE id = %s"
-
     try:
-        async with get_db_connection() as conn:
-            async with conn.cursor() as cur:
-                # Verify existence first so we can return a proper 404
-                await cur.execute(check_sql, (document_id,))
-                if await cur.fetchone() is None:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"Document '{document_id}' not found.",
-                    )
-
-                await cur.execute(delete_sql, (document_id,))
-            await conn.commit()
-    except HTTPException:
-        raise
+        with require_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM rag_v2_documents WHERE id = %s", (document_id,))
+                deleted = cur.rowcount
+            conn.commit()
     except Exception as exc:
         logger.exception("Failed to delete document %s: %s", document_id, exc)
         raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
+
+    if deleted == 0:
+        raise HTTPException(status_code=404, detail=f"Document '{document_id}' not found.")
 
     logger.info("Deleted document %s", document_id)
     return JSONResponse(

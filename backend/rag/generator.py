@@ -15,7 +15,6 @@ import re
 import json
 import time
 import logging
-import sqlite3
 from typing import Any, Dict, List, Optional
 
 import openai
@@ -23,11 +22,11 @@ from google import genai
 from google.genai import types
 
 from backend.config import get_api_key, is_gemini_key, TOOL_SERVICE_URL
+from backend.security import admin_headers
 from backend.db import (
-    get_db_connection,
-    SQLITE_DB_PATH,
-    in_memory_store,
     get_saved_chat_history,
+    get_user_memories,
+    save_or_update_memory,
 )
 from backend.rag.prompts import build_language_instruction, build_system_prompt
 
@@ -64,7 +63,7 @@ def call_remote_tool(tool_name: str, **kwargs) -> Any:
         try:
             payload = {"tool_name": tool_name, "parameters": kwargs}
             with httpx.Client(timeout=8.0) as client:
-                resp = client.post(TOOL_SERVICE_URL, json=payload)
+                resp = client.post(TOOL_SERVICE_URL, json=payload, headers=admin_headers())
             if resp.status_code == 200:
                 data = resp.json()
                 return data.get("result")
@@ -126,19 +125,19 @@ def _auto_extract_and_save_memory(user_query: str, session: str) -> None:
                     "විමසන්නේ", "සහ", "හා", "මොකක්ද", "කුමක්ද", "මතකද", "කවුද", "who", "what"
                 ]
                 if cand.lower() not in excluded and len(cand) > 1:
-                    call_remote_tool("save_session_memory", session_id=session, key="user_name", value=cand, category="identity")
+                    save_or_update_memory(session, "user_name", cand, "identity")
 
         order_match = re.search(r"\b(ORD-\d{3,8})\b", user_query, re.IGNORECASE)
         if order_match:
-            call_remote_tool("save_session_memory", session_id=session, key="last_tracked_order", value=order_match.group(1).upper(), category="entity")
+            save_or_update_memory(session, "last_tracked_order", order_match.group(1).upper(), "entity")
 
         ticket_match = re.search(r"\b(TCK-\d{3,8})\b", user_query, re.IGNORECASE)
         if ticket_match:
-            call_remote_tool("save_session_memory", session_id=session, key="last_tracked_ticket", value=ticket_match.group(1).upper(), category="entity")
+            save_or_update_memory(session, "last_tracked_ticket", ticket_match.group(1).upper(), "entity")
 
         student_match = re.search(r"\b(STU\d{3,6})\b", user_query, re.IGNORECASE)
         if student_match:
-            call_remote_tool("save_session_memory", session_id=session, key="last_tracked_student", value=student_match.group(1).upper(), category="entity")
+            save_or_update_memory(session, "last_tracked_student", student_match.group(1).upper(), "entity")
 
         rem_match = re.search(
             r"(?:remember that|please remember|keep in mind|save this|මතක තබාගන්න|මතක තියාගන්න)\s+(.+)",
@@ -146,7 +145,7 @@ def _auto_extract_and_save_memory(user_query: str, session: str) -> None:
         )
         if rem_match:
             note_content = rem_match.group(1).strip()
-            call_remote_tool("save_session_memory", session_id=session, key=f"custom_note_{int(time.time()) % 10000}", value=note_content, category="pinned_fact")
+            save_or_update_memory(session, f"custom_note_{int(time.time()) % 10000}", note_content, "pinned_fact")
     except Exception as mem_err:
         logger.debug(f"Memory auto-extraction note: {mem_err}")
 
@@ -168,7 +167,7 @@ def _enrich_with_tools(
     order_match = re.search(r"\b(ORD-\d{3,8})\b", user_query, re.IGNORECASE)
     if order_match:
         target_ord = order_match.group(1).upper()
-        ord_res = call_remote_tool("track_customer_order", order_id=target_ord)
+        ord_res = call_remote_tool("track_customer_order", order_id=target_ord) or {}
         if ord_res.get("status") == "found" and ord_res.get("order"):
             o = ord_res["order"]
             db_context_blocks.append(
@@ -192,7 +191,7 @@ def _enrich_with_tools(
     ticket_match = re.search(r"\b(TCK-\d{3,8})\b", user_query, re.IGNORECASE)
     if ticket_match:
         target_tck = ticket_match.group(1).upper()
-        tck_res = call_remote_tool("track_support_ticket", ticket_id=target_tck)
+        tck_res = call_remote_tool("track_support_ticket", ticket_id=target_tck) or {}
         if tck_res.get("status") == "found" and tck_res.get("ticket"):
             t = tck_res["ticket"]
             db_context_blocks.append(
@@ -218,7 +217,7 @@ def _enrich_with_tools(
         city_match = re.search(r"\b(?:in|at|for|of)\s+([A-Za-z]+)\b", user_query, re.IGNORECASE)
         if city_match and city_match.group(1).lower() not in ["the", "today", "now", "here", "celsius"]:
             city_cand = city_match.group(1)
-        w_res = call_remote_tool("get_live_weather", city=city_cand)
+        w_res = call_remote_tool("get_live_weather", city=city_cand) or {}
         if w_res.get("status") == "success":
             db_context_blocks.append(
                 f"LIVE REAL-TIME WEATHER TOOL REPORT:\n"
@@ -238,7 +237,7 @@ def _enrich_with_tools(
 
     # 4. Current DateTime
     if re.search(r"\b(what time|what date|current date|today's date|current time|what day|දැන් වෙලාව|දිනය|අද වෙලාව)\b", user_query, re.IGNORECASE):
-        dt_res = call_remote_tool("get_current_datetime")
+        dt_res = call_remote_tool("get_current_datetime") or {}
         if dt_res.get("status") == "success":
             db_context_blocks.append(
                 f"SYSTEM REAL-TIME DATETIME TOOL:\n"
@@ -259,7 +258,7 @@ def _enrich_with_tools(
     math_match = re.search(r"\b(\d+(?:\.\d+)?\s*[\+\-\*\/]\s*\d+(?:\.\d+)?(?:\s*[\+\-\*\/]\s*\d+(?:\.\d+)?)*)\b", user_query)
     if math_match:
         expr = math_match.group(1)
-        math_res = call_remote_tool("calculate_expression", expression=expr)
+        math_res = call_remote_tool("calculate_expression", expression=expr) or {}
         if math_res.get("status") == "success":
             db_context_blocks.append(
                 f"MATHEMATICAL CALCULATOR TOOL RESULT:\n"
@@ -282,7 +281,7 @@ def _enrich_with_tools(
             try:
                 search_q = re.sub(r"\b(who is|what is|tell me about|please tell|can you tell|කවුද|මොකක්ද)\b", "", user_query, flags=re.IGNORECASE).strip()
                 if search_q:
-                    w_search = call_remote_tool("web_search", query=search_q)
+                    w_search = call_remote_tool("web_search", query=search_q) or {}
                     if w_search.get("status") == "success" and w_search.get("summary"):
                         db_context_blocks.append(
                             f"LIVE WEB SEARCH TOOL RESULT ({w_search.get('source')}):\n"
@@ -300,8 +299,14 @@ def _enrich_with_tools(
             except Exception as w_err:
                 logger.debug(f"Web search tool fallback note: {w_err}")
 
-    # 7. Student Database Lookup
-    student_record = call_remote_tool("lookup_student", search_term=user_query)
+    # 7. Student Database Lookup (only when the query is about a student)
+    student_record = None
+    student_id_match = re.search(r"\bSTU[-_]?\d{3,6}\b", user_query, re.IGNORECASE)
+    if student_id_match or re.search(r"student|ශිෂ්‍ය|gpa", user_query, re.IGNORECASE):
+        student_record = call_remote_tool(
+            "lookup_student",
+            search_term=student_id_match.group(0) if student_id_match else user_query,
+        )
     if student_record:
         db_context_blocks.append(
             f"STRUCTURED STUDENT DATABASE RECORD:\n"
@@ -320,8 +325,9 @@ def _enrich_with_tools(
             "chunkIndex": 0, "similarity": 1.0, "type": "database_record",
         })
 
-    # 8. Heuristic entity SQL scan
+    # 8. Heuristic entity SQL scan (values are bound parameters, identifiers quoted)
     try:
+        from backend.services.db_query.manager import db_manager, quote_identifier
         query_words = [w.strip(",.'\"!?") for w in user_query.split() if len(w.strip(",.'\"!?")) >= 3]
         all_dbs = call_remote_tool("list_databases")
         for db in all_dbs:
@@ -329,29 +335,35 @@ def _enrich_with_tools(
             schemas = call_remote_tool("get_database_schema", db_id=db_id)
             for schema in schemas:
                 table_name = schema["table_name"]
-                if table_name in ["documents", "document_chunks", "chat_history", "rag_documents", "rag_document_chunks", "rag_user_memories"]:
-                    continue
                 col_names = [c["column"] for c in schema["columns"]]
-                clauses = []
+                ph = db_manager.param_placeholder(db_id)
+                clauses: List[str] = []
+                params: List[str] = []
                 for qw in query_words:
                     if qw.lower() in ["the", "what", "is", "of", "for", "and", "how", "කුමක්ද", "කියන්න", "විස්තර"]:
                         continue
                     for col in col_names:
-                        clauses.append(f"LOWER(CAST({col} AS TEXT)) LIKE '%{qw.lower()}%'")
+                        clauses.append(f"LOWER(CAST({quote_identifier(col)} AS TEXT)) LIKE {ph}")
+                        params.append(f"%{qw.lower()}%")
                 if clauses:
-                    sql_stmt = f"SELECT * FROM {table_name} WHERE {' OR '.join(clauses)} LIMIT 6;"
+                    sql_stmt = (
+                        f"SELECT * FROM {quote_identifier(table_name)} "
+                        f"WHERE {' OR '.join(clauses)} LIMIT 6;"
+                    )
                     try:
-                        sql_res = call_remote_tool("execute_sql", sql_query=sql_stmt, db_id=db_id)
+                        sql_res = call_remote_tool(
+                            "execute_sql", sql_query=sql_stmt, db_id=db_id, params=params
+                        )
                         if sql_res and sql_res.get("rows") and len(sql_res["rows"]) > 0:
                             rows_data = sql_res["rows"]
-                            block_text = f"DATABASE '{db['name']}' -> TABLE '{table_name}':\n" + json.dumps(rows_data[:5], indent=2)
+                            block_text = f"DATABASE '{db['name']}' -> TABLE '{table_name}':\n" + json.dumps(rows_data[:5], indent=2, default=str)
                             if block_text not in db_context_blocks:
                                 db_context_blocks.append(block_text)
                                 enriched_chunks.append({
                                     "id": f"db_entity_{db_id}_{table_name}",
                                     "documentId": f"db_{db_id}",
                                     "documentTitle": f"Database: {db['name']} ({table_name})",
-                                    "content": f"Table: {table_name}\nMatching Records:\n" + json.dumps(rows_data[:5]),
+                                    "content": f"Table: {table_name}\nMatching Records:\n" + json.dumps(rows_data[:5], default=str),
                                     "chunkIndex": 0, "similarity": 0.98, "type": "database_sql",
                                 })
                     except Exception:
@@ -474,6 +486,7 @@ def query_rag(
     provider: Optional[str] = None,
     base_url: Optional[str] = None,
     session_id: Optional[str] = "default_user",
+    pure_rag_mode: bool = False,
 ) -> Dict[str, Any]:
     """
     Full RAG pipeline: memory recall → tool enrichment → LLM generation.
@@ -497,19 +510,21 @@ def query_rag(
                               ``"ollama"``, ``"openrouter"``).
         base_url:             Custom OpenAI-compatible base URL.
         session_id:           User session identifier for persistent memory.
+        pure_rag_mode:        When True, skip tool enrichment (order/weather/
+                              SQL/web lookups) so the answer is grounded only
+                              in the retrieved document chunks.
 
     Returns:
         ``{"answer": str, "retrievedChunks": list}``
     """
     api_key = get_api_key(custom_api_key)
-    is_sinhala = target_language == "si"
     session = session_id or "default_user"
 
     # Step 1: persist memory signals
     _auto_extract_and_save_memory(user_query, session)
 
     # Step 2: fetch & filter memories
-    user_memories = call_remote_tool("get_session_memories", session_id=session)
+    user_memories = get_user_memories(session)
     is_asking_order    = bool(re.search(r"order|ඇණවුම|tracking|status|ලැබෙන්නේ|බඩු|භාණ්ඩ|ord-\d+", user_query, re.IGNORECASE))
     is_asking_ticket   = bool(re.search(r"ticket|ටිකට්|complaint|පැමිණිල්ල|issue|tck-\d+", user_query, re.IGNORECASE))
     is_asking_identity = bool(re.search(r"who am i|my name|මම කවුද|මගේ නම|මගේ විස්තර|remember|මතක", user_query, re.IGNORECASE))
@@ -521,8 +536,11 @@ def query_rag(
         else "No specific session memories relevant to this question."
     )
 
-    # Step 3: tool enrichment
-    db_context_blocks, enriched_chunks = _enrich_with_tools(user_query, retrieved_chunks)
+    # Step 3: tool enrichment (skipped in Pure RAG mode)
+    if pure_rag_mode:
+        db_context_blocks, enriched_chunks = [], list(retrieved_chunks)
+    else:
+        db_context_blocks, enriched_chunks = _enrich_with_tools(user_query, retrieved_chunks)
 
     # Step 4: build conversation history string
     history_str = "No previous history."
@@ -532,7 +550,7 @@ def query_rag(
             [f"{msg.get('role', 'user').upper()}: {msg.get('content', '')}" for msg in recent]
         )
     else:
-        past_turns = get_saved_chat_history(4)
+        past_turns = get_saved_chat_history(4, session_id=session)
         if past_turns:
             lines = []
             for t in reversed(past_turns):
@@ -592,6 +610,7 @@ def generate_rag_response(
     provider: Optional[str] = None,
     base_url: Optional[str] = None,
     session_id: Optional[str] = "default_user",
+    pure_rag_mode: bool = False,
 ) -> Dict[str, Any]:
     """Backward-compatible alias for :func:`query_rag`."""
     return query_rag(
@@ -604,4 +623,5 @@ def generate_rag_response(
         provider=provider,
         base_url=base_url,
         session_id=session_id,
+        pure_rag_mode=pure_rag_mode,
     )

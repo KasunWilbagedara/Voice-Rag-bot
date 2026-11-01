@@ -74,8 +74,8 @@ def close_db_pool() -> None:
 def get_db_connection() -> Generator[Optional[PgConnection], None, None]:
     """Yield a psycopg2 connection from the pool, or *None* if unavailable.
 
-    The connection is automatically returned to the pool (or closed on error)
-    when the ``with`` block exits.
+    The connection is returned to the pool when the ``with`` block exits
+    (discarded if it hit an OperationalError, rolled back on other errors).
 
     Usage::
 
@@ -88,25 +88,24 @@ def get_db_connection() -> Generator[Optional[PgConnection], None, None]:
                 conn.commit()
     """
     if _pool is None or _pool.closed:
-        # Attempt a lazy initialisation so callers don't have to worry about
-        # startup order.
+        # Lazy initialisation so callers don't have to worry about startup order.
         init_db_pool()
 
     conn: Optional[PgConnection] = None
-    try:
-        if _pool is not None and not _pool.closed:
+    if _pool is not None and not _pool.closed:
+        try:
             conn = _pool.getconn()
+        except psycopg2.Error as exc:
+            logger.error("Could not check out a DB connection: %s", exc)
+            conn = None
+
+    broken = False
+    try:
         yield conn
     except psycopg2.OperationalError as exc:
         logger.error("DB operational error: %s", exc)
-        if conn is not None:
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-            _pool.putconn(conn, close=True)
-            conn = None
-        yield None  # type: ignore[misc]
+        broken = True
+        raise
     except Exception:
         if conn is not None:
             try:
@@ -116,7 +115,16 @@ def get_db_connection() -> Generator[Optional[PgConnection], None, None]:
         raise
     finally:
         if conn is not None and _pool is not None and not _pool.closed:
-            _pool.putconn(conn)
+            _pool.putconn(conn, close=broken)
+
+
+@contextmanager
+def require_db_connection() -> Generator[PgConnection, None, None]:
+    """Like :func:`get_db_connection` but raises ``RuntimeError`` when the DB is unavailable."""
+    with get_db_connection() as conn:
+        if conn is None:
+            raise RuntimeError("Database unavailable — check DATABASE_URL and that PostgreSQL is running.")
+        yield conn
 
 
 # ---------------------------------------------------------------------------

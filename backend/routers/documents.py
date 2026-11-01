@@ -2,13 +2,14 @@ import re
 import sqlite3
 import logging
 from typing import Optional
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Query
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Query
 from pydantic import BaseModel
 
 from backend.db import get_db_connection, is_db_connected, in_memory_store, SQLITE_DB_PATH
 from backend.document_parser import parse_document
 from backend.rag import ingest_document
 from backend.services.db_query import db_manager
+from backend.security import require_admin
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
 logger = logging.getLogger("voicerag.documents")
@@ -113,7 +114,7 @@ def list_documents():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/upload")
+@router.post("/upload", dependencies=[Depends(require_admin)])
 async def upload_document(
     file: UploadFile = File(...),
     apiKey: Optional[str] = Form(None),
@@ -165,8 +166,8 @@ async def upload_document(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/seed")
-@router.post("")
+@router.post("/seed", dependencies=[Depends(require_admin)])
+@router.post("", dependencies=[Depends(require_admin)])
 def seed_sample_documents(req: Optional[SeedRequest] = None):
     try:
         api_key = req.apiKey if req else None
@@ -182,7 +183,7 @@ def seed_sample_documents(req: Optional[SeedRequest] = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("")
+@router.delete("", dependencies=[Depends(require_admin)])
 def delete_document(id: str = Query(...)):
     try:
         # 1. Delete from PostgreSQL

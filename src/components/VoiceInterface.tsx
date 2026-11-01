@@ -20,6 +20,7 @@ import {
 import { AudioVisualizer } from './AudioVisualizer';
 import { DynamicChart, parseChartDataFromResponse } from './DynamicChart';
 import { FormattedResponse } from './FormattedResponse';
+import type { BackendMode } from './BackendModeSwitcher';
 
 interface VoiceInterfaceProps {
   apiKey?: string;
@@ -30,6 +31,8 @@ interface VoiceInterfaceProps {
   baseUrl?: string;
   language?: string;
   sessionId?: string;
+  /** Selected backend mode — forwarded as the x-backend-mode header. */
+  backendMode?: BackendMode;
   onLanguageChange?: (lang: string) => void;
   onQueryComplete?: (data: {
     userQuery: string;
@@ -56,6 +59,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
   baseUrl = '',
   language = 'si',
   sessionId = 'default_user',
+  backendMode = 'pure',
   onLanguageChange,
   onQueryComplete,
 }) => {
@@ -167,7 +171,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
       const t0 = performance.now();
       const res = await fetch('/api/rag', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-backend-mode': backendMode },
         body: JSON.stringify({
           query: queryText,
           apiKey,
@@ -175,6 +179,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
           provider,
           baseUrl,
           language,
+          sessionId: sessionId || 'default_user',
         }),
       });
 
@@ -367,6 +372,7 @@ export const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
 
       const res = await fetch('/api/voice-pipeline', {
         method: 'POST',
+        headers: { 'x-backend-mode': backendMode },
         body: formData,
       });
 

@@ -19,7 +19,7 @@ import psycopg2.extras
 
 from rag_v2.config import CHUNK_TARGET_SIZE, CHUNK_OVERLAP, get_api_key
 from rag_v2.core import recursive_chunk, get_embeddings_batch
-from rag_v2.storage.db import get_db_connection
+from rag_v2.storage.db import require_db_connection
 from rag_v2.ingestion.parser import parse_file, parse_url
 
 logger = logging.getLogger("rag_v2.ingestion.ingester")
@@ -101,9 +101,9 @@ def ingest_text(
         )
 
     # ── Steps 4 & 5: Persist ────────────────────────────────────────────────
-    conn = get_db_connection()
     try:
-        with conn:
+        # `with conn:` commits on success / rolls back on error
+        with require_db_connection() as conn, conn:
             with conn.cursor() as cur:
                 # 4. Insert document record
                 cur.execute(
@@ -145,8 +145,6 @@ def ingest_text(
     except Exception as exc:
         logger.error("Database error during ingestion of '%s': %s", title, exc)
         raise RuntimeError(f"Ingestion failed for '{title}': {exc}") from exc
-    finally:
-        conn.close()
 
     return {
         "document_id": doc_id,
@@ -154,6 +152,7 @@ def ingest_text(
         "file_type": file_type,
         "chunk_count": chunk_count,
         "success": True,
+        "message": f"Ingested '{title}' into {chunk_count} chunks.",
     }
 
 

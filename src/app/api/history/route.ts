@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
+import { BACKEND1_URL } from '../_lib/backend';
 
-const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://localhost:8000';
+// Forwards ?limit= and ?sessionId= so history is scoped to the caller's session.
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const limit = searchParams.get('limit') || '30';
-    const res = await fetch(`${PYTHON_BACKEND_URL}/api/history?limit=${limit}`, {
+    if (!searchParams.get('limit')) searchParams.set('limit', '30');
+    const res = await fetch(`${BACKEND1_URL}/api/history?${searchParams.toString()}`, {
       cache: 'no-store',
     });
     const data = await res.json();
@@ -22,7 +23,8 @@ export async function GET(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const res = await fetch(`${PYTHON_BACKEND_URL}/api/history`, {
+    const { searchParams } = new URL(req.url);
+    const res = await fetch(`${BACKEND1_URL}/api/history?${searchParams.toString()}`, {
       method: 'DELETE',
     });
     const data = await res.json();

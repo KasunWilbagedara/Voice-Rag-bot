@@ -87,10 +87,16 @@ The architecture is divided into a robust Python backend (FastAPI) and a modern,
    - **Document Manager (Admin)**: Allows authorized users to upload knowledge base files.
    - **Context Drawer**: A transparency feature letting users see exactly which document chunks were used by the AI to formulate an answer.
 
-2. **Backend (Python FastAPI, Uvicorn)**
-   - **RAG Engine**: Processes documents using recursive structural chunking and vectorizes them using Gemini/OpenAI embeddings.
-   - **Database**: PostgreSQL with `pgvector` for high-speed HNSW cosine similarity search.
-   - **LLM Generator**: Connects to `gemini-2.0-flash` or `gpt-4o-mini` to reason over the retrieved chunks.
+2. **Backend (Python FastAPI, Uvicorn)** — two services:
+   - **Backend 1 (port 8000, `backend/main.py`)**: documents, hybrid search, STT/TTS, voice pipeline, memory and history.
+   - **Backend 2 (port 8001, `backend/tool_server.py`)**: agentic RAG with tool calling, databases, students.
+   - **RAG Engine (`backend/rag/`)**: recursive structural chunking, Gemini/OpenAI embeddings, hybrid dense + BM25 search fused with RRF, and an MMR diversity filter for Pure RAG mode.
+   - **Database**: PostgreSQL with `pgvector` (cosine distance), mirrored to a local SQLite store that is used when PostgreSQL is offline.
+   - **LLM Generator**: Gemini Flash models (`gemini-3.5-flash` family) or any OpenAI-compatible model.
+
+3. **Backend modes** (UI mode switcher → `x-backend-mode` header, applied to text *and* voice):
+   - **Pure RAG**: answers only from retrieved document chunks — no tool lookups.
+   - **RAG + Tools**: an agentic loop that may call tools (orders, tickets, students, SQL, weather, web search, calculator) before answering.
 
 ---
 
@@ -98,8 +104,8 @@ The architecture is divided into a robust Python backend (FastAPI) and a modern,
 
 ### A. Document Ingestion Workflow
 When an Admin uploads a file:
-1. **Extraction**: `document_parser.py` extracts raw text from PDF/DOCX.
-2. **Chunking**: `rag_service.py` splits the text into semantic chunks of ~450 tokens.
+1. **Extraction**: `backend/document_parser.py` extracts raw text from PDF/DOCX/XLSX/PPTX/images.
+2. **Chunking**: `backend/rag/chunker.py` splits the text into structure-aware chunks of ~500 characters.
 3. **Embedding**: The chunks are sent to the Embedding API to create mathematical vectors.
 4. **Storage**: Vectors and metadata are stored securely in the PostgreSQL `pgvector` database.
 
@@ -107,7 +113,7 @@ When an Admin uploads a file:
 When a User speaks into the microphone:
 1. **Audio Capture**: The frontend records a `.webm` or `.mp3` audio blob.
 2. **STT (Speech-to-Text)**: Sent to `/api/stt`, transcribed into text (Sinhala or English).
-3. **Vector Search**: The query is embedded. The backend searches PostgreSQL for the top 8 most mathematically similar document chunks.
+3. **Hybrid Search**: The query is embedded and matched against stored chunks (pgvector or SQLite) and by BM25 keywords; the two rankings are fused. Pure RAG mode then applies an MMR diversity filter (top 5).
 4. **LLM Generation**: The system prompt + retrieved chunks + user query are sent to Gemini.
    - *Rule Check*: If the query is ambiguous (e.g., "list all employees"), the LLM asks for clarification.
    - *Grounding Check*: If the answer is not in the documents, the LLM refuses to answer.
@@ -133,7 +139,13 @@ POSTGRES_DB=voicerag
 
 # Application
 PORT=8000
+TOOL_PORT=8001
 PYTHON_BACKEND_URL=http://localhost:8000
+PYTHON_TOOL_BACKEND_URL=http://localhost:8001
+
+# Optional hardening
+# ADMIN_API_KEY=...        # protects upload/delete/reset/connect & raw tool calls (sent as x-admin-key)
+# CORS_ORIGINS=http://localhost:3000
 ```
 
 ---
@@ -148,8 +160,9 @@ Ensure Docker Desktop is running, then execute:
 docker-compose up -d --build
 ```
 This single command spins up:
-- The PostgreSQL `pgvector` Database (Port 5433)
-- The Python FastAPI Backend (Port 9005 internal proxy)
+- The PostgreSQL `pgvector` Database (Port 5433 on the host)
+- Backend 1 — RAG & Voice (Port 8000)
+- Backend 2 — RAG + Tools (Port 8001)
 - The Next.js Web Frontend (Port 3000)
 
 **Access the App**: [http://localhost:3000](http://localhost:3000)
@@ -157,7 +170,7 @@ This single command spins up:
 ### Updating Configurations
 If you modify `.env` or any backend Python code, rebuild the container:
 ```bash
-docker-compose up -d --build backend
+docker-compose up -d --build rag-service tool-service
 ```
 
 ---
@@ -165,7 +178,7 @@ docker-compose up -d --build backend
 ## 6. Maintenance & Troubleshooting
 
 - **No Voice Playback?** Ensure your browser allows auto-playing audio and microphone permissions are granted.
-- **Hallucinations?** Check the system prompt in `backend/rag_service.py`. The "Strict Grounding" rule prevents hallucinations.
+- **Hallucinations?** Use Pure RAG mode, and check the prompts in `backend/rag/prompts.py`.
 - **Database Connection Issues?** Verify the PostgreSQL container is healthy via `docker ps`.
 
 *Built for SLT-INTERN-PROJECT.*

@@ -18,7 +18,7 @@ import logging
 import re
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
-from rag_v2.config import get_api_key
+from rag_v2.config import get_api_key, get_provider
 from rag_v2.core.embedder import get_embedding
 from rag_v2.core.generator import generate_answer, generate_stream
 from rag_v2.core.reranker import rerank
@@ -119,16 +119,14 @@ async def _call_sql_tool(query: str) -> Dict[str, Any]:
     """
     logger.info("sql tool: generating query for: %r", query[:80])
     try:
-        from rag_v2.storage.db import get_db_connection  # lazy import
+        from rag_v2.storage.db import require_db_connection  # lazy import
 
-        conn = get_db_connection()
-        with conn.cursor() as cur:
+        with require_db_connection() as conn, conn.cursor() as cur:
             cur.execute(
                 "SELECT COUNT(*) AS total_chunks FROM rag_v2_chunks"
             )
             row = cur.fetchone()
             total = row[0] if row else 0
-        conn.close()
         return {
             "tool": "sql",
             "result": {
@@ -235,7 +233,7 @@ class RAGPipeline:
         self.api_key: str = api_key or get_api_key()
         logger.info(
             "RAGPipeline initialised (provider=%s)",
-            "gemini" if self.api_key and self.api_key.startswith("AIza") else "openai",
+            get_provider(self.api_key),
         )
 
     # ------------------------------------------------------------------

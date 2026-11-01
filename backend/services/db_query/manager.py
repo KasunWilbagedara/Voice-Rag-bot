@@ -25,6 +25,55 @@ from backend.db import get_db_connection, is_db_connected
 
 logger = logging.getLogger("voicerag.db_query.manager")
 
+# Internal RAG/app tables that live in the same databases as the demo data.
+# They are hidden from schema listings (so the LLM never sees or scans them)...
+HIDDEN_SQLITE_TABLES = {"rag_documents", "rag_document_chunks", "rag_chat_history", "rag_user_memories"}
+HIDDEN_PG_TABLES = {
+    "documents", "document_chunks", "chat_history", "user_memories",
+    "rag_v2_documents", "rag_v2_chunks", "rag_v2_chat_history",
+}
+# ...and protected from the "reset all data" action.
+RESET_PROTECTED_TABLES = HIDDEN_SQLITE_TABLES | {"students"}
+
+SUPPORTED_DB_TYPES = {"sqlite", "postgresql", "postgres"}
+
+_FORBIDDEN_SQL = re.compile(
+    r"\b(DROP|DELETE|UPDATE|INSERT|ALTER|TRUNCATE|CREATE|REPLACE|ATTACH|DETACH|PRAGMA|"
+    r"GRANT|REVOKE|VACUUM|COPY|MERGE|CALL|EXEC|EXECUTE|LOAD_EXTENSION)\b",
+    re.IGNORECASE,
+)
+
+
+def validate_read_only_sql(sql_query: str) -> str:
+    """
+    Ensures *sql_query* is a single read-only SELECT/WITH statement.
+
+    Keywords are matched as whole words outside of string literals and
+    comments, so columns such as ``created_at`` / ``updated_at`` and values
+    like ``'Deleted'`` are allowed.  Raises ``ValueError`` otherwise.
+    """
+    clean_sql = (sql_query or "").strip()
+    scan = re.sub(r"'(?:[^']|'')*'", "''", clean_sql)       # string literals
+    scan = re.sub(r"--[^\n]*|/\*[\s\S]*?\*/", " ", scan)    # comments
+    if not re.match(r"^\s*(SELECT|WITH)\b", scan, re.IGNORECASE):
+        raise ValueError("Unauthorized SQL command. Only read-only SELECT queries are allowed.")
+    if ";" in scan.strip().rstrip(";"):
+        raise ValueError("Only a single SQL statement is allowed.")
+    if _FORBIDDEN_SQL.search(scan):
+        raise ValueError("Modifying SQL statements are strictly forbidden for AI query execution.")
+    return clean_sql
+
+
+def quote_identifier(name: str) -> str:
+    """Quotes a table/column identifier (valid for both SQLite and PostgreSQL)."""
+    return '"' + str(name).replace('"', '""') + '"'
+
+
+def _sqlite_read_only_connect(path: str) -> sqlite3.Connection:
+    """Opens a SQLite file in read-only mode."""
+    from pathlib import Path
+    return sqlite3.connect(Path(path).resolve().as_uri() + "?mode=ro", uri=True)
+
 
 class DatabaseManager:
     """
@@ -203,14 +252,22 @@ class DatabaseManager:
             raise
 
     def reset_all_data(self) -> Dict[str, Any]:
-        """Clears all customer datasets, orders, and custom uploaded tables."""
+        """
+        Clears all customer datasets, orders, and custom uploaded tables.
+
+        The RAG knowledge base (documents, chunks), chat history, memories
+        and student records share this SQLite file and are left untouched.
+        """
         try:
             conn = sqlite3.connect(self.sqlite_db_path)
             cur = conn.cursor()
             cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
-            tables = [row[0] for row in cur.fetchall() if not row[0].startswith("sqlite_")]
+            tables = [
+                row[0] for row in cur.fetchall()
+                if not row[0].startswith("sqlite_") and row[0] not in RESET_PROTECTED_TABLES
+            ]
             for t in tables:
-                cur.execute(f"DELETE FROM {t};")
+                cur.execute(f"DELETE FROM {quote_identifier(t)};")
             conn.commit()
             conn.close()
             return {"status": "success", "message": "Cleared all customer database records and uploaded datasets."}
@@ -228,14 +285,15 @@ class DatabaseManager:
 
         # Primary PostgreSQL / In-Memory DB
         pg_connected = is_db_connected()
+        primary_tables = [s["table_name"] for s in self.get_database_schema("primary_db")]
         result.append({
             "id": "primary_db",
             "name": "Primary Database (PostgreSQL + pgvector)" if pg_connected else "Primary Database (In-Memory Store)",
             "type": "postgresql" if pg_connected else "in_memory",
             "status": "connected",
             "is_builtin": True,
-            "table_count": 4,
-            "tables": ["documents", "document_chunks", "chat_history", "students"],
+            "table_count": len(primary_tables),
+            "tables": primary_tables,
         })
 
         for db_id, db_info in self.databases.items():
@@ -271,6 +329,8 @@ class DatabaseManager:
                             for r in rows:
                                 table_map.setdefault(r[0], []).append({"column": r[1], "type": r[2]})
                             for t_name, cols in table_map.items():
+                                if t_name in HIDDEN_PG_TABLES:
+                                    continue
                                 schemas.append({"table_name": t_name, "columns": cols})
                     except Exception as e:
                         logger.error(f"Error fetching PG schema: {e}")
@@ -281,10 +341,6 @@ class DatabaseManager:
                         {"column": "email", "type": "VARCHAR"}, {"column": "department", "type": "VARCHAR"},
                         {"column": "gpa", "type": "NUMERIC"}, {"column": "enrolled_year", "type": "INT"},
                         {"column": "status", "type": "VARCHAR"},
-                    ]},
-                    {"table_name": "documents", "columns": [
-                        {"column": "id", "type": "UUID"}, {"column": "title", "type": "VARCHAR"},
-                        {"column": "file_type", "type": "VARCHAR"},
                     ]},
                 ]
             return schemas
@@ -299,14 +355,16 @@ class DatabaseManager:
                 cur = conn.cursor()
                 cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
                 tables = [t[0] for t in cur.fetchall()]
+                if os.path.normpath(db_info["uri_or_path"]) == self.sqlite_db_path:
+                    tables = [t for t in tables if t not in HIDDEN_SQLITE_TABLES]
                 for t in tables:
-                    cur.execute(f"PRAGMA table_info('{t}');")
+                    cur.execute(f"PRAGMA table_info({quote_identifier(t)});")
                     cols = [{"column": col[1], "type": col[2] or "TEXT"} for col in cur.fetchall()]
                     schemas.append({"table_name": t, "columns": cols})
                 conn.close()
             except Exception as e:
                 logger.error(f"Error reading SQLite schema for {db_id}: {e}")
-        elif db_info["type"] in ["postgresql", "postgres", "mysql"]:
+        elif db_info["type"] in ["postgresql", "postgres"]:
             try:
                 import psycopg2
                 conn = psycopg2.connect(db_info["uri_or_path"], connect_timeout=3)
@@ -325,7 +383,7 @@ class DatabaseManager:
                     schemas.append({"table_name": t_name, "columns": cols})
                 conn.close()
             except Exception as e:
-                logger.error(f"Error reading Postgres/MySQL schema for {db_id}: {e}")
+                logger.error(f"Error reading Postgres schema for {db_id}: {e}")
 
         return schemas
 
@@ -342,7 +400,7 @@ class DatabaseManager:
                 col_strs = [f"{c['column']} ({c['type']})" for c in s["columns"]]
                 summary_lines.append(f"  - Table '{s['table_name']}': {', '.join(col_strs)}")
                 try:
-                    sample_res = self.execute_safe_sql(f"SELECT * FROM {s['table_name']} LIMIT 2;", db_id=db["id"])
+                    sample_res = self.execute_safe_sql(f"SELECT * FROM {quote_identifier(s['table_name'])} LIMIT 2;", db_id=db["id"])
                     if sample_res and sample_res.get("rows"):
                         summary_lines.append(f"    Sample Row Values: {json.dumps(sample_res['rows'][:2])}")
                 except Exception:
@@ -351,12 +409,16 @@ class DatabaseManager:
 
     def register_connection(self, name: str, db_type: str, uri_or_path: str) -> Dict[str, Any]:
         """Registers a new external database connection (PostgreSQL, MySQL, or SQLite)."""
+        if db_type not in SUPPORTED_DB_TYPES:
+            raise ValueError(
+                f"Unsupported database type '{db_type}'. Supported types: postgresql, sqlite."
+            )
         db_id = f"db_{re.sub(r'[^a-zA-Z0-9]', '_', name.lower())}_{len(self.databases) + 1}"
 
         if db_type == "sqlite":
             if not os.path.exists(uri_or_path):
                 raise ValueError(f"SQLite file path does not exist: {uri_or_path}")
-            conn = sqlite3.connect(uri_or_path)
+            conn = _sqlite_read_only_connect(uri_or_path)
             conn.close()
         elif db_type in ["postgresql", "postgres"]:
             import psycopg2
@@ -418,47 +480,75 @@ class DatabaseManager:
     # SQL execution
     # ------------------------------------------------------------------
 
-    def execute_safe_sql(self, sql_query: str, db_id: Optional[str] = "customer_support_db") -> Dict[str, Any]:
-        """Validates that SQL is read-only SELECT and executes against the target database."""
-        clean_sql = sql_query.strip()
-        if not re.match(r"^(SELECT|WITH)\b", clean_sql, re.IGNORECASE):
-            raise ValueError("Unauthorized SQL command. Only read-only SELECT queries are allowed.")
-        if any(
-            forbidden in clean_sql.upper()
-            for forbidden in ["DROP", "DELETE", "UPDATE", "INSERT", "ALTER", "TRUNCATE", "CREATE"]
-        ):
-            raise ValueError("Modifying SQL statements are strictly forbidden for AI query execution.")
+    def param_placeholder(self, db_id: Optional[str]) -> str:
+        """Returns the bound-parameter placeholder for *db_id* ('?' or '%s')."""
+        target = db_id or "customer_support_db"
+        if target == "primary_db":
+            return "%s"
+        info = self.databases.get(target) or self.databases.get("customer_support_db") or {}
+        return "?" if info.get("type") == "sqlite" else "%s"
+
+    def execute_safe_sql(
+        self,
+        sql_query: str,
+        db_id: Optional[str] = "customer_support_db",
+        params: Optional[List[Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Validates that SQL is a single read-only SELECT and executes it against
+        the target database over a read-only connection / transaction.
+
+        Pass user-supplied values via ``params`` (using :meth:`param_placeholder`)
+        instead of formatting them into the SQL string.
+        """
+        clean_sql = validate_read_only_sql(sql_query)
+        bound = tuple(params) if params else ()
+
+        def _rows(cur) -> Dict[str, Any]:
+            cols = [desc[0] for desc in cur.description] if cur.description else []
+            formatted_rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+            return {"columns": cols, "rows": formatted_rows, "rowCount": len(formatted_rows), "query": clean_sql}
 
         target_id = db_id or "customer_support_db"
         if target_id == "primary_db":
             with get_db_connection() as conn:
                 if not conn:
-                    return {"columns": [], "rows": [], "error": "Primary DB not connected."}
+                    return {"columns": [], "rows": [], "error": "Primary DB not connected.", "query": clean_sql}
                 try:
                     with conn.cursor() as cur:
-                        cur.execute(clean_sql)
-                        cols = [desc[0] for desc in cur.description] if cur.description else []
-                        rows = cur.fetchall()
-                        formatted_rows = [dict(zip(cols, row)) for row in rows]
-                        return {"columns": cols, "rows": formatted_rows, "rowCount": len(formatted_rows), "query": clean_sql}
+                        cur.execute("SET TRANSACTION READ ONLY;")
+                        cur.execute(clean_sql, bound or None)
+                        return _rows(cur)
                 except Exception as e:
                     return {"columns": [], "rows": [], "error": str(e), "query": clean_sql}
+                finally:
+                    conn.rollback()
 
-        db_info = self.databases.get(target_id)
-        if not db_info:
-            target_id = "customer_support_db"
-            db_info = self.databases.get(target_id)
+        db_info = self.databases.get(target_id) or self.databases.get("customer_support_db")
 
         if db_info and db_info["type"] == "sqlite":
             try:
-                conn = sqlite3.connect(db_info["uri_or_path"])
-                cur = conn.cursor()
-                cur.execute(clean_sql)
-                cols = [desc[0] for desc in cur.description] if cur.description else []
-                rows = cur.fetchall()
-                formatted_rows = [dict(zip(cols, row)) for row in rows]
-                conn.close()
-                return {"columns": cols, "rows": formatted_rows, "rowCount": len(formatted_rows), "query": clean_sql}
+                conn = _sqlite_read_only_connect(db_info["uri_or_path"])
+                try:
+                    cur = conn.cursor()
+                    cur.execute(clean_sql, bound)
+                    return _rows(cur)
+                finally:
+                    conn.close()
+            except Exception as e:
+                return {"columns": [], "rows": [], "error": str(e), "query": clean_sql}
+
+        if db_info and db_info["type"] in ("postgresql", "postgres"):
+            try:
+                import psycopg2
+                conn = psycopg2.connect(db_info["uri_or_path"], connect_timeout=3)
+                try:
+                    conn.set_session(readonly=True)
+                    with conn.cursor() as cur:
+                        cur.execute(clean_sql, bound or None)
+                        return _rows(cur)
+                finally:
+                    conn.close()
             except Exception as e:
                 return {"columns": [], "rows": [], "error": str(e), "query": clean_sql}
 

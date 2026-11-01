@@ -16,7 +16,7 @@ from typing import Any, Dict, List
 import psycopg2.extras
 
 from rag_v2.tools.registry import register_tool
-from rag_v2.storage.db import get_db_connection
+from rag_v2.storage.db import require_db_connection
 
 logger = logging.getLogger("rag_v2.tools.sql_tools")
 
@@ -44,6 +44,10 @@ def _validate_and_sanitise(sql: str) -> str:
         raise ValueError(
             "Only SELECT statements (or CTEs starting with WITH … SELECT) are permitted."
         )
+
+    # Exactly one statement (ignoring semicolons inside string literals)
+    if ";" in re.sub(r"'(?:[^']|'')*'", "''", clean):
+        raise ValueError("Only a single SQL statement is permitted.")
 
     # Block dangerous keywords
     match = _FORBIDDEN_PATTERN.search(clean)
@@ -88,13 +92,14 @@ def execute_sql(sql_query: str) -> List[Dict[str, Any]]:
         safe_sql = _validate_and_sanitise(sql_query)
         logger.info("execute_sql: %s", safe_sql)
 
-        conn = get_db_connection()
-        try:
-            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute(safe_sql)
-                rows = cur.fetchall()
-        finally:
-            conn.close()
+        with require_db_connection() as conn:
+            try:
+                with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                    cur.execute("SET TRANSACTION READ ONLY;")
+                    cur.execute(safe_sql)
+                    rows = cur.fetchall()
+            finally:
+                conn.rollback()  # read-only work: end the transaction
 
         result = [dict(row) for row in rows]
         logger.info("execute_sql returned %d rows.", len(result))
@@ -132,13 +137,14 @@ def list_rag_documents() -> List[Dict[str, Any]]:
         )
         logger.info("list_rag_documents: executing query.")
 
-        conn = get_db_connection()
-        try:
-            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute(sql)
-                rows = cur.fetchall()
-        finally:
-            conn.close()
+        with require_db_connection() as conn:
+            try:
+                with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                    cur.execute("SET TRANSACTION READ ONLY;")
+                    cur.execute(sql)
+                    rows = cur.fetchall()
+            finally:
+                conn.rollback()  # read-only work: end the transaction
 
         result = [dict(row) for row in rows]
         logger.info("list_rag_documents returned %d documents.", len(result))
