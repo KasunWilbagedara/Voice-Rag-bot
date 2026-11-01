@@ -25,6 +25,21 @@ TOOL_SERVICE_URL = os.getenv(
     f"http://localhost:{TOOL_PORT}/api/tools/call",
 )
 
+# Browser origins allowed to call the Python services directly (comma-separated).
+# The Next.js UI calls the backends server-side through its /api proxy routes,
+# so in the default setup only the UI origin needs to be listed.
+CORS_ORIGINS = [
+    o.strip()
+    for o in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+    if o.strip()
+]
+
+# Shared secret for destructive / administrative endpoints (document upload &
+# delete, database connect/reset/seed, student writes, raw tool calls).
+# When set, callers must send it in the ``x-admin-key`` header; the Next.js
+# proxy forwards it automatically. Leave empty for local development.
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
+
 
 def get_api_key(custom_api_key: str = None) -> str:
     key = custom_api_key or GEMINI_API_KEY or OPENAI_API_KEY

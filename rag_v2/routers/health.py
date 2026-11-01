@@ -21,12 +21,12 @@ router = APIRouter(tags=["Health"])
 
 
 @router.get("/health", summary="Health check")
-async def health_check() -> JSONResponse:
+def health_check() -> JSONResponse:
     """
     Returns the operational status of the RAG v2 service including
     database connectivity and LLM provider availability.
     """
-    db_ok = await is_db_connected()
+    db_ok = is_db_connected()
 
     # Determine LLM provider
     if os.getenv("GEMINI_API_KEY"):

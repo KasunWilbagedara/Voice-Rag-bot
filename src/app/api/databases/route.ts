@@ -1,16 +1,17 @@
 import { NextResponse } from 'next/server';
+import { BACKEND2_URL, adminHeaders } from '../_lib/backend';
 
 // Databases & SQL tools are served by the Tool Execution Service (Port 8001)
-const PYTHON_TOOL_BACKEND_URL = process.env.PYTHON_TOOL_BACKEND_URL || 'http://localhost:8001';
+
+async function forward(path: string, init: RequestInit = {}) {
+  const res = await fetch(`${BACKEND2_URL}${path}`, { cache: 'no-store', ...init });
+  const data = await res.json();
+  return NextResponse.json(data, { status: res.status });
+}
 
 export async function GET() {
   try {
-    const res = await fetch(`${PYTHON_TOOL_BACKEND_URL}/api/databases`, {
-      headers: { 'Content-Type': 'application/json' },
-      cache: 'no-store',
-    });
-    const data = await res.json();
-    return NextResponse.json(data, { status: res.status });
+    return await forward('/api/databases');
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to connect to Python backend' }, { status: 502 });
   }
@@ -18,66 +19,36 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const url = new URL(req.url);
-    const action = url.searchParams.get('action');
+    const action = new URL(req.url).searchParams.get('action');
+    const json = { 'Content-Type': 'application/json' };
 
-    if (action === 'upload-csv') {
-      const formData = await req.formData();
-      const res = await fetch(`${PYTHON_TOOL_BACKEND_URL}/api/databases/upload-csv`, {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await res.json();
-      return NextResponse.json(data, { status: res.status });
+    switch (action) {
+      case 'upload-csv':
+        return await forward('/api/databases/upload-csv', {
+          method: 'POST',
+          headers: adminHeaders(),
+          body: await req.formData(),
+        });
+      case 'connect':
+        return await forward('/api/databases/connect', {
+          method: 'POST',
+          headers: adminHeaders(json),
+          body: JSON.stringify(await req.json()),
+        });
+      case 'query':
+        // Read-only SELECT queries — not an admin action.
+        return await forward('/api/databases/query', {
+          method: 'POST',
+          headers: json,
+          body: JSON.stringify(await req.json()),
+        });
+      case 'seed':
+        return await forward('/api/databases/seed', { method: 'POST', headers: adminHeaders(json) });
+      case 'reset':
+        return await forward('/api/databases/reset', { method: 'POST', headers: adminHeaders(json) });
+      default:
+        return await forward('/api/databases/schemas');
     }
-
-    if (action === 'connect') {
-      const body = await req.json();
-      const res = await fetch(`${PYTHON_TOOL_BACKEND_URL}/api/databases/connect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      return NextResponse.json(data, { status: res.status });
-    }
-
-    if (action === 'query') {
-      const body = await req.json();
-      const res = await fetch(`${PYTHON_TOOL_BACKEND_URL}/api/databases/query`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      return NextResponse.json(data, { status: res.status });
-    }
-
-    if (action === 'seed') {
-      const res = await fetch(`${PYTHON_TOOL_BACKEND_URL}/api/databases/seed`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      const data = await res.json();
-      return NextResponse.json(data, { status: res.status });
-    }
-
-    if (action === 'reset') {
-      const res = await fetch(`${PYTHON_TOOL_BACKEND_URL}/api/databases/reset`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      const data = await res.json();
-      return NextResponse.json(data, { status: res.status });
-    }
-
-    // Default list schemas
-    const res = await fetch(`${PYTHON_TOOL_BACKEND_URL}/api/databases/schemas`, {
-      headers: { 'Content-Type': 'application/json' },
-      cache: 'no-store',
-    });
-    const data = await res.json();
-    return NextResponse.json(data, { status: res.status });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to connect to Python backend' }, { status: 502 });
   }
@@ -85,17 +56,14 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const url = new URL(req.url);
-    const dbId = url.searchParams.get('dbId');
+    const dbId = new URL(req.url).searchParams.get('dbId');
     if (!dbId) {
       return NextResponse.json({ error: 'dbId parameter is required' }, { status: 400 });
     }
-
-    const res = await fetch(`${PYTHON_TOOL_BACKEND_URL}/api/databases/${dbId}`, {
+    return await forward(`/api/databases/${encodeURIComponent(dbId)}`, {
       method: 'DELETE',
+      headers: adminHeaders(),
     });
-    const data = await res.json();
-    return NextResponse.json(data, { status: res.status });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to connect to Python backend' }, { status: 502 });
   }

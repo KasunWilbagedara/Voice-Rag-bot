@@ -21,11 +21,12 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Any, Dict
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from backend.config import TOOL_PORT
+from backend.security import cors_kwargs, require_admin
 from backend.db import init_db_schema, close_db_pool, seed_initial_students, is_db_connected
 from backend import tools
 from backend.routers import databases, students, audio, memory, agentic_rag
@@ -67,13 +68,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, **cors_kwargs())
 
 # ── Agentic RAG (multi-step LLM reasoning + tools) ──────────────────────────
 app.include_router(agentic_rag.router)
@@ -160,7 +155,7 @@ def list_all_tools():
     return {"tools": tool_list, "count": len(tool_list)}
 
 
-@app.post("/api/tools/call")
+@app.post("/api/tools/call", dependencies=[Depends(require_admin)])
 def call_tool_endpoint(req: ToolCallRequest):
     """
     Execute any registered tool by name with arbitrary keyword parameters.

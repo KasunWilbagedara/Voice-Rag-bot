@@ -10,11 +10,13 @@ Features:
   - Batch embedding helper
 """
 
+import hashlib
 import logging
 from collections import OrderedDict
 from typing import Dict, List, Optional
 
 from rag_v2.config import (
+    EMBEDDING_DIM,
     GEMINI_EMBEDDING_MODEL,
     OPENAI_EMBEDDING_MODEL,
     get_api_key,
@@ -65,6 +67,8 @@ def _embed_gemini(text: str, api_key: str) -> List[float]:
     response = client.models.embed_content(
         model=GEMINI_EMBEDDING_MODEL,
         contents=text,
+        # gemini-embedding-001 defaults to 3072 dims; the DB column is vector(EMBEDDING_DIM)
+        config={"output_dimensionality": EMBEDDING_DIM},
     )
     # The SDK returns an EmbedContentResponse; access the values list
     embedding = response.embeddings[0].values
@@ -86,6 +90,7 @@ def _embed_openai(text: str, api_key: str) -> List[float]:
     response = client.embeddings.create(
         model=OPENAI_EMBEDDING_MODEL,
         input=text,
+        dimensions=EMBEDDING_DIM,  # text-embedding-3-* support shortened outputs
     )
     embedding = response.data[0].embedding
     logger.debug("OpenAI embedding: %d dims", len(embedding))
@@ -121,7 +126,7 @@ def get_embedding(
     Returns
     -------
     List[float]
-        Embedding vector (768-dim for Gemini, 1536-dim for OpenAI).
+        Embedding vector with ``EMBEDDING_DIM`` (768) dimensions for either provider.
     """
     # Resolve API key
     resolved_key = api_key or get_api_key()
@@ -141,11 +146,10 @@ def get_embedding(
     cleaned = text.strip()[:8000]
     if not cleaned:
         logger.warning("get_embedding called with empty text; returning zero vector")
-        dim = 768 if resolved_provider == "gemini" else 1536
-        return [0.0] * dim
+        return [0.0] * EMBEDDING_DIM
 
     # Cache lookup
-    cache_key = f"{cleaned[:100]}|{resolved_provider}"
+    cache_key = f"{resolved_provider}|{hashlib.sha256(cleaned.encode('utf-8')).hexdigest()}"
     cached = _cache_get(cache_key)
     if cached is not None:
         logger.debug("Cache hit for embedding (provider=%s)", resolved_provider)

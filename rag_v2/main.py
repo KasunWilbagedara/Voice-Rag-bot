@@ -18,7 +18,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from rag_v2.config import PORT
+from rag_v2.config import CORS_ORIGINS, PORT
 from rag_v2.routers import documents, health, ingest, memory, query
 from rag_v2.storage.db import close_db_pool, init_db_schema
 from rag_v2.tools import list_tools
@@ -62,8 +62,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Initialise database schema (creates tables / extensions if missing)
     try:
-        await init_db_schema()
-        logger.info("Database schema initialised successfully.")
+        if init_db_schema():
+            logger.info("Database schema initialised successfully.")
+        else:
+            logger.error("Database schema initialisation failed — DB endpoints will be unavailable.")
     except Exception as exc:
         logger.error("Database schema initialisation failed: %s", exc)
         # We continue anyway so the service can still serve non-DB endpoints
@@ -102,7 +104,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # ------------------------------------------------------------------ #
     logger.info("RAG v2 — shutting down…")
     try:
-        await close_db_pool()
+        close_db_pool()
         logger.info("Database connection pool closed.")
     except Exception as exc:
         logger.error("Error closing DB pool: %s", exc)
@@ -133,7 +135,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

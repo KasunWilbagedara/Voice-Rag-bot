@@ -25,13 +25,14 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Dict, Optional
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import Depends, FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 # Load tools on startup
 from backend import tools as tools_module
+from backend.security import cors_kwargs, require_admin
 
 logging.basicConfig(
     level=logging.INFO,
@@ -161,13 +162,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, **cors_kwargs())
 
 
 # ---------------------------------------------------------------------------
@@ -232,7 +227,7 @@ class MCPCallRequest(BaseModel):
     parameters: Dict[str, Any] = {}
 
 
-@app.post("/mcp/call")
+@app.post("/mcp/call", dependencies=[Depends(require_admin)])
 def mcp_call_tool(req: MCPCallRequest):
     """Simple HTTP endpoint to call any tool (no SSE required)."""
     try:

@@ -22,14 +22,14 @@ router = APIRouter(prefix="/api/v2", tags=["Memory"])
     "/memory/{session_id}",
     summary="Get conversation history for a session",
 )
-async def get_session_history(session_id: str) -> JSONResponse:
+def get_session_history(session_id: str) -> JSONResponse:
     """
     Returns up to 50 messages for the given *session_id*, ordered from
     oldest to newest.  Each entry contains a ``role`` (``user`` or
     ``assistant``) and the message ``content``.
     """
     try:
-        history = await get_history(session_id, limit=50)
+        history = get_history(session_id, limit=50)
     except Exception as exc:
         logger.exception(
             "Failed to retrieve history for session '%s': %s", session_id, exc
@@ -58,7 +58,7 @@ async def get_session_history(session_id: str) -> JSONResponse:
     "/memory/{session_id}",
     summary="Clear conversation history for a session",
 )
-async def clear_session_history(session_id: str) -> JSONResponse:
+def clear_session_history(session_id: str) -> JSONResponse:
     """
     Permanently removes all stored messages for the given *session_id*.
     Returns the number of messages that were deleted so the caller can
@@ -66,8 +66,7 @@ async def clear_session_history(session_id: str) -> JSONResponse:
     """
     # Fetch count before clearing so we can report it
     try:
-        history_before = await get_history(session_id, limit=50)
-        message_count = len(history_before)
+        message_count = len(get_history(session_id, limit=50))
     except Exception as exc:
         logger.warning(
             "Could not pre-fetch history count for session '%s': %s", session_id, exc
@@ -75,7 +74,7 @@ async def clear_session_history(session_id: str) -> JSONResponse:
         message_count = 0
 
     try:
-        await clear_history(session_id)
+        message_count = clear_history(session_id) or message_count
     except Exception as exc:
         logger.exception(
             "Failed to clear history for session '%s': %s", session_id, exc

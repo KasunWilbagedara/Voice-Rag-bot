@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from rank_bm25 import BM25Okapi  # type: ignore
 
-from rag_v2.storage.db import get_db_connection
+from rag_v2.storage.db import require_db_connection
 
 logger = logging.getLogger("rag_v2.core.retriever")
 
@@ -73,8 +73,7 @@ def vector_search(
 
     results: List[Dict[str, Any]] = []
     try:
-        conn = get_db_connection()
-        with conn.cursor() as cur:
+        with require_db_connection() as conn, conn.cursor() as cur:
             cur.execute(base_sql, params)
             rows = cur.fetchall()
             cols = [desc[0] for desc in cur.description]
@@ -90,7 +89,6 @@ def vector_search(
                 elif meta is None:
                     record["metadata"] = {}
                 results.append(record)
-        conn.close()
         logger.debug("vector_search returned %d results", len(results))
     except Exception as exc:  # noqa: BLE001
         logger.error("vector_search failed: %s", exc, exc_info=True)
@@ -137,8 +135,7 @@ def bm25_search(
 
     all_chunks: List[Dict[str, Any]] = []
     try:
-        conn = get_db_connection()
-        with conn.cursor() as cur:
+        with require_db_connection() as conn, conn.cursor() as cur:
             cur.execute(fetch_sql)
             rows = cur.fetchall()
             cols = [desc[0] for desc in cur.description]
@@ -153,7 +150,6 @@ def bm25_search(
                 elif meta is None:
                     record["metadata"] = {}
                 all_chunks.append(record)
-        conn.close()
     except Exception as exc:  # noqa: BLE001
         logger.error("bm25_search DB fetch failed: %s", exc, exc_info=True)
         return []

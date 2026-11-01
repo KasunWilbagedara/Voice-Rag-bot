@@ -100,10 +100,13 @@ def clear_memories(session_id: str = Query("default_user", alias="sessionId")):
 # ---------------- CONVERSATION HISTORY ENDPOINTS ----------------
 
 @router.get("/api/history")
-def list_history(limit: int = Query(30, ge=1, le=100)):
-    """Retrieves saved conversation history across sessions."""
+def list_history(
+    limit: int = Query(30, ge=1, le=100),
+    session_id: Optional[str] = Query(None, alias="sessionId"),
+):
+    """Retrieves saved conversation history (one session's when ``sessionId`` is given)."""
     try:
-        history = get_saved_chat_history(limit=limit)
+        history = get_saved_chat_history(limit=limit, session_id=session_id)
         return {
             "success": True,
             "history": history,
@@ -115,10 +118,10 @@ def list_history(limit: int = Query(30, ge=1, le=100)):
 
 
 @router.delete("/api/history")
-def clear_history():
-    """Clears all persistent conversation history."""
+def clear_history(session_id: Optional[str] = Query(None, alias="sessionId")):
+    """Clears persistent conversation history (one session's when ``sessionId`` is given)."""
     try:
-        success = clear_saved_chat_history()
+        success = clear_saved_chat_history(session_id)
         return {
             "success": success,
             "message": "Chat history cleared successfully.",

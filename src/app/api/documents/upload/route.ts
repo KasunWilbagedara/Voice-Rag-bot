@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-
-const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://localhost:8000';
+import { BACKEND1_URL, adminHeaders } from '../../_lib/backend';
 
 export async function POST(req: Request) {
   try {
     const formData = await req.formData();
-    const res = await fetch(`${PYTHON_BACKEND_URL}/api/documents/upload`, {
+    const res = await fetch(`${BACKEND1_URL}/api/documents/upload`, {
       method: 'POST',
+      headers: adminHeaders(),
       body: formData,
     });
 

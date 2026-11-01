@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://localhost:8000';
+import { BACKEND1_URL as PYTHON_BACKEND_URL } from '../_lib/backend';
 
 export async function POST(req: Request) {
   try {

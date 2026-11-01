@@ -2,7 +2,8 @@ import time
 import base64
 import logging
 from typing import Optional
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Response
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Response, Header
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 from backend.audio_service import (
@@ -10,12 +11,8 @@ from backend.audio_service import (
     generate_speech_audio_async,
     extract_conversational_voice_summary,
 )
-from backend.rag import (
-    get_text_embedding as get_embedding,
-    search_similar_chunks as search_vector_database,
-    query_rag as generate_voice_rag_answer,
-    save_chat_history,
-)
+from backend.rag import save_chat_history
+from backend.rag.pipeline import normalize_mode, run_rag_turn
 
 router = APIRouter(tags=["Audio"])
 logger = logging.getLogger("voicerag.audio_router")
@@ -44,7 +41,8 @@ async def speech_to_text(
         if len(audio_bytes) > max_audio_size:
             raise HTTPException(status_code=413, detail="Audio file size exceeds maximum allowed limit of 25MB.")
 
-        transcribed_text = transcribe_audio(
+        transcribed_text = await run_in_threadpool(
+            transcribe_audio,
             audio_bytes=audio_bytes,
             filename=audio.filename or "recording.webm",
             custom_api_key=apiKey,
@@ -52,6 +50,8 @@ async def speech_to_text(
         )
 
         return {"text": transcribed_text}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"STT API Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -94,11 +94,13 @@ async def unified_voice_pipeline(
     language: Optional[str] = Form("si"),
     speed: Optional[float] = Form(1.0),
     sessionId: Optional[str] = Form("default_user"),
+    x_backend_mode: Optional[str] = Header(default=None, alias="x-backend-mode"),
 ):
     """
     Unified low-latency Voice-RAG pipeline:
     1. Speech-to-Text (STT) via ultra-fast Gemini Flash Lite
-    2. Hybrid Cross-Lingual Vector & DB RAG Retrieval
+    2. RAG answer in the requested mode (``x-backend-mode``: pure | tools;
+       absent → standard RAG with tool enrichment)
     3. Complete AI Answer Generation
     4. Voice-Optimized Conversational Summary generation
     5. High-fidelity Neural Speech Synthesis on the conversational summary (under ~0.8s)
@@ -115,7 +117,8 @@ async def unified_voice_pipeline(
 
         # 1. Speech-to-Text
         stt_t0 = time.time()
-        user_query_text = transcribe_audio(
+        user_query_text = await run_in_threadpool(
+            transcribe_audio,
             audio_bytes=audio_bytes,
             filename=audio.filename or "recording.webm",
             custom_api_key=apiKey,
@@ -129,28 +132,21 @@ async def unified_voice_pipeline(
                 detail="Could not transcribe any speech from recording.",
             )
 
-        # 2. Cross-Lingual Vector & BM25 Hybrid Search
+        # 2-3. Retrieval + LLM answer in the requested backend mode
         rag_t0 = time.time()
-        query_embedding = get_embedding(user_query_text, apiKey)
-        retrieved_chunks = search_vector_database(
-            query_embedding=query_embedding,
-            top_k=6,
-            query_text=user_query_text,
-            custom_api_key=apiKey,
-        )
-
-        # 3. LLM Answer Generation
-        # Default to gemini-3.5-flash-lite for lowest latency
-        active_model = model or "gemini-3.5-flash-lite"
-        rag_res = generate_voice_rag_answer(
+        mode = normalize_mode(x_backend_mode)
+        session_id = sessionId or "default_user"
+        rag_res = await run_in_threadpool(
+            run_rag_turn,
             user_query=user_query_text,
-            retrieved_chunks=retrieved_chunks,
+            mode=mode,
             custom_api_key=apiKey,
-            model_name=active_model,
+            # Default to gemini-3.5-flash-lite for lowest latency
+            model_name=model or "gemini-3.5-flash-lite",
             target_language=language or "si",
             provider=provider,
             base_url=baseUrl,
-            session_id=sessionId or "default_user",
+            session_id=session_id,
         )
         rag_duration = round(time.time() - rag_t0, 2)
 
@@ -158,7 +154,7 @@ async def unified_voice_pipeline(
         final_chunks = rag_res["retrievedChunks"]
 
         # 4. Save Chat History
-        save_chat_history(user_query_text, final_chunks, ai_response_text)
+        save_chat_history(user_query_text, final_chunks, ai_response_text, session_id)
 
         # 5. Extract Voice-Optimized Spoken Summary (1-2 sentences for instant low-latency speech)
         voice_spoken_text = extract_conversational_voice_summary(
@@ -190,6 +186,8 @@ async def unified_voice_pipeline(
             "aiResponseText": ai_response_text,
             "voiceSpokenText": voice_spoken_text,
             "retrievedChunks": final_chunks,
+            "toolCalls": rag_res.get("toolCalls", []),
+            "mode": mode,
             "audioBase64": audio_base64,
             "audioFormat": "audio/mp3",
             "latency": {

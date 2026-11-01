@@ -146,6 +146,7 @@ def save_chat_history(
     user_query_text: str,
     retrieved_chunks: List[Dict[str, Any]],
     ai_response_text: str,
+    session_id: str = "default_user",
 ) -> None:
     """
     Persists a completed Q&A turn to both SQLite and PostgreSQL.
@@ -154,10 +155,11 @@ def save_chat_history(
         user_query_text:  The user's query string.
         retrieved_chunks: List of chunk dicts that were used in the response.
         ai_response_text: The generated answer text.
+        session_id:       Conversation session the turn belongs to.
     """
     chat_id = str(uuid.uuid4())
     created_at = datetime.utcnow().isoformat() + "Z"
-    chunks_json = json.dumps(retrieved_chunks)
+    chunks_json = json.dumps(retrieved_chunks, default=str)
 
     # SQLite
     try:
@@ -165,9 +167,9 @@ def save_chat_history(
         cur = conn.cursor()
         cur.execute(
             """INSERT INTO rag_chat_history
-               (id, user_query_text, retrieved_chunks, ai_response_text, created_at)
-               VALUES (?, ?, ?, ?, ?);""",
-            (chat_id, user_query_text, chunks_json, ai_response_text, created_at),
+               (id, session_id, user_query_text, retrieved_chunks, ai_response_text, created_at)
+               VALUES (?, ?, ?, ?, ?, ?);""",
+            (chat_id, session_id, user_query_text, chunks_json, ai_response_text, created_at),
         )
         conn.commit()
         conn.close()
@@ -181,9 +183,9 @@ def save_chat_history(
                 with conn.cursor() as cur:
                     cur.execute(
                         """INSERT INTO chat_history
-                           (id, user_query_text, retrieved_chunks, ai_response_text, created_at)
-                           VALUES (%s, %s, %s, %s, %s)""",
-                        (chat_id, user_query_text, chunks_json, ai_response_text, created_at),
+                           (id, session_id, user_query_text, retrieved_chunks, ai_response_text, created_at)
+                           VALUES (%s, %s, %s, %s, %s, %s)""",
+                        (chat_id, session_id, user_query_text, chunks_json, ai_response_text, created_at),
                     )
                     conn.commit()
             except Exception as e:

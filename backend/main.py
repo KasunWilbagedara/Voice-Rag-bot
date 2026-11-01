@@ -22,6 +22,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import PORT
+from backend.security import cors_kwargs
 from backend.db import init_db_schema, close_db_pool, is_db_connected, seed_initial_students
 from backend.routers import documents, rag, audio, memory
 
@@ -53,13 +54,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, **cors_kwargs())
 
 # ── Routers: RAG, Audio, Documents, Memory ───────────────────────────────────
 # NOTE: /api/agentic-rag, /api/students, /api/databases → served by Backend 2 (Port 8001)

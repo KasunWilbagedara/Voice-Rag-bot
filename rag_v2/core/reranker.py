@@ -14,7 +14,7 @@ import logging
 import re
 from typing import Any, Dict, List, Optional
 
-from rag_v2.config import get_api_key, is_gemini_key
+from rag_v2.config import GEMINI_MODEL, get_api_key, is_gemini_key
 
 logger = logging.getLogger("rag_v2.core.reranker")
 
@@ -74,7 +74,7 @@ def _call_gemini(prompt: str, api_key: str) -> str:
 
     client = genai.Client(api_key=api_key)
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model=GEMINI_MODEL,
         contents=prompt,
     )
     return response.text or ""

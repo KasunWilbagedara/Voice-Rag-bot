@@ -8,10 +8,11 @@ This router is mounted ONLY on tool_server.py (Port 8001).
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
+from backend.rag import save_chat_history
 from backend.rag.agentic_generator import agentic_query
 
 logger = logging.getLogger("voicerag.routers.agentic_rag")
@@ -21,7 +22,7 @@ router = APIRouter()
 
 class AgenticRAGRequest(BaseModel):
     query: str
-    sessionId: str = "default"
+    sessionId: str = "default_user"
     topK: int = 8
     apiKey: Optional[str] = None
 
@@ -43,14 +44,17 @@ def agentic_rag_endpoint(req: AgenticRAGRequest):
     if not req.query or not req.query.strip():
         raise HTTPException(status_code=400, detail="query must not be empty.")
 
+    query = req.query.strip()
+    session_id = req.sessionId or "default_user"
     try:
         result = agentic_query(
-            user_query=req.query.strip(),
-            session_id=req.sessionId,
+            user_query=query,
+            session_id=session_id,
             top_k=req.topK,
             custom_api_key=req.apiKey,
         )
-        return result
+        save_chat_history(query, result.get("retrievedChunks", []), result.get("answer", ""), session_id)
+        return {"query": query, **result}
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as exc:

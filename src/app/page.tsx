@@ -95,7 +95,7 @@ export default function Home() {
     const initHistoryAndMemory = async () => {
       try {
         const [histRes, memRes] = await Promise.all([
-          fetch('/api/history?limit=30'),
+          fetch(`/api/history?limit=30&sessionId=${encodeURIComponent(sessionId)}`),
           fetch(`/api/memory?sessionId=${encodeURIComponent(sessionId)}`),
         ]);
 
@@ -279,7 +279,7 @@ export default function Home() {
     if (chatHistory.length === 0) return;
     if (confirm('Clear all conversation history?')) {
       try {
-        await fetch('/api/history', { method: 'DELETE' });
+        await fetch(`/api/history?sessionId=${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
       } catch (e) {
         console.error('Failed to clear database history:', e);
       }
@@ -432,6 +432,7 @@ export default function Home() {
             baseUrl={baseUrl}
             language={language}
             sessionId={sessionId}
+            backendMode={backendMode}
             onLanguageChange={setLanguage}
             onQueryComplete={handleQueryCompleted}
           />
